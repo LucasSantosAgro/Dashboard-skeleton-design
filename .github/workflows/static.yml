@@ -1,10 +1,22 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["master"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     defaults:
       run:
-        # Altere para o nome da subpasta que está causando a duplicação
-        working-directory: Dashboard-skeleton-design 
+        # Se o seu projeto estiver na raiz, use apenas: .
+        # Se estiver dentro de uma pasta, coloque o nome exato da pasta aqui
+        working-directory: . 
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -16,8 +28,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Se o build gerar a pasta 'dist' dentro da subpasta, use o caminho abaixo
-          path: './Dashboard-skeleton-design/dist' 
+          # O caminho onde o vite gera o site (geralmente 'dist')
+          path: './dist'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
