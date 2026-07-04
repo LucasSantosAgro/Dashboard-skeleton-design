@@ -12,6 +12,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: . # Se o erro persistir, tente mudar para 'Dashboard-skeleton-design'
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
