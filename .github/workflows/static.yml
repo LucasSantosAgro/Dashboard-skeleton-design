@@ -15,12 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Vamos listar os arquivos na raiz para confirmar onde eles estão
-      - name: List files
-        run: ls -F
+      # Este comando vai listar a estrutura de pastas real
+      - name: Show directory structure
+        run: find . -maxdepth 3 -not -path '*/.*'
         
+      # Ajuste automático: tenta entrar na primeira subpasta que encontrar
       - name: Install and Build
         run: |
+          cd $(ls -d */ | head -n 1)
           npm install
           npm run build
       
@@ -30,8 +32,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Assumindo que o build gera a pasta 'dist' na raiz
-          path: './dist'
+          # Busca a pasta 'dist' dentro da subpasta encontrada
+          path: './*/dist'
           
       - name: Deploy to GitHub Pages
         id: deployment
