@@ -15,25 +15,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Este comando vai listar a estrutura de pastas real
-      - name: Show directory structure
-        run: find . -maxdepth 3 -not -path '*/.*'
-        
-      # Ajuste automático: tenta entrar na primeira subpasta que encontrar
+      # 1. Instala e faz o build (vamos tentar na raiz)
       - name: Install and Build
         run: |
-          cd $(ls -d */ | head -n 1)
           npm install
           npm run build
       
+      # 2. SE o build falhar, vamos tentar na subpasta com o mesmo nome
+      - name: Install and Build (Fallback)
+        if: failure()
+        run: |
+          cd Dashboard-skeleton-design
+          npm install
+          npm run build
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         
+      # 3. Upload: tenta pegar a pasta 'dist' da raiz ou da subpasta
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Busca a pasta 'dist' dentro da subpasta encontrada
-          path: './*/dist'
+          path: .
+          # Isso vai subir todo o conteúdo; o GitHub Pages vai procurar o index.html
           
       - name: Deploy to GitHub Pages
         id: deployment
