@@ -15,29 +15,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # 1. Instala e faz o build (vamos tentar na raiz)
-      - name: Install and Build
+      # Este comando encontra o caminho real do package.json
+      - name: Find and Build
         run: |
+          PACKAGE_PATH=$(find . -name "package.json" -not -path "*/node_modules/*" -print -quit | xargs dirname)
+          echo "Projeto encontrado em: $PACKAGE_PATH"
+          cd "$PACKAGE_PATH"
           npm install
           npm run build
+          # Define o caminho do dist para o próximo passo
+          echo "DIST_PATH=$PACKAGE_PATH/dist" >> $GITHUB_ENV
       
-      # 2. SE o build falhar, vamos tentar na subpasta com o mesmo nome
-      - name: Install and Build (Fallback)
-        if: failure()
-        run: |
-          cd Dashboard-skeleton-design
-          npm install
-          npm run build
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
         
-      # 3. Upload: tenta pegar a pasta 'dist' da raiz ou da subpasta
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
-          # Isso vai subir todo o conteúdo; o GitHub Pages vai procurar o index.html
+          path: ${{ env.DIST_PATH }}
           
       - name: Deploy to GitHub Pages
         id: deployment
