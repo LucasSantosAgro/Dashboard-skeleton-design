@@ -15,14 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Esta etapa lista os arquivos para vermos onde o package.json realmente está
+      # Vamos listar os arquivos na raiz para confirmar onde eles estão
       - name: List files
-        run: ls -R 
-
+        run: ls -F
+        
       - name: Install and Build
-        # Este comando entra na subpasta correta e roda o build
         run: |
-          cd Dashboard-skeleton-design
           npm install
           npm run build
       
@@ -32,8 +30,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Aponta para a pasta dist dentro da subpasta correta
-          path: './Dashboard-skeleton-design/dist'
+          # Assumindo que o build gera a pasta 'dist' na raiz
+          path: './dist'
           
       - name: Deploy to GitHub Pages
         id: deployment
