@@ -12,24 +12,29 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        # Se o seu projeto estiver na raiz, use apenas: .
-        # Se estiver dentro de uma pasta, coloque o nome exato da pasta aqui
-        working-directory: . 
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: npm install
-      - name: Build
-        run: npm run build
+      
+      # Esta etapa lista os arquivos para vermos onde o package.json realmente está
+      - name: List files
+        run: ls -R 
+
+      - name: Install and Build
+        # Este comando entra na subpasta correta e roda o build
+        run: |
+          cd Dashboard-skeleton-design
+          npm install
+          npm run build
+      
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # O caminho onde o vite gera o site (geralmente 'dist')
-          path: './dist'
+          # Aponta para a pasta dist dentro da subpasta correta
+          path: './Dashboard-skeleton-design/dist'
+          
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
