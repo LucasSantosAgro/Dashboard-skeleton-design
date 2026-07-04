@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main", "master"]
+    branches: ["master"] # Certifique-se de usar a branch que você está usando (master ou main)
 
 permissions:
   contents: read
@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: . # Se o erro persistir, tente mudar para 'Dashboard-skeleton-design'
+        # Tente "." se o package.json estiver na raiz. 
+        # Se estiver dentro de uma pasta, coloque o nome da pasta aqui:
+        working-directory: . 
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
