@@ -1,22 +1,10 @@
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: ["master"] # Certifique-se de usar a branch que você está usando (master ou main)
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     defaults:
       run:
-        # Tente "." se o package.json estiver na raiz. 
-        # Se estiver dentro de uma pasta, coloque o nome da pasta aqui:
-        working-directory: . 
+        # Altere para o nome da subpasta que está causando a duplicação
+        working-directory: Dashboard-skeleton-design 
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -28,7 +16,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          # Se o build gerar a pasta 'dist' dentro da subpasta, use o caminho abaixo
+          path: './Dashboard-skeleton-design/dist' 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
