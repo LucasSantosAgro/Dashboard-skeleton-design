@@ -11,8 +11,35 @@ export default function App() {
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "" });
 
   useEffect(() => {
-    async function load() { const { data } = await supabase.from('fat_pesagens').select('*'); setPesagens(data || []); }
+    // 1. Carga inicial dos dados
+    async function load() { 
+      const { data } = await supabase.from('fat_pesagens').select('*'); 
+      setPesagens(data || []); 
+    }
     load();
+
+    // 2. Configurar o Realtime para ouvir mudanças na tabela 'fat_pesagens'
+    const channel = supabase
+      .channel('realtime:fat_pesagens')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'fat_pesagens' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setPesagens((prev) => [...prev, payload.new]);
+          } else if (payload.eventType === 'UPDATE') {
+            setPesagens((prev) => prev.map(p => p.id === payload.new.id ? payload.new : p));
+          } else if (payload.eventType === 'DELETE') {
+            setPesagens((prev) => prev.filter(p => p.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    // 3. Limpeza do canal ao desmontar o componente
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filt = useMemo(() => pesagens.filter(p => 
