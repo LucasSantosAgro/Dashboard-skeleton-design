@@ -1,0 +1,39 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["master"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Este comando encontra o caminho real do package.json
+      - name: Find and Build
+        run: |
+          PACKAGE_PATH=$(find . -name "package.json" -not -path "*/node_modules/*" -print -quit | xargs dirname)
+          echo "Projeto encontrado em: $PACKAGE_PATH"
+          cd "$PACKAGE_PATH"
+          npm install
+          npm run build
+          # Define o caminho do dist para o próximo passo
+          echo "DIST_PATH=$PACKAGE_PATH/dist" >> $GITHUB_ENV
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.DIST_PATH }}
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
