@@ -15,16 +15,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Este comando encontra o caminho real do package.json
-      - name: Find and Build
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and Build
         run: |
+          # Encontra o caminho, instala e faz o build
           PACKAGE_PATH=$(find . -name "package.json" -not -path "*/node_modules/*" -print -quit | xargs dirname)
-          echo "Projeto encontrado em: $PACKAGE_PATH"
           cd "$PACKAGE_PATH"
           npm install
           npm run build
-          # Define o caminho do dist para o próximo passo
-          echo "DIST_PATH=$PACKAGE_PATH/dist" >> $GITHUB_ENV
+          # Move o conteúdo do dist para uma pasta fixa na raiz para facilitar o upload
+          mkdir -p ../dist_final
+          cp -r dist/* ../dist_final/
       
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -32,7 +37,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.DIST_PATH }}
+          path: './dist_final'
           
       - name: Deploy to GitHub Pages
         id: deployment
