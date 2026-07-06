@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+// force update - Atualização de infraestrutura
 // Configuração consolidada (substitua com suas chaves reais do painel API do Supabase)
 const supabaseUrl = 'https://tcevgekilsfndtvchdiz.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjZXZnZWtpbHNmbnRkdHZjaGRpeiIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgyNjUxMjAxLCJleHAiOjIwOTgyMjcyMDF9.qTYFS1DNu3S5EYhxQoANKCH-pFY3LfFTKMbo6IOk9JE';
@@ -72,7 +73,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-gray-900 text-white">
       <nav className="w-64 bg-black p-4">
-        <button onClick={() => setView('DASHBOARD')} className="block py-2 w-full text-left hover:text-blue-400">DASHBOARD</button>
+        <button onClick={() => setView('DASHBOARD (v2)')} className="block py-2 w-full text-left hover:text-blue-400">DASHBOARD (v2)</button>
         <button onClick={() => setView('ENTRADA')} className="block py-2 w-full text-left hover:text-blue-400">ENTRADA</button>
         <button onClick={() => setView('FINALIZACAO')} className="block py-2 w-full text-left hover:text-blue-400">FINALIZAÇÃO</button>
       </nav>
