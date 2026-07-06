@@ -32,11 +32,18 @@ export default function App() {
 
   if (!session) return (
     <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-white">
-      <form onSubmit={async (e) => { e.preventDefault(); await supabase.auth.signInWithPassword({ email: e.target.email.value, password: e.target.password.value }); }} className="bg-[#161B23] p-8 rounded border w-80">
+      <form onSubmit={async (e) => { 
+        e.preventDefault(); 
+        const { error } = await supabase.auth.signInWithPassword({ 
+          email: e.target.email.value, 
+          password: e.target.password.value 
+        });
+        if (error) alert("Erro de Login: " + error.message);
+      }} className="bg-[#161B23] p-8 rounded border border-gray-700 w-80">
         <h2 className="font-bold text-center mb-4">Login Operador</h2>
-        <input name="email" type="email" placeholder="E-mail" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required />
-        <input name="password" type="password" placeholder="Senha" className="w-full bg-[#1A2030] p-2 mb-4 rounded" required />
-        <button className="w-full bg-blue-600 p-2 rounded font-bold">Entrar</button>
+        <input name="email" type="email" placeholder="E-mail" className="w-full bg-[#1A2030] p-2 mb-2 rounded border border-gray-600" required />
+        <input name="password" type="password" placeholder="Senha" className="w-full bg-[#1A2030] p-2 mb-4 rounded border border-gray-600" required />
+        <button className="w-full bg-blue-600 p-2 rounded font-bold hover:bg-blue-500">Entrar</button>
       </form>
     </div>
   );
@@ -57,7 +64,6 @@ export default function App() {
           <div className="space-y-6">
             <div className="grid grid-cols-4 gap-4">
               <div className="bg-[#161B23] p-4 rounded border">PESAGENS: {filt.length}</div>
-              {/* Adicione aqui os outros KPIs do seu dashboard original */}
             </div>
           </div>
         ) : aba === "entrada" ? (
