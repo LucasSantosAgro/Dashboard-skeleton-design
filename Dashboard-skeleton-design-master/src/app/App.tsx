@@ -8,7 +8,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function App() {
   const [pesagens, setPesagens] = useState([]);
-  const [view, setView] = useState('DASHBOARD');
+  const [view, setView] = useState('DASHBOARD (v2)');
 
   useEffect(() => {
     fetchPesagens();
