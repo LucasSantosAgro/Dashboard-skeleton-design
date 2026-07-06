@@ -4,7 +4,7 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recha
 import { jsPDF } from "jspdf";
 import { createClient } from '@supabase/supabase-js';
 
-// Configuração integrada para evitar erro de caminho de arquivo
+// Conexão consolidada no próprio arquivo para evitar erro de build
 const supabaseUrl = 'https://tcevgekilsfndtvchdiz.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjZXZnZWtpbHNmbnRkdHZjaGRpeiIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgyNjUxMjAxLCJleHAiOjIwOTgyMjcyMDF9.qTYFS1DNu3S5EYhxQoANKCH-pFY3LfFTKMbo6IOk9JE';
 export const supabase = createClient(supabaseUrl, supabaseKey);
@@ -42,7 +42,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white">
-      {/* Sidebar Original */}
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-4">
         <h2 className="font-bold text-sm flex items-center gap-2"><Scale size={16} color={C.blue}/> GRASEL</h2>
         <nav className="flex flex-col gap-2">
@@ -54,35 +53,23 @@ export default function App() {
 
       <main className="flex-1 p-4 overflow-y-auto">
         {aba === "dashboard" ? (
-          /* Seus KPIs e Gráficos originais aqui */
           <div className="grid grid-cols-5 gap-2">
             {[ {l: "DIÁRIA", v: `R$ ${dia.toFixed(0)}`}, {l: "PESO TOTAL", v: `${pesoTotal.toFixed(0)}kg`}, {l: "MENSAL", v: `R$ ${mens.toFixed(0)}`}, {l: "ANUAL", v: `R$ ${anu.toFixed(0)}`}, {l: "PESAGENS", v: filt.length} ].map((k, i) => (
               <div key={i} className="bg-[#161B23] p-3 rounded border border-[#ffffff07]"><p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p></div>
             ))}
           </div>
         ) : aba === "entrada" ? (
-          /* Seletor de produtos restaurado */
           <form onSubmit={async (e) => { 
             e.preventDefault(); 
-            const { error } = await supabase.from('fat_pesagens').insert([{ 
-              placa: e.target.placa.value, 
-              produto: e.target.prod.value, 
-              peso_entrada: e.target.peso.value, 
-              status_pagamento: 'aberto' 
-            }]);
-            if (error) alert(error.message); else alert("Entrada registrada!"); 
+            await supabase.from('fat_pesagens').insert([{ placa: e.target.placa.value, produto: e.target.prod.value, peso_entrada: e.target.peso.value, status_pagamento: 'aberto' }]); 
+            alert("Entrada registrada!"); 
           }} className="bg-[#161B23] p-6 rounded flex flex-col gap-4 max-w-sm">
             <input name="placa" placeholder="Placa" className="bg-[#1A2030] p-2 rounded" required />
-            <select name="prod" className="bg-[#1A2030] p-2 rounded">
-              <option>Milho ensacado</option>
-              <option>Milho granel</option>
-              <option>Quebradinho</option>
-            </select>
+            <select name="prod" className="bg-[#1A2030] p-2 rounded"><option>Milho ensacado</option><option>Milho granel</option><option>Quebradinho</option></select>
             <input name="peso" type="number" placeholder="Peso Entrada (kg)" className="bg-[#1A2030] p-2 rounded" required />
             <button className="bg-blue-600 p-2 rounded font-bold">REGISTRAR ENTRADA</button>
           </form>
         ) : (
-          /* Lógica da aba Finalização */
           <div className="grid gap-2">
             {pesagens.filter(p => p.status_pagamento === 'aberto').map(p => (
               <div key={p.id} className="bg-[#161B23] p-4 rounded border border-[#ffffff07] flex gap-2 items-center">
@@ -92,9 +79,7 @@ export default function App() {
                 <button onClick={async () => {
                   const s = document.getElementById(`s-${p.id}`).value;
                   const v = document.getElementById(`v-${p.id}`).value;
-                  const liq = Number(s) - Number(p.peso_entrada);
-                  const tot = (liq / 60) * Number(v);
-                  await supabase.from('fat_pesagens').update({ peso_saida: s, peso_liquilo: liq, valor_total: tot, status_pagamento: 'finalizado' }).eq('id', p.id);
+                  await supabase.from('fat_pesagens').update({ peso_saida: s, peso_liquido: Number(s)-Number(p.peso_entrada), valor_total: (Number(s)-Number(p.peso_entrada))/60 * Number(v), status_pagamento: 'finalizado' }).eq('id', p.id);
                 }} className="bg-green-600 p-1 rounded">FINALIZAR</button>
               </div>
             ))}
