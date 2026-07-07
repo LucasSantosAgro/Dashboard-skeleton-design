@@ -167,8 +167,8 @@ export default function App() {
               <form key={p.id} onSubmit={(e) => finalizarPesagem(p, e)} className="bg-[#161B23] p-4 rounded flex flex-col gap-2 border border-[#ffffff07] text-[11px]">
                 <div className="flex justify-between font-bold text-blue-400"><span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada}kg</span></div>
                 <div className="flex gap-2">
-                  <input name="peso_saida" type="number" placeholder="Peso Saída" className="bg-[#1A2030] p-1 rounded flex-1" required />
-                  <input name="valor_saca" type="number" placeholder="R$ Saca" className="bg-[#1A2030] p-1 rounded flex-1" required />
+                  <input name="peso_saida" type="number" placeholder="Peso Saída" min={p.peso_entrada + 1} className="bg-[#1A2030] p-1 rounded flex-1" required />
+                  <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca (Ex: 66.50)" className="bg-[#1A2030] p-1 rounded flex-1" required />
                   <select name="pag" className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
                   <button className="bg-green-600 p-1 px-4 rounded font-bold">FINALIZAR</button>
                 </div>
