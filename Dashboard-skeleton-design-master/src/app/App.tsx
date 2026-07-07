@@ -1,29 +1,36 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Scale, PlusCircle, CheckCircle, BarChart3 } from "lucide-react";
+import { Scale, PlusCircle, CheckCircle, BarChart3, Loader2 } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
 
-const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", muted: "#A0AEC0", text: "#FFFFFF", border: "rgba(255,255,255,0.07)" };
+const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
 export default function App() {
   const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState("dashboard");
   const [pesagens, setPesagens] = useState([]);
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "" });
 
   async function load() {
+    setLoading(true);
     const { data } = await supabase.from('fat_pesagens').select('*');
     setPesagens(data || []);
+    setLoading(false);
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    supabase.auth.onAuthStateChange((_, session) => setSession(session));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) load(); else setLoading(false);
+    });
+    supabase.auth.onAuthStateChange((_, session) => {
+      setSession(session);
+      if (session) load();
+    });
   }, []);
-
-  useEffect(() => { if (session) load(); }, [session]);
 
   const registrarEntrada = async (e) => {
     e.preventDefault();
@@ -61,12 +68,13 @@ export default function App() {
   const filt = useMemo(() => pesagens.filter(p => (f.prod === "" || p.produto === f.prod) && (f.pag === "" || p.forma_pagamento === f.pag) && (!f.dataI || p.data >= f.dataI) && (!f.dataF || p.data <= f.dataF) && (!f.mes || p.data?.startsWith(f.mes))), [pesagens, f]);
 
   const pesoTotal = filt.reduce((a, b) => a + (Number(b.peso_liquido) || 0), 0);
-  const now = new Date().toISOString().split('T')[0];
-  const dia = filt.filter(p => p.data === now).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
+  const dia = filt.filter(p => p.data === new Date().toISOString().split('T')[0]).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const mens = filt.filter(p => p.data?.startsWith(new Date().toISOString().slice(0, 7))).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const anu = filt.filter(p => p.data?.startsWith(new Date().getFullYear().toString())).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
-  const pProd = Object.entries(filt.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(b.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }));
+  const pProd = Object.entries(filt.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }));
   const pPag = [{name: 'PIX', value: filt.filter(p => p.forma_pagamento === 'PIX').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)}, {name: 'DINHEIRO', value: filt.filter(p => p.forma_pagamento === 'DINHEIRO').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)}];
+
+  if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
 
   if (!session) return (
     <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-white">
