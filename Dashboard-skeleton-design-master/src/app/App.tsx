@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Chave mantida conforme sua solicitação
 const supabaseUrl = 'https://tcevgekilsfndtvchdiz.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjZXZnZWtpbHNmbnRkdHZjaGRpeiIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgyNjUxMjAxLCJleHAiOjIwOTgyMjcyMDF9.qTYFS1DNu3S5EYhxQoANKCH-pFY3LfFTKMbo6IOk9JE';
+const supabaseKey = 'sb_publishable_5KpYcXroS2yrC4rKvANVhA_BM86K7sr';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", text: "#FFFFFF" };
