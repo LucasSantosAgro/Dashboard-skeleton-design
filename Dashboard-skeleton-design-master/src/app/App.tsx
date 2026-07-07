@@ -80,6 +80,17 @@ export default function App() {
   };
 
   const filt = useMemo(() => pesagens.filter(p => (f.prod === "" || p.produto === f.prod) && (f.pag === "" || p.forma_pagamento === f.pag) && (!f.dataI || p.data >= f.dataI) && (!f.dataF || p.data <= f.dataF) && (!f.mes || p.data?.startsWith(f.mes))), [pesagens, f]);
+  
+  const dataForCharts = useMemo(() => {
+    let base = filt;
+    const now = new Date().toISOString().split('T')[0];
+    const month = new Date().toISOString().slice(0, 7);
+    const year = new Date().getFullYear().toString();
+    if (activeKpi === "DIÁRIA") base = filt.filter(p => p.data === now);
+    else if (activeKpi === "MENSAL") base = filt.filter(p => p.data?.startsWith(month));
+    else if (activeKpi === "ANUAL") base = filt.filter(p => p.data?.startsWith(year));
+    return base;
+  }, [filt, activeKpi]);
 
   const dia = filt.filter(p => p.data === new Date().toISOString().split('T')[0]).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const mens = filt.filter(p => p.data?.startsWith(new Date().toISOString().slice(0, 7))).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
@@ -112,16 +123,20 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                <div className="grid grid-cols-2 gap-4 h-[200px]">
+                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07]"><p className="text-[10px] mb-1">PAGAMENTOS ({activeKpi})</p><ResponsiveContainer><PieChart><Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={35} outerRadius={50} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07]"><p className="text-[10px] mb-1">PRODUTOS ({activeKpi})</p><ResponsiveContainer><PieChart><Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={35} outerRadius={50} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                </div>
                 <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
                     <table className="w-full text-left text-[10px]">
-                        <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Troco"].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
-                        <tbody>{filt.slice().reverse().slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR')}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td></tr>)}</tbody>
+                        <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag."].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
+                        <tbody>{filt.slice().reverse().slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR')}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2">{p.forma_pagamento}</td></tr>)}</tbody>
                     </table>
                 </div>
             </div>
         )}
         {aba === "entrada" && (
-          <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded max-w-md border border-[#ffffff07]">
+            <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded max-w-md border border-[#ffffff07]">
             <h2 className="mb-4 font-bold">Nova Entrada</h2>
             <input name="placa" placeholder="Placa" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required />
             <select name="prod" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required>
