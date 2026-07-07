@@ -13,6 +13,7 @@ export default function App() {
   const [aba, setAba] = useState("dashboard");
   const [pesagens, setPesagens] = useState([]);
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "" });
+  const [activeKpi, setActiveKpi] = useState("TODOS");
 
   async function load() {
     setLoading(true);
@@ -83,12 +84,21 @@ export default function App() {
 
   const filt = useMemo(() => pesagens.filter(p => (f.prod === "" || p.produto === f.prod) && (f.pag === "" || p.forma_pagamento === f.pag) && (!f.dataI || p.data >= f.dataI) && (!f.dataF || p.data <= f.dataF) && (!f.mes || p.data?.startsWith(f.mes))), [pesagens, f]);
 
+  const dataForCharts = useMemo(() => {
+    let base = filt;
+    const now = new Date().toISOString().split('T')[0];
+    const month = new Date().toISOString().slice(0, 7);
+    const year = new Date().getFullYear().toString();
+    if (activeKpi === "DIÁRIA") base = filt.filter(p => p.data === now);
+    else if (activeKpi === "MENSAL") base = filt.filter(p => p.data?.startsWith(month));
+    else if (activeKpi === "ANUAL") base = filt.filter(p => p.data?.startsWith(year));
+    return base;
+  }, [filt, activeKpi]);
+
   const pesoTotal = filt.reduce((a, b) => a + (Number(b.peso_liquido) || 0), 0);
   const dia = filt.filter(p => p.data === new Date().toISOString().split('T')[0]).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const mens = filt.filter(p => p.data?.startsWith(new Date().toISOString().slice(0, 7))).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const anu = filt.filter(p => p.data?.startsWith(new Date().getFullYear().toString())).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
-  const pProd = Object.entries(filt.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }));
-  const pPag = [{name: 'PIX', value: filt.filter(p => p.forma_pagamento === 'PIX').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)}, {name: 'DINHEIRO', value: filt.filter(p => p.forma_pagamento === 'DINHEIRO').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)}];
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
   if (!session) return (
@@ -122,13 +132,15 @@ export default function App() {
         {aba === "dashboard" && (
             <div className="flex flex-col gap-4">
                 <div className="grid grid-cols-5 gap-2">
-                  {[ {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR')}kg`}, {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESAGENS", v: filt.length} ].map((k, i) => (
-                    <div key={i} className="bg-[#161B23] p-3 rounded border border-[#ffffff07]"><p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p></div>
+                  {[ {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR')}kg`}, {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "TODOS", v: filt.length} ].map((k, i) => (
+                    <button key={i} onClick={() => setActiveKpi(k.l)} className={`p-3 rounded border text-left transition ${activeKpi === k.l ? 'bg-[#1A2030] border-blue-500' : 'bg-[#161B23] border-[#ffffff07]'}`}>
+                      <p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p>
+                    </button>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-4 h-[200px]">
-                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">PAGAMENTOS</p><ResponsiveContainer><PieChart><Pie data={pPag} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{pPag.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
-                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">RECEITA POR PRODUTO</p><ResponsiveContainer><PieChart><Pie data={pProd} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{pProd.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">PAGAMENTOS ({activeKpi})</p><ResponsiveContainer><PieChart><Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">RECEITA POR PRODUTO ({activeKpi})</p><ResponsiveContainer><PieChart><Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
                 </div>
                 <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
                     <table className="w-full text-left text-[10px]">
