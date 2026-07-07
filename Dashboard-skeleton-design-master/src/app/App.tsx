@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Scale, PlusCircle, CheckCircle, BarChart3, Loader2 } from "lucide-react";
+import { Scale, Loader2 } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -32,17 +32,24 @@ export default function App() {
     });
   }, []);
 
+  const getNextComprovante = async () => {
+    const { data } = await supabase.from('fat_pesagens').select('comprovante').order('comprovante', { ascending: false }).limit(1);
+    const last = data && data[0] ? parseInt(data[0].comprovante.split('-')[1]) : 0;
+    return `CP-${(last + 1).toString().padStart(6, '0')}`;
+  };
+
   const registrarEntrada = async (e) => {
     e.preventDefault();
+    const nextComp = await getNextComprovante();
     const { error } = await supabase.from('fat_pesagens').insert([{
-      comprovante: `CP-${Date.now().toString().slice(-6)}`,
+      comprovante: nextComp,
       placa: e.target.placa.value,
       produto: e.target.prod.value,
       peso_entrada: Number(e.target.peso.value),
       data: new Date().toISOString().split('T')[0],
       status_pagamento: 'ABERTO'
     }]);
-    if (error) alert(error.message); else { alert("Entrada registrada!"); e.target.reset(); load(); }
+    if (error) alert(error.message); else { alert("Registrado: " + nextComp); e.target.reset(); load(); }
   };
 
   const finalizarPesagem = async (p, e) => {
@@ -50,17 +57,26 @@ export default function App() {
     const pesoSaida = Number(e.target.peso_saida.value);
     const pesoLiquido = pesoSaida - p.peso_entrada;
     const qtdSacas = pesoLiquido / 60;
-    const valTotal = qtdSacas * Number(e.target.valor_saca.value);
+    const valUnit = Number(e.target.valor_saca.value);
+    const valTotal = qtdSacas * valUnit;
+
     const { error } = await supabase.from('fat_pesagens').update({
-      peso_saida: pesoSaida, peso_liquido: pesoLiquido, sacas: qtdSacas, valor_unitario: Number(e.target.valor_saca.value),
+      peso_saida: pesoSaida, peso_liquido: pesoLiquido, sacas: qtdSacas, valor_unitario: valUnit,
       valor_total: valTotal, forma_pagamento: e.target.pag.value, status_pagamento: 'FECHADO'
     }).eq('id', p.id);
+
     if (!error) {
       load();
       const doc = new jsPDF();
-      doc.text("COMPROVANTE GRASEL", 10, 10);
-      doc.text(`Comp: ${p.comprovante} | Placa: ${p.placa}`, 10, 20);
-      doc.text(`Total: R$ ${valTotal.toFixed(2)}`, 10, 30);
+      const info = [
+        `Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada}kg`,
+        `Peso Saida: ${pesoSaida}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`,
+        `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`
+      ];
+      [10, 150].forEach(y => {
+        doc.text("COMPROVANTE GRASEL", 10, y);
+        info.forEach((txt, i) => doc.text(txt, 10, y + 10 + (i * 7)));
+      });
       doc.save(`comp_${p.comprovante}.pdf`);
     }
   };
@@ -75,7 +91,6 @@ export default function App() {
   const pPag = [{name: 'PIX', value: filt.filter(p => p.forma_pagamento === 'PIX').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)}, {name: 'DINHEIRO', value: filt.filter(p => p.forma_pagamento === 'DINHEIRO').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)}];
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
-
   if (!session) return (
     <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-white">
       <form onSubmit={async (e) => { e.preventDefault(); await supabase.auth.signInWithPassword({ email: e.target.email.value, password: e.target.password.value }); }} className="bg-[#161B23] p-8 rounded border w-80">
@@ -103,16 +118,12 @@ export default function App() {
             <option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option>
         </select>
       </aside>
-
       <main className="flex-1 p-6 overflow-y-auto">
         {aba === "dashboard" && (
             <div className="flex flex-col gap-4">
                 <div className="grid grid-cols-5 gap-2">
                   {[ {l: "DIÁRIA", v: `R$ ${dia.toFixed(0)}`}, {l: "PESO TOTAL", v: `${pesoTotal.toFixed(0)}kg`}, {l: "MENSAL", v: `R$ ${mens.toFixed(0)}`}, {l: "ANUAL", v: `R$ ${anu.toFixed(0)}`}, {l: "PESAGENS", v: filt.length} ].map((k, i) => (
-                    <div key={i} className="bg-[#161B23] p-3 rounded border border-[#ffffff07]">
-                      <p className="text-[8px] text-gray-400 uppercase">{k.l}</p>
-                      <p className="font-bold text-sm">{k.v}</p>
-                    </div>
+                    <div key={i} className="bg-[#161B23] p-3 rounded border border-[#ffffff07]"><p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p></div>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-4 h-[200px]">
@@ -127,7 +138,6 @@ export default function App() {
                 </div>
             </div>
         )}
-
         {aba === "entrada" && (
           <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded max-w-md border border-[#ffffff07]">
             <h2 className="mb-4 font-bold">Nova Entrada</h2>
@@ -139,7 +149,6 @@ export default function App() {
             <button className="bg-blue-600 w-full p-2 rounded font-bold">REGISTRAR ENTRADA</button>
           </form>
         )}
-
         {aba === "saida" && (
           <div className="grid gap-4">
             {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
