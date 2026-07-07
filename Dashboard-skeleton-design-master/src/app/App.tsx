@@ -122,18 +122,18 @@ export default function App() {
         {aba === "dashboard" && (
             <div className="flex flex-col gap-4">
                 <div className="grid grid-cols-5 gap-2">
-                  {[ {l: "DIÁRIA", v: `R$ ${dia.toFixed(0)}`}, {l: "PESO TOTAL", v: `${pesoTotal.toFixed(0)}kg`}, {l: "MENSAL", v: `R$ ${mens.toFixed(0)}`}, {l: "ANUAL", v: `R$ ${anu.toFixed(0)}`}, {l: "PESAGENS", v: filt.length} ].map((k, i) => (
+                  {[ {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR')}kg`}, {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESAGENS", v: filt.length} ].map((k, i) => (
                     <div key={i} className="bg-[#161B23] p-3 rounded border border-[#ffffff07]"><p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p></div>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-4 h-[200px]">
-                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">PAGAMENTOS</p><ResponsiveContainer><PieChart><Pie data={pPag} innerRadius={35} outerRadius={50} dataKey="value">{pPag.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
-                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">RECEITA POR PRODUTO</p><ResponsiveContainer><PieChart><Pie data={pProd} innerRadius={35} outerRadius={50} dataKey="value">{pProd.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
+                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">PAGAMENTOS</p><ResponsiveContainer><PieChart><Pie data={pPag} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{pPag.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                    <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">RECEITA POR PRODUTO</p><ResponsiveContainer><PieChart><Pie data={pProd} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{pProd.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
                 </div>
                 <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
                     <table className="w-full text-left text-[10px]">
                         <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Pag."].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
-                        <tbody>{filt.slice().reverse().slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{p.peso_liquido}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toFixed(0)}</td><td className="p-2">{p.forma_pagamento}</td></tr>)}</tbody>
+                        <tbody>{filt.slice().reverse().slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{Number(p.peso_liquido).toLocaleString('pt-BR')}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2">{p.forma_pagamento}</td></tr>)}</tbody>
                     </table>
                 </div>
             </div>
