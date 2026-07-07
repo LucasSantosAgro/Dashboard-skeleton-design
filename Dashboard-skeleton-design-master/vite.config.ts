@@ -16,8 +16,8 @@ function figmaAssetResolver() {
 }
 
 export default defineConfig({
-  // Configuração necessária para que o GitHub Pages encontre seus arquivos
-  base: '/Dashboard-skeleton-design/',
+  // Configuração alterada para "/" para que a Vercel encontre os arquivos na raiz
+  base: '/',
   
   plugins: [
     figmaAssetResolver(),
