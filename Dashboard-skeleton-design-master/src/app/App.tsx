@@ -14,13 +14,22 @@ export default function App() {
   const [pesagens, setPesagens] = useState([]);
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "" });
   const [activeKpi, setActiveKpi] = useState("TODOS");
+  const [saldoCaixa, setSaldoCaixa] = useState(0);
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.from('fat_pesagens').select('*');
-    setPesagens(data || []);
+    const { data: pesagensData } = await supabase.from('fat_pesagens').select('*');
+    const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).single();
+    
+    setPesagens(pesagensData || []);
+    setSaldoCaixa(caixaData?.saldo_atual || 0);
     setLoading(false);
   }
+
+  const updateSaldoCaixa = async (novoSaldo) => {
+    setSaldoCaixa(novoSaldo);
+    await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -118,15 +127,6 @@ export default function App() {
         <button onClick={() => setAba("dashboard")} className="text-xs text-left">DASHBOARD</button>
         <button onClick={() => setAba("entrada")} className="text-xs text-left">NOVA ENTRADA</button>
         <button onClick={() => setAba("saida")} className="text-xs text-left">SAÍDA</button>
-        <hr className="border-[#ffffff07] my-2" />
-        <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataI: e.target.value})}/>
-        <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataF: e.target.value})}/>
-        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, prod: e.target.value})}>
-            <option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, pag: e.target.value})}>
-            <option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option>
-        </select>
       </aside>
       <main className="flex-1 p-6 overflow-y-auto">
         {aba === "dashboard" && (
@@ -142,12 +142,6 @@ export default function App() {
                     <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">PAGAMENTOS ({activeKpi})</p><ResponsiveContainer><PieChart><Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
                     <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] flex flex-col"><p className="text-[10px] mb-1">RECEITA POR PRODUTO ({activeKpi})</p><ResponsiveContainer><PieChart><Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={35} outerRadius={50} dataKey="value" label={({name, percent}) => `${name} (${(percent*100).toFixed(0)}%)`}>{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
                 </div>
-                <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
-                    <table className="w-full text-left text-[10px]">
-                        <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Pag."].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
-                        <tbody>{filt.slice().reverse().slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{Number(p.peso_liquido).toLocaleString('pt-BR')}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2">{p.forma_pagamento}</td></tr>)}</tbody>
-                    </table>
-                </div>
             </div>
         )}
         {aba === "entrada" && (
@@ -162,15 +156,31 @@ export default function App() {
           </form>
         )}
         {aba === "saida" && (
-          <div className="grid gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="bg-[#161B23] p-4 rounded border border-blue-500 flex justify-between items-center">
+               <div>
+                  <p className="text-[10px] text-gray-400">SALDO EM CAIXA (TROCO)</p>
+                  <p className="text-xl font-bold text-blue-500">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+               </div>
+               <input type="number" step="0.01" placeholder="Atualizar Saldo" className="bg-[#1A2030] p-1 rounded text-sm w-32 border border-[#ffffff07]" onBlur={(e) => { if(e.target.value !== "") updateSaldoCaixa(Number(e.target.value)); }} />
+            </div>
             {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
-              <form key={p.id} onSubmit={(e) => finalizarPesagem(p, e)} className="bg-[#161B23] p-4 rounded flex flex-col gap-2 border border-[#ffffff07] text-[11px]">
-                <div className="flex justify-between font-bold text-blue-400"><span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada}kg</span></div>
+              <form key={p.id} onSubmit={async (e) => {
+                  e.preventDefault();
+                  const valorTotal = ( (Number(e.target.peso_saida.value) - p.peso_entrada) / 60 ) * Number(e.target.valor_saca.value);
+                  const recebido = Number(e.target.recebido.value) || 0;
+                  if (e.target.pag.value === "DINHEIRO" && recebido >= valorTotal) {
+                      await updateSaldoCaixa(saldoCaixa - (recebido - valorTotal));
+                  }
+                  finalizarPesagem(p, e);
+              }} className="bg-[#161B23] p-4 rounded flex flex-col gap-2 border border-[#ffffff07]">
+                <div className="flex justify-between text-xs font-bold text-blue-400"><span>Placa: {p.placa}</span></div>
                 <div className="flex gap-2">
                   <input name="peso_saida" type="number" placeholder="Peso Saída" min={p.peso_entrada + 1} className="bg-[#1A2030] p-1 rounded flex-1" required />
-                  <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca (Ex: 66.50)" className="bg-[#1A2030] p-1 rounded flex-1" required />
+                  <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" className="bg-[#1A2030] p-1 rounded flex-1" required />
+                  <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido (Dinheiro)" className="bg-[#1A2030] p-1 rounded flex-1" />
                   <select name="pag" className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-                  <button className="bg-green-600 p-1 px-4 rounded font-bold">FINALIZAR</button>
+                  <button className="bg-green-600 p-1 px-4 rounded font-bold text-[10px]">FINALIZAR</button>
                 </div>
               </form>
             ))}
