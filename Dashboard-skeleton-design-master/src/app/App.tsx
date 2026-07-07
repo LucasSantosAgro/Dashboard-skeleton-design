@@ -9,7 +9,7 @@ const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
 export default function App() {
   const [session, setSession] = useState(null);
-  const [aba, setAba] = useState("dashboard"); // Nova aba de navegação
+  const [aba, setAba] = useState("dashboard");
   const [pesagens, setPesagens] = useState([]);
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "" });
 
@@ -28,7 +28,6 @@ export default function App() {
     }
   }, [session]);
 
-  // --- FUNÇÕES DE LÓGICA ---
   const registrarEntrada = async (e) => {
     e.preventDefault();
     const { error } = await supabase.from('fat_pesagens').insert([{
@@ -68,54 +67,53 @@ export default function App() {
     }
   };
 
-  // --- FILTROS E KPIs (Mantidos intactos) ---
   const filt = useMemo(() => pesagens.filter(p => 
     (f.prod === "" || p.produto === f.prod) && (f.pag === "" || p.forma_pagamento === f.pag) &&
     (!f.dataI || p.data >= f.dataI) && (!f.dataF || p.data <= f.dataF) && (!f.mes || p.data?.startsWith(f.mes))
   ), [pesagens, f]);
 
-  // ... (seus cálculos de pesoTotal, dia, mens, anu, pProd, pPag seguem iguais) ...
+  const pesoTotal = filt.reduce((a, b) => a + (Number(b.peso_liquido) || 0), 0);
+  const now = new Date().toISOString().split('T')[0];
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const dia = filt.filter(p => p.data === now).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
+  const mens = filt.filter(p => p.data?.startsWith(thisMonth)).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
+  const anu = filt.filter(p => p.data?.startsWith(new Date().getFullYear().toString())).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
+  
+  const pProd = Object.entries(filt.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }));
+  const pPag = [
+    {name: 'PIX', value: filt.filter(p => p.forma_pagamento === 'PIX').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)},
+    {name: 'DINHEIRO', value: filt.filter(p => p.forma_pagamento === 'DINHEIRO').reduce((a, b) => a + (Number(b.valor_total) || 0), 0)}
+  ];
 
-  if (!session) return (/* Seu form de login igual */);
+  if (!session) return (
+    <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-white">
+      <form onSubmit={async (e) => { 
+        e.preventDefault(); 
+        const { error } = await supabase.auth.signInWithPassword({ email: e.target.email.value, password: e.target.password.value });
+        if (error) alert("Erro de Login: " + error.message);
+      }} className="bg-[#161B23] p-8 rounded border border-gray-700 w-80">
+        <h2 className="font-bold text-center mb-4">Login Operador</h2>
+        <input name="email" type="email" placeholder="E-mail" className="w-full bg-[#1A2030] p-2 mb-2 rounded border border-gray-600" required />
+        <input name="password" type="password" placeholder="Senha" className="w-full bg-[#1A2030] p-2 mb-4 rounded border border-gray-600" required />
+        <button className="w-full bg-blue-600 p-2 rounded font-bold hover:bg-blue-500">Entrar</button>
+      </form>
+    </div>
+  );
 
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden">
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-2">
-        <button className="flex items-center gap-2 mb-4" onClick={() => setAba("dashboard")}><BarChart3 size={16}/> DASHBOARD</button>
-        <button className="flex items-center gap-2" onClick={() => setAba("entrada")}><PlusCircle size={16}/> NOVA ENTRADA</button>
-        <button className="flex items-center gap-2" onClick={() => setAba("saida")}><CheckCircle size={16}/> SAÍDA</button>
+        <h2 className="font-bold text-sm mb-4 flex items-center gap-2"><Scale size={16} color={C.blue}/> GRASEL</h2>
+        <button className="flex items-center gap-2 text-xs" onClick={() => setAba("dashboard")}><BarChart3 size={16}/> DASHBOARD</button>
+        <button className="flex items-center gap-2 text-xs" onClick={() => setAba("entrada")}><PlusCircle size={16}/> NOVA ENTRADA</button>
+        <button className="flex items-center gap-2 text-xs" onClick={() => setAba("saida")}><CheckCircle size={16}/> SAÍDA</button>
       </aside>
 
       <main className="flex-1 p-6 overflow-y-auto">
         {aba === "dashboard" && (
-           /* ... (Seu conteúdo anterior do dashboard) ... */
-        )}
-
-        {aba === "entrada" && (
-          <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded border border-[#ffffff07] max-w-md">
-            <h2 className="mb-4 font-bold">Registrar Entrada</h2>
-            <input name="comp" placeholder="Comprovante" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required />
-            <input name="placa" placeholder="Placa" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required />
-            <input name="prod" placeholder="Produto" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required />
-            <input name="peso" type="number" placeholder="Peso Entrada" className="w-full bg-[#1A2030] p-2 mb-4 rounded" required />
-            <button className="bg-blue-600 w-full p-2 rounded">SALVAR ENTRADA</button>
-          </form>
-        )}
-
-        {aba === "saida" && (
-          <div className="grid gap-4">
-            {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
-              <form key={p.id} onSubmit={(e) => finalizarPesagem(p, e)} className="bg-[#161B23] p-4 rounded flex gap-4 items-center">
-                <p className="font-bold">{p.placa}</p>
-                <input name="peso_saida" type="number" placeholder="Peso Saída" className="bg-[#1A2030] p-1 rounded" required />
-                <input name="valor_saca" type="number" placeholder="Valor Saca" className="bg-[#1A2030] p-1 rounded" required />
-                <select name="pag" className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-                <button className="bg-green-600 p-1 px-4 rounded text-xs">FINALIZAR E PDF</button>
-              </form>
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
+           <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-5 gap-2">
+              {[ {l: "DIÁRIA", v: `R$ ${dia.toFixed(0)}`}, {l: "PESO TOTAL", v: `${pesoTotal.toFixed(0)}kg`}, {l: "MENSAL", v: `R$ ${mens.toFixed(0)}`}, {l: "ANUAL", v: `R$ ${anu.toFixed(0)}`}, {l: "PESAGENS", v: filt.length} ].map((k, i) => (
+                <div key={i} className="bg-[#161B23] p-3 rounded border border-[#ffffff07]">
+                  <p className="text-[8px] text-gray-400 uppercase">{k.l}</p>
+                  <p className="font-bold text-sm">{
