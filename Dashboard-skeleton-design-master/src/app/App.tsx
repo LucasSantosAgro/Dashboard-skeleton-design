@@ -9,12 +9,16 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
-// Componente para exibir porcentagem nos labels dos gráficos
-const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+// Melhoria: Fonte maior, cor de destaque e exibição do nome + porcentagem
+const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
+  const radius = innerRadius + (outerRadius - innerRadius) * 1.4; // Ajustado para ficar fora ou na borda
   const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
   const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
-  return <text x={x} y={y} fill="white" fontSize="8" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">{`${(percent * 100).toFixed(0)}%`}</text>;
+  return (
+    <text x={x} y={y} fill="white" fontSize="11" fontWeight="bold" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+      {`${name} (${(percent * 100).toFixed(0)}%)`}
+    </text>
+  );
 };
 
 export default function App() {
@@ -148,8 +152,8 @@ export default function App() {
                  ))}
                </div>
                <div className="grid grid-cols-2 gap-4 h-[220px]">
-                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PAGAMENTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={35} outerRadius={50} labelLine={false} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
-                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PRODUTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={35} outerRadius={50} labelLine={false} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PAGAMENTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PRODUTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
                </div>
                <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
                    <table className="w-full text-left text-[10px]">
