@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Scale, Loader2 } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient"; // A alteração feita no outro arquivo corrige a conexão
 import jsPDF from "jspdf";
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
@@ -18,13 +18,18 @@ export default function App() {
 
   async function load() {
     setLoading(true);
-    const { data: pesagensData } = await supabase.from('fat_pesagens').select('*');
+    // Adicionamos um tratamento simples para erros de rede
+    const { data: pesagensData, error: pesagensError } = await supabase.from('fat_pesagens').select('*');
     const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).single();
+    
+    if (pesagensError) console.error("Erro ao carregar dados:", pesagensError);
+    
     setPesagens(pesagensData || []);
     setSaldoCaixa(caixaData?.saldo_atual || 0);
     setLoading(false);
   }
 
+  // ... O restante do seu código permanece 100% intacto abaixo ...
   const updateSaldoCaixa = async (novoSaldo) => {
     setSaldoCaixa(novoSaldo);
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
