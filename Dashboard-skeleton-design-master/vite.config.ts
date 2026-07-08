@@ -6,33 +6,33 @@ import react from '@vitejs/plugin-react'
 function figmaAssetResolver() {
   return {
     name: 'figma-asset-resolver',
-    resolveId(id) {
+    resolveId(id: string) {
       if (id.startsWith('figma:asset/')) {
         const filename = id.replace('figma:asset/', '')
-        return path.resolve(__dirname, 'src/assets', filename)
+        // Garantindo resolução absoluta consistente para o sistema de arquivos da Vercel
+        return path.resolve(process.cwd(), 'src/assets', filename)
       }
     },
   }
 }
 
 export default defineConfig({
-  // Configuração alterada para "/" para que a Vercel encontre os arquivos na raiz
+  // Mantido em "/" para garantir que a Vercel sirva os arquivos da raiz do domínio
   base: '/',
   
   plugins: [
     figmaAssetResolver(),
-    // The React and Tailwind plugins are both required for Make, even if
-    // Tailwind is not being actively used – do not remove them
+    // Os plugins React e Tailwind são necessários para o funcionamento do Make
     react(),
     tailwindcss(),
   ],
   resolve: {
     alias: {
-      // Alias @ to the src directory
+      // Alias @ para o diretório src
       '@': path.resolve(__dirname, './src'),
     },
   },
 
-  // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
+  // Tipos de arquivos para suporte a imports raw
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })
