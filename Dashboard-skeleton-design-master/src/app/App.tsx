@@ -61,7 +61,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState("dashboard");
   const [pesagens, setPesagens] = useState([]);
-  const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "" });
+  const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "", ano: "" });
   const [activeKpi, setActiveKpi] = useState("TODOS");
   const [saldoCaixa, setSaldoCaixa] = useState(0);
 
@@ -133,13 +133,21 @@ export default function App() {
     if (!error) {
       load();
       const doc = new jsPDF();
-      const info = [`Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada.toFixed(2)}kg`, `Peso Saida: ${pesoSaida.toFixed(2)}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`, `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`];
+      const agora = new Date().toLocaleString('pt-BR');
+      const info = [`Data/Hora Emissão: ${agora}`, `Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada.toFixed(2)}kg`, `Peso Saida: ${pesoSaida.toFixed(2)}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`, `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`];
       [10, 150].forEach(y => { doc.text("COMPROVANTE GRASEL", 10, y); info.forEach((txt, i) => doc.text(txt, 10, y + 10 + (i * 7))); });
       doc.save(`comp_${p.comprovante}.pdf`);
     }
   };
 
-  const filt = useMemo(() => pesagens.filter(p => (f.prod === "" || p.produto === f.prod) && (f.pag === "" || p.forma_pagamento === f.pag) && (!f.dataI || p.data >= f.dataI) && (!f.dataF || p.data <= f.dataF) && (!f.mes || p.data?.startsWith(f.mes))), [pesagens, f]);
+  const filt = useMemo(() => pesagens.filter(p => 
+    (f.prod === "" || p.produto === f.prod) && 
+    (f.pag === "" || p.forma_pagamento === f.pag) && 
+    (!f.dataI || p.data >= f.dataI) && 
+    (!f.dataF || p.data <= f.dataF) && 
+    (!f.mes || p.data?.slice(5, 7) === f.mes) && 
+    (!f.ano || p.data?.slice(0, 4) === f.ano)
+  ), [pesagens, f]);
   
   const dataForCharts = useMemo(() => {
     let base = filt;
@@ -180,6 +188,8 @@ export default function App() {
         <hr className="border-[#ffffff07] my-2" />
         <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataI: e.target.value})}/>
         <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataF: e.target.value})}/>
+        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, mes: e.target.value})}><option value="">Mês</option>{Array.from({length: 12}, (_, i) => <option key={i+1} value={(i+1).toString().padStart(2, '0')}>{i+1}</option>)}</select>
+        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, ano: e.target.value})}><option value="">Ano</option>{[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
         <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, prod: e.target.value})}><option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}</select>
         <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
       </aside>
