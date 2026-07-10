@@ -59,29 +59,33 @@ const PesagemItem = ({ p, onFinalizar, onExcluir }) => {
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("Operador");
   const [aba, setAba] = useState("dashboard");
   const [pesagens, setPesagens] = useState([]);
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "", ano: "" });
   const [activeKpi, setActiveKpi] = useState("TODOS");
   const [saldoCaixa, setSaldoCaixa] = useState(0);
 
-  async function load() {
+  async function load(userId) {
     setLoading(true);
     const { data: pesagensData } = await supabase.from('fat_pesagens').select('*');
     const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).single();
+    const { data: profile } = await supabase.from('profiles').select('nome').eq('id', userId).single();
+    
     setPesagens(pesagensData || []);
     setSaldoCaixa(caixaData?.saldo_atual || 0);
+    if (profile) setUserName(profile.nome);
     setLoading(false);
   }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) load(); else setLoading(false);
+      if (session) load(session.user.id); else setLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => { 
       setSession(session); 
-      if (session) load(); else setLoading(false);
+      if (session) load(session.user.id); else setLoading(false);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -94,7 +98,7 @@ export default function App() {
   const excluirPesagem = async (id) => {
     if (window.confirm("Confirmar o cancelamento desta pesagem?")) {
         const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
-        if (!error) load();
+        if (!error) load(session.user.id);
     }
   };
 
@@ -107,8 +111,12 @@ export default function App() {
   const registrarEntrada = async (e) => {
     e.preventDefault();
     const nextComp = await getNextComprovante();
-    const { error } = await supabase.from('fat_pesagens').insert([{ comprovante: nextComp, placa: e.target.placa.value, produto: e.target.prod.value, peso_entrada: Number(e.target.peso.value), data: new Date().toISOString().split('T')[0], status_pagamento: 'ABERTO' }]);
-    if (error) alert(error.message); else { alert("Registrado: " + nextComp); e.target.reset(); load(); }
+    const { error } = await supabase.from('fat_pesagens').insert([{ 
+        comprovante: nextComp, placa: e.target.placa.value, produto: e.target.prod.value, 
+        peso_entrada: Number(e.target.peso.value), data: new Date().toISOString().split('T')[0], 
+        status_pagamento: 'ABERTO', operador_entrada: userName 
+    }]);
+    if (error) alert(error.message); else { alert("Registrado: " + nextComp); e.target.reset(); load(session.user.id); }
   };
 
   const finalizarPesagem = async (p, e) => {
@@ -127,14 +135,15 @@ export default function App() {
 
     const { error } = await supabase.from('fat_pesagens').update({ 
         peso_saida: pesoSaida, peso_liquido: pesoLiquido, sacas: qtdSacas, valor_unitario: valUnit, 
-        valor_total: valTotal, valor_troco: troco, forma_pagamento: e.target.pag.value, status_pagamento: 'FECHADO' 
+        valor_total: valTotal, valor_troco: troco, forma_pagamento: e.target.pag.value, 
+        status_pagamento: 'FECHADO', operador_saida: userName 
     }).eq('id', p.id);
 
     if (!error) {
-      load();
+      load(session.user.id);
       const doc = new jsPDF();
       const agora = new Date().toLocaleString('pt-BR');
-      const info = [`Data/Hora Emissão: ${agora}`, `Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada.toFixed(2)}kg`, `Peso Saida: ${pesoSaida.toFixed(2)}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`, `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`];
+      const info = [`Data/Hora Emissão: ${agora}`, `Op. Saída: ${userName}`, `Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada.toFixed(2)}kg`, `Peso Saida: ${pesoSaida.toFixed(2)}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`, `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`];
       [10, 150].forEach(y => { doc.text("COMPROVANTE GRASEL", 10, y); info.forEach((txt, i) => doc.text(txt, 10, y + 10 + (i * 7))); });
       doc.save(`comp_${p.comprovante}.pdf`);
     }
@@ -180,7 +189,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden">
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-2 shrink-0">
-        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-6">GRÃOS E INSUMOS</span></h2>
+        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-6">OP: {userName}</span></h2>
         <button onClick={() => setAba("dashboard")} className="text-xs text-left">DASHBOARD</button>
         <button onClick={() => setAba("entrada")} className="text-xs text-left">NOVA ENTRADA</button>
         <button onClick={() => setAba("saida")} className="text-xs text-left">SAÍDA</button>
@@ -194,6 +203,7 @@ export default function App() {
         <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
       </aside>
       <main className="flex-1 p-6 overflow-y-auto">
+        {/* ... restante do seu dashboard e abas */}
         {aba === "dashboard" && (
            <div className="flex flex-col gap-6">
                <div className="grid grid-cols-6 gap-2">
