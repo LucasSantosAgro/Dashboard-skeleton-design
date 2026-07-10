@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Scale, Loader2, LogOut } from "lucide-react";
+import { Scale, Loader2, LogOut, Trash2 } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -20,7 +20,7 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
-const PesagemItem = ({ p, onFinalizar }) => {
+const PesagemItem = ({ p, onFinalizar, onExcluir }) => {
   const [pesoSaida, setPesoSaida] = useState("");
   const [valorSaca, setValorSaca] = useState("");
   const [valorRecebido, setValorRecebido] = useState("");
@@ -37,11 +37,12 @@ const PesagemItem = ({ p, onFinalizar }) => {
         <span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada.toFixed(2)}kg</span>
       </div>
       <div className="flex gap-2">
-        <input name="peso_saida" type="number" step="0.01" placeholder="Peso Saída" onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
+        <input name="peso_saida" type="number" step="10" placeholder="Peso Saída (ex: 5660)" onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
         <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
         <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" onChange={(e) => setValorRecebido(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" />
         <select name="pag" onChange={(e) => setFormaPag(e.target.value)} className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
         <button className="bg-green-600 p-1 px-4 rounded font-bold text-[10px]">FINALIZAR</button>
+        <button type="button" onClick={() => onExcluir(p.id)} className="bg-red-900/50 p-1 px-2 rounded"><Trash2 size={14} color="#EF4444"/></button>
       </div>
       <div className="flex gap-6 text-[10px] text-gray-400 border-t border-[#ffffff07] pt-2">
         <span>Líquido: <b className="text-white">{pesoLiquido.toFixed(2)}kg</b></span>
@@ -88,6 +89,13 @@ export default function App() {
   const updateSaldoCaixa = async (novoSaldo) => {
     setSaldoCaixa(novoSaldo);
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
+  };
+
+  const excluirPesagem = async (id) => {
+    if (window.confirm("Excluir esta pesagem aberta?")) {
+        const { error } = await supabase.from('fat_pesagens').delete().eq('id', id);
+        if (!error) load();
+    }
   };
 
   const getNextComprovante = async () => {
@@ -204,7 +212,7 @@ export default function App() {
             <select name="prod" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required>
               <option value="Milho ensacado">Milho ensacado</option><option value="Milho granel">Milho granel</option><option value="Quebradinho">Quebradinho</option>
             </select>
-            <input name="peso" type="number" step="0.01" placeholder="Peso Entrada" className="w-full bg-[#1A2030] p-2 mb-4 rounded" required />
+            <input name="peso" type="number" step="10" placeholder="Peso Entrada (ex: 5000)" className="w-full bg-[#1A2030] p-2 mb-4 rounded" required />
             <button className="bg-blue-600 w-full p-2 rounded font-bold">REGISTRAR ENTRADA</button>
           </form>
         )}
@@ -215,7 +223,7 @@ export default function App() {
                <input type="number" step="0.01" placeholder="Atualizar Saldo" className="bg-[#1A2030] p-1 rounded text-sm w-32 border border-[#ffffff07]" onBlur={(e) => { if(e.target.value !== "") updateSaldoCaixa(Number(e.target.value)); }} />
             </div>
             {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
-              <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} />
+              <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} />
             ))}
           </div>
         )}
