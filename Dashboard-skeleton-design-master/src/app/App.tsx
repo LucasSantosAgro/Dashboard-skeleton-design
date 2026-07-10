@@ -9,15 +9,44 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
-// Melhoria: Fonte maior, cor de destaque e exibição do nome + porcentagem
 const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
-  const radius = innerRadius + (outerRadius - innerRadius) * 1.4; // Ajustado para ficar fora ou na borda
+  const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
   const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
   const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
   return (
     <text x={x} y={y} fill="white" fontSize="11" fontWeight="bold" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
       {`${name} (${(percent * 100).toFixed(0)}%)`}
     </text>
+  );
+};
+
+// Componente auxiliar para a Aba Saída
+const PesagemItem = ({ p, onFinalizar }) => {
+  const [pesoSaida, setPesoSaida] = useState("");
+  const [valorSaca, setValorSaca] = useState("");
+  
+  const pesoLiquido = Math.max(0, Number(pesoSaida) - p.peso_entrada);
+  const qtdSacas = pesoLiquido / 60;
+  const valorTotal = qtdSacas * valorSaca;
+
+  return (
+    <form onSubmit={(e) => onFinalizar(p, e)} className="bg-[#161B23] p-4 rounded flex flex-col gap-3 border border-[#ffffff07]">
+      <div className="flex justify-between text-xs font-bold text-blue-400">
+        <span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada.toFixed(2)}kg</span>
+      </div>
+      <div className="flex gap-2">
+        <input name="peso_saida" type="number" step="0.01" placeholder="Peso Saída" onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
+        <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
+        <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" className="bg-[#1A2030] p-1 rounded flex-1" />
+        <select name="pag" className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
+        <button className="bg-green-600 p-1 px-4 rounded font-bold text-[10px]">FINALIZAR</button>
+      </div>
+      <div className="flex gap-6 text-[10px] text-gray-400 border-t border-[#ffffff07] pt-2">
+        <span>Líquido: <b className="text-white">{pesoLiquido.toFixed(2)}kg</b></span>
+        <span>Sacas: <b className="text-white">{qtdSacas.toFixed(2)}</b></span>
+        <span>Total: <b className="text-green-500">R$ {valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+      </div>
+    </form>
   );
 };
 
@@ -181,16 +210,7 @@ export default function App() {
                <input type="number" step="0.01" placeholder="Atualizar Saldo" className="bg-[#1A2030] p-1 rounded text-sm w-32 border border-[#ffffff07]" onBlur={(e) => { if(e.target.value !== "") updateSaldoCaixa(Number(e.target.value)); }} />
             </div>
             {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
-              <form key={p.id} onSubmit={(e) => finalizarPesagem(p, e)} className="bg-[#161B23] p-4 rounded flex flex-col gap-2 border border-[#ffffff07]">
-                <div className="flex justify-between text-xs font-bold text-blue-400"><span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada.toFixed(2)}kg</span></div>
-                <div className="flex gap-2">
-                  <input name="peso_saida" type="number" step="0.01" placeholder="Peso Saída" min={p.peso_entrada + 1} className="bg-[#1A2030] p-1 rounded flex-1" required />
-                  <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" className="bg-[#1A2030] p-1 rounded flex-1" required />
-                  <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido (Dinheiro)" className="bg-[#1A2030] p-1 rounded flex-1" />
-                  <select name="pag" className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-                  <button className="bg-green-600 p-1 px-4 rounded font-bold text-[10px]">FINALIZAR</button>
-                </div>
-              </form>
+              <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} />
             ))}
           </div>
         )}
