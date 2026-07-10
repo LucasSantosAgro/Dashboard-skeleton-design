@@ -121,7 +121,7 @@ export default function App() {
   if (!session) return (
     <div className="flex h-screen items-center justify-center bg-[#0B0F15]">
       <div className="w-96 p-8 bg-[#161B23] rounded-xl border border-[#ffffff07]">
-        <h1 className="text-white font-bold mb-4 text-center">GRASEL LOGIN</h1>
+        <h1 className="text-white font-bold mb-4 text-center">LOGIN GRASEL</h1>
         <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} providers={[]} />
       </div>
     </div>
@@ -130,7 +130,7 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden">
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-2 shrink-0">
-        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL</h2>
+        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-6">GRÃOS E INSUMOS</span></h2>
         <button onClick={() => setAba("dashboard")} className="text-xs text-left">DASHBOARD</button>
         <button onClick={() => setAba("entrada")} className="text-xs text-left">NOVA ENTRADA</button>
         <button onClick={() => setAba("saida")} className="text-xs text-left">SAÍDA</button>
@@ -146,20 +146,20 @@ export default function App() {
            <div className="flex flex-col gap-6">
                <div className="grid grid-cols-6 gap-2">
                  {[ {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR')}kg`}, {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "TOTAL", v: filt.length} ].map((k, i) => (
-                   <button key={i} onClick={() => setActiveKpi(k.l)} className={`p-3 rounded border text-left ${activeKpi === k.l ? 'bg-[#1A2030] border-blue-500' : 'bg-[#161B23] border-[#ffffff07]'}`}>
-                     <p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p>
-                   </button>
-                 ))}
+                    <button key={i} onClick={() => setActiveKpi(k.l)} className={`p-3 rounded border text-left ${activeKpi === k.l ? 'bg-[#1A2030] border-blue-500' : 'bg-[#161B23] border-[#ffffff07]'}`}>
+                      <p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p>
+                    </button>
+                  ))}
                </div>
                <div className="grid grid-cols-2 gap-4 h-[220px]">
                   <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PAGAMENTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
                   <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PRODUTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
                </div>
                <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
-                   <table className="w-full text-left text-[10px]">
-                       <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag."].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
-                       <tbody>{[...filt].sort((a,b) => b.comprovante.localeCompare(a.comprovante)).slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR')}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2">{p.forma_pagamento}</td></tr>)}</tbody>
-                   </table>
+                    <table className="w-full text-left text-[10px]">
+                        <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag."].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
+                        <tbody>{[...filt].sort((a,b) => b.comprovante.localeCompare(a.comprovante)).slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR')}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td><td className="p-2">{p.forma_pagamento}</td></tr>)}</tbody>
+                    </table>
                </div>
            </div>
         )}
