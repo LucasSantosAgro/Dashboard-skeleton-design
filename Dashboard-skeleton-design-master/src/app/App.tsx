@@ -92,8 +92,8 @@ export default function App() {
   };
 
   const excluirPesagem = async (id) => {
-    if (window.confirm("Excluir esta pesagem aberta?")) {
-        const { error } = await supabase.from('fat_pesagens').delete().eq('id', id);
+    if (window.confirm("Confirmar o cancelamento desta pesagem?")) {
+        const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
         if (!error) load();
     }
   };
