@@ -8,7 +8,6 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
-const LOGO_URL = "/logo.png"; // Certifique-se de que o arquivo esteja na pasta public
 
 const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
   const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
@@ -91,10 +90,9 @@ export default function App() {
     if (!error) {
       load();
       const doc = new jsPDF();
-      doc.addImage(LOGO_URL, 'PNG', 10, 10, 15, 15);
-      doc.text("COMPROVANTE GRASEL", 30, 20);
+      doc.text("COMPROVANTE GRASEL", 10, 20);
       const info = [`Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada}kg`, `Peso Saida: ${pesoSaida}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`, `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`];
-      info.forEach((txt, i) => doc.text(txt, 10, 40 + (i * 7)));
+      info.forEach((txt, i) => doc.text(txt, 10, 30 + (i * 7)));
       doc.save(`comp_${p.comprovante}.pdf`);
     }
   };
@@ -133,7 +131,7 @@ export default function App() {
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden">
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-2 shrink-0">
         <div className="flex items-center gap-2 mb-4">
-          <img src={LOGO_URL} alt="Logo" className="w-8 h-8 object-contain" />
+          <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
           <div>
             <h2 className="font-bold text-sm">GRASEL</h2>
             <p className="text-[8px] text-gray-400 mt-[-2px]">GRÃOS E INSUMOS</p>
