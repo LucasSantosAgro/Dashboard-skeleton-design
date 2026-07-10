@@ -20,14 +20,16 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
-// Componente auxiliar para a Aba Saída
 const PesagemItem = ({ p, onFinalizar }) => {
   const [pesoSaida, setPesoSaida] = useState("");
   const [valorSaca, setValorSaca] = useState("");
+  const [valorRecebido, setValorRecebido] = useState("");
+  const [formaPag, setFormaPag] = useState("PIX");
   
   const pesoLiquido = Math.max(0, Number(pesoSaida) - p.peso_entrada);
   const qtdSacas = pesoLiquido / 60;
   const valorTotal = qtdSacas * valorSaca;
+  const troco = formaPag === "DINHEIRO" ? Math.max(0, Number(valorRecebido) - valorTotal) : 0;
 
   return (
     <form onSubmit={(e) => onFinalizar(p, e)} className="bg-[#161B23] p-4 rounded flex flex-col gap-3 border border-[#ffffff07]">
@@ -37,14 +39,17 @@ const PesagemItem = ({ p, onFinalizar }) => {
       <div className="flex gap-2">
         <input name="peso_saida" type="number" step="0.01" placeholder="Peso Saída" onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
         <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
-        <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" className="bg-[#1A2030] p-1 rounded flex-1" />
-        <select name="pag" className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
+        <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" onChange={(e) => setValorRecebido(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" />
+        <select name="pag" onChange={(e) => setFormaPag(e.target.value)} className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
         <button className="bg-green-600 p-1 px-4 rounded font-bold text-[10px]">FINALIZAR</button>
       </div>
       <div className="flex gap-6 text-[10px] text-gray-400 border-t border-[#ffffff07] pt-2">
         <span>Líquido: <b className="text-white">{pesoLiquido.toFixed(2)}kg</b></span>
         <span>Sacas: <b className="text-white">{qtdSacas.toFixed(2)}</b></span>
         <span>Total: <b className="text-green-500">R$ {valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+        {formaPag === "DINHEIRO" && (
+           <span>Troco: <b className="text-orange-500">R$ {troco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+        )}
       </div>
     </form>
   );
