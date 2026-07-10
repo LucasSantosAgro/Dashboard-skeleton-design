@@ -8,10 +8,10 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
+const LOGO_URL = "/logo.png"; // Certifique-se de que o arquivo esteja na pasta public
 
-// Melhoria: Fonte maior, cor de destaque e exibição do nome + porcentagem
 const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
-  const radius = innerRadius + (outerRadius - innerRadius) * 1.4; // Ajustado para ficar fora ou na borda
+  const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
   const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
   const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
   return (
@@ -91,8 +91,10 @@ export default function App() {
     if (!error) {
       load();
       const doc = new jsPDF();
+      doc.addImage(LOGO_URL, 'PNG', 10, 10, 15, 15);
+      doc.text("COMPROVANTE GRASEL", 30, 20);
       const info = [`Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada}kg`, `Peso Saida: ${pesoSaida}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`, `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`];
-      [10, 150].forEach(y => { doc.text("COMPROVANTE GRASEL", 10, y); info.forEach((txt, i) => doc.text(txt, 10, y + 10 + (i * 7))); });
+      info.forEach((txt, i) => doc.text(txt, 10, 40 + (i * 7)));
       doc.save(`comp_${p.comprovante}.pdf`);
     }
   };
@@ -130,7 +132,13 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden">
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-2 shrink-0">
-        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-6">GRÃOS E INSUMOS</span></h2>
+        <div className="flex items-center gap-2 mb-4">
+          <img src={LOGO_URL} alt="Logo" className="w-8 h-8 object-contain" />
+          <div>
+            <h2 className="font-bold text-sm">GRASEL</h2>
+            <p className="text-[8px] text-gray-400 mt-[-2px]">GRÃOS E INSUMOS</p>
+          </div>
+        </div>
         <button onClick={() => setAba("dashboard")} className="text-xs text-left">DASHBOARD</button>
         <button onClick={() => setAba("entrada")} className="text-xs text-left">NOVA ENTRADA</button>
         <button onClick={() => setAba("saida")} className="text-xs text-left">SAÍDA</button>
@@ -145,7 +153,7 @@ export default function App() {
         {aba === "dashboard" && (
            <div className="flex flex-col gap-6">
                <div className="grid grid-cols-6 gap-2">
-                 {[ {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR')}kg`}, {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "TOTAL", v: filt.length} ].map((k, i) => (
+                 {[ {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR')}kg`}, {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`}, {l: "TROCO PAGO", v: `R$ ${totalTroco.toFixed(2).replace('.', ',')}`}, {l: "TOTAL", v: filt.length} ].map((k, i) => (
                     <button key={i} onClick={() => setActiveKpi(k.l)} className={`p-3 rounded border text-left ${activeKpi === k.l ? 'bg-[#1A2030] border-blue-500' : 'bg-[#161B23] border-[#ffffff07]'}`}>
                       <p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p>
                     </button>
