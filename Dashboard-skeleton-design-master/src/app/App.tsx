@@ -189,11 +189,16 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden">
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-2 shrink-0">
-        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-6">OP: {userName}</span></h2>
+        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-6">GRÃOS E INSUMOS</span></h2>
         <button onClick={() => setAba("dashboard")} className="text-xs text-left">DASHBOARD</button>
         <button onClick={() => setAba("entrada")} className="text-xs text-left">NOVA ENTRADA</button>
         <button onClick={() => setAba("saida")} className="text-xs text-left">SAÍDA</button>
-        <button onClick={() => supabase.auth.signOut()} className="mt-auto text-[10px] text-red-500 flex items-center gap-2"><LogOut size={12}/> SAIR</button>
+        
+        <div className="mt-auto">
+            <p className="text-[10px] text-gray-500 mb-1">{userName}</p>
+            <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-500 flex items-center gap-2"><LogOut size={12}/> SAIR</button>
+        </div>
+
         <hr className="border-[#ffffff07] my-2" />
         <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataI: e.target.value})}/>
         <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataF: e.target.value})}/>
@@ -203,7 +208,6 @@ export default function App() {
         <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
       </aside>
       <main className="flex-1 p-6 overflow-y-auto">
-        {/* ... restante do seu dashboard e abas */}
         {aba === "dashboard" && (
            <div className="flex flex-col gap-6">
                <div className="grid grid-cols-6 gap-2">
