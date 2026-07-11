@@ -169,9 +169,10 @@ export default function App() {
     return base;
   }, [filt, activeKpi]);
 
+  // KPIs agora calculados baseados no filtro (filt)
   const dia = filt.filter(p => p.data === new Date().toISOString().split('T')[0]).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
-  const mens = filt.filter(p => p.data?.startsWith(new Date().toISOString().slice(0, 7))).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
-  const anu = filt.filter(p => p.data?.startsWith(new Date().getFullYear().toString())).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
+  const mens = filt.filter(p => p.data?.slice(0, 7) === (f.ano && f.mes ? `${f.ano}-${f.mes}` : new Date().toISOString().slice(0, 7))).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
+  const anu = filt.filter(p => p.data?.startsWith(f.ano || new Date().getFullYear().toString())).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const pesoTotal = filt.reduce((a, b) => a + (Number(b.peso_liquido) || 0), 0);
   const totalTroco = filt.reduce((a, b) => a + (Number(b.valor_troco) || 0), 0);
 
