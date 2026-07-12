@@ -169,7 +169,6 @@ export default function App() {
     return base;
   }, [filt, activeKpi]);
 
-  // KPIs agora calculados baseados no filtro (filt)
   const dia = filt.filter(p => p.data === new Date().toISOString().split('T')[0]).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const mens = filt.filter(p => p.data?.slice(0, 7) === (f.ano && f.mes ? `${f.ano}-${f.mes}` : new Date().toISOString().slice(0, 7))).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
   const anu = filt.filter(p => p.data?.startsWith(f.ano || new Date().getFullYear().toString())).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
@@ -224,8 +223,24 @@ export default function App() {
                </div>
                <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
                     <table className="w-full text-left text-[10px]">
-                        <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag."].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
-                        <tbody>{[...filt].sort((a,b) => b.comprovante.localeCompare(a.comprovante)).slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]"><td className="p-2">{p.data}</td><td className="p-2">{p.comprovante}</td><td className="p-2">{p.produto}</td><td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td><td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td className="p-2">{p.forma_pagamento}</td></tr>)}</tbody>
+                        <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag.", "Ação"].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
+                        <tbody>{[...filt].sort((a,b) => b.comprovante.localeCompare(a.comprovante)).slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]">
+                          <td className="p-2">{p.data}</td>
+                          <td className="p-2">{p.comprovante}</td>
+                          <td className="p-2">{p.produto}</td>
+                          <td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
+                          <td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td className="p-2">{p.forma_pagamento}</td>
+                          <td className="p-2">
+                             <button onClick={() => {
+                                const doc = new jsPDF();
+                                const info = [`Data: ${p.data}`, `Op. Saída: ${p.operador_saida || 'N/A'}`, `Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada.toFixed(2)}kg`, `Peso Saida: ${p.peso_saida.toFixed(2)}kg`, `Peso Liquido: ${p.peso_liquido.toFixed(2)}kg`, `Qtd Sacas: ${p.sacas.toFixed(2)}`, `Valor p/ Saca: R$ ${p.valor_unitario.toFixed(2)}`, `Valor Total: R$ ${p.valor_total.toFixed(2)}`, `Pagamento: ${p.forma_pagamento}`];
+                                [10, 150].forEach(y => { doc.text("COMPROVANTE GRASEL", 10, y); info.forEach((txt, i) => doc.text(txt, 10, y + 10 + (i * 7))); });
+                                doc.save(`comp_${p.comprovante}.pdf`);
+                             }} className="text-blue-400 hover:text-white">Imprimir</button>
+                          </td>
+                        </tr>)}</tbody>
                     </table>
                </div>
            </div>
