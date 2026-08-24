@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { Scale, Loader2, LogOut, Trash2 } from "lucide-react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { Scale, Loader2, LogOut, Trash2, Printer } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -9,7 +9,41 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
+// Função Utilitária Isolada para PDF
+const gerarPDF = (p, operador) => {
+  const doc = new jsPDF();
+  const agora = new Date().toLocaleString('pt-BR');
+  const info = [
+    `Data/Hora Emissão: ${agora}`,
+    `Op. Saída: ${operador || 'N/A'}`,
+    `Comprovante: ${p.comprovante || ''}`,
+    `Placa: ${p.placa || ''}`,
+    `Peso Entrada: ${Number(p.peso_entrada || 0).toFixed(2)}kg`,
+    `Peso Saída: ${Number(p.peso_saida || 0).toFixed(2)}kg`,
+    `Peso Líquido: ${Number(p.peso_liquido || 0).toFixed(2)}kg`,
+    `Qtd Sacas: ${Number(p.sacas || 0).toFixed(2)}`,
+    `Valor p/ Saca: R$ ${Number(p.valor_unitario || 0).toFixed(2)}`,
+    `Valor Total: R$ ${Number(p.valor_total || 0).toFixed(2)}`,
+    `Pagamento: ${p.forma_pagamento || ''}`
+  ];
+
+  [10, 150].forEach(y => {
+    doc.setFontSize(12);
+    doc.text("COMPROVANTE GRASEL", 10, y);
+    doc.setFontSize(10);
+    info.forEach((txt, i) => doc.text(txt, 10, y + 8 + (i * 6)));
+    const assinaturaY = y + 85;
+    doc.line(10, assinaturaY, 90, assinaturaY);
+    doc.line(110, assinaturaY, 190, assinaturaY);
+    doc.text("Assinatura do Cliente", 10, assinaturaY + 5);
+    doc.text("Assinatura do Operador", 110, assinaturaY + 5);
+  });
+
+  doc.save(`comp_${p.comprovante}.pdf`);
+};
+
 const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
+  if (percent === 0) return null;
   const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
   const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
   const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
@@ -28,21 +62,32 @@ const PesagemItem = ({ p, onFinalizar, onExcluir }) => {
   
   const pesoLiquido = Math.max(0, Number(pesoSaida) - p.peso_entrada);
   const qtdSacas = pesoLiquido / 60;
-  const valorTotal = qtdSacas * valorSaca;
+  const valorTotal = qtdSacas * Number(valorSaca);
   const troco = formaPag === "DINHEIRO" ? Math.max(0, Number(valorRecebido) - valorTotal) : 0;
 
+  // Atualiza automaticamente a forma de pagamento para DINHEIRO ao digitar no campo recebido
+  const handleRecebidoChange = (e) => {
+    const val = e.target.value;
+    setValorRecebido(val);
+    if (Number(val) > 0) {
+      setFormaPag("DINHEIRO");
+    } else {
+      setFormaPag("PIX");
+    }
+  };
+
   return (
-    <form onSubmit={(e) => onFinalizar(p, e)} className="bg-[#161B23] p-4 rounded flex flex-col gap-3 border border-[#ffffff07]">
+    <form onSubmit={(e) => onFinalizar(p, e, { pesoSaida, valorSaca, valorRecebido, formaPag, pesoLiquido, qtdSacas, valorTotal, troco })} className="bg-[#161B23] p-4 rounded flex flex-col gap-3 border border-[#ffffff07]">
       <div className="flex justify-between text-xs font-bold text-blue-400">
         <span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada.toFixed(2)}kg</span>
       </div>
       <div className="flex gap-2">
-        <input name="peso_saida" type="number" step="10" placeholder="Peso Saída (ex: 5660)" onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
-        <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" required />
-        <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" onChange={(e) => setValorRecebido(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1" />
-        <select name="pag" onChange={(e) => setFormaPag(e.target.value)} className="bg-[#1A2030] p-1 rounded"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-        <button className="bg-green-600 p-1 px-4 rounded font-bold text-[10px]">FINALIZAR</button>
-        <button type="button" onClick={() => onExcluir(p.id)} className="bg-red-900/50 p-1 px-2 rounded"><Trash2 size={14} color="#EF4444"/></button>
+        <input name="peso_saida" type="number" step="0.01" placeholder="Peso Saída (ex: 5660)" value={pesoSaida} onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1 text-sm outline-none border border-transparent focus:border-blue-500" required />
+        <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" value={valorSaca} onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-1 rounded flex-1 text-sm outline-none border border-transparent focus:border-blue-500" required />
+        <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" value={valorRecebido} onChange={handleRecebidoChange} className="bg-[#1A2030] p-1 rounded flex-1 text-sm outline-none border border-transparent focus:border-blue-500" />
+        <select name="pag" value={formaPag} onChange={(e) => setFormaPag(e.target.value)} className="bg-[#1A2030] p-1 rounded text-sm"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
+        <button className="bg-green-600 hover:bg-green-500 p-1 px-4 rounded font-bold text-[10px] transition-colors cursor-pointer">FINALIZAR</button>
+        <button type="button" onClick={() => onExcluir(p.id)} className="bg-red-900/50 hover:bg-red-800 p-1 px-2 rounded cursor-pointer"><Trash2 size={14} color="#EF4444"/></button>
       </div>
       <div className="flex gap-6 text-[10px] text-gray-400 border-t border-[#ffffff07] pt-2">
         <span>Líquido: <b className="text-white">{pesoLiquido.toFixed(2)}kg</b></span>
@@ -66,17 +111,17 @@ export default function App() {
   const [activeKpi, setActiveKpi] = useState("TODOS");
   const [saldoCaixa, setSaldoCaixa] = useState(0);
 
-  async function load(userId) {
+  const load = useCallback(async (userId) => {
     setLoading(true);
-    const { data: pesagensData } = await supabase.from('fat_pesagens').select('*');
-    const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).single();
-    const { data: profile } = await supabase.from('profiles').select('nome').eq('id', userId).single();
+    const { data: pesagensData } = await supabase.from('fat_pesagens').select('*').neq('status_pagamento', 'EXCLUÍDO');
+    const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).maybeSingle();
+    const { data: profile } = await supabase.from('profiles').select('nome').eq('id', userId).maybeSingle();
     
     setPesagens(pesagensData || []);
     setSaldoCaixa(caixaData?.saldo_atual || 0);
-    if (profile) setUserName(profile.nome);
+    if (profile?.nome) setUserName(profile.nome);
     setLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -88,7 +133,7 @@ export default function App() {
       if (session) load(session.user.id); else setLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [load]);
 
   const updateSaldoCaixa = async (novoSaldo) => {
     setSaldoCaixa(novoSaldo);
@@ -97,14 +142,14 @@ export default function App() {
 
   const excluirPesagem = async (id) => {
     if (window.confirm("Confirmar o cancelamento desta pesagem?")) {
-        const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
-        if (!error) load(session.user.id);
+      const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
+      if (!error) load(session.user.id);
     }
   };
 
   const getNextComprovante = async () => {
     const { data } = await supabase.from('fat_pesagens').select('comprovante').order('comprovante', { ascending: false }).limit(1);
-    const last = data && data[0] ? parseInt(data[0].comprovante.split('-')[1]) : 0;
+    const last = data && data[0] && data[0].comprovante ? parseInt(data[0].comprovante.split('-')[1]) : 0;
     return `CP-${(last + 1).toString().padStart(6, '0')}`;
   };
 
@@ -112,40 +157,42 @@ export default function App() {
     e.preventDefault();
     const nextComp = await getNextComprovante();
     const { error } = await supabase.from('fat_pesagens').insert([{ 
-        comprovante: nextComp, placa: e.target.placa.value, produto: e.target.prod.value, 
-        peso_entrada: Number(e.target.peso.value), data: new Date().toISOString().split('T')[0], 
-        status_pagamento: 'ABERTO', operador_entrada: userName 
+        comprovante: nextComp, 
+        placa: e.target.placa.value.toUpperCase(), 
+        produto: e.target.prod.value, 
+        peso_entrada: Number(e.target.peso.value), 
+        data: new Date().toISOString().split('T')[0], 
+        status_pagamento: 'ABERTO', 
+        operador_entrada: userName 
     }]);
-    if (error) alert(error.message); else { alert("Registrado: " + nextComp); e.target.reset(); load(session.user.id); }
+    if (error) alert(error.message); else { alert("Registrado com Sucesso: " + nextComp); e.target.reset(); load(session.user.id); }
   };
 
-  const finalizarPesagem = async (p, e) => {
+  const finalizarPesagem = async (p, e, calcData) => {
     e.preventDefault();
-    const pesoSaida = Number(e.target.peso_saida.value);
-    const pesoLiquido = pesoSaida - p.peso_entrada;
-    const qtdSacas = pesoLiquido / 60;
-    const valUnit = Number(e.target.valor_saca.value);
-    const valTotal = qtdSacas * valUnit;
-    const recebido = Number(e.target.recebido.value) || 0;
-    const troco = e.target.pag.value === "DINHEIRO" ? Math.max(0, recebido - valTotal) : 0;
+    const { pesoSaida, valorSaca, formaPag, pesoLiquido, qtdSacas, valorTotal, troco } = calcData;
 
-    if (e.target.pag.value === "DINHEIRO") {
+    if (formaPag === "DINHEIRO") {
         await updateSaldoCaixa(saldoCaixa - troco);
     }
 
-    const { error } = await supabase.from('fat_pesagens').update({ 
-        peso_saida: pesoSaida, peso_liquido: pesoLiquido, sacas: qtdSacas, valor_unitario: valUnit, 
-        valor_total: valTotal, valor_troco: troco, forma_pagamento: e.target.pag.value, 
-        status_pagamento: 'FECHADO', operador_saida: userName 
-    }).eq('id', p.id);
+    const payload = {
+      peso_saida: Number(pesoSaida), 
+      peso_liquido: pesoLiquido, 
+      sacas: qtdSacas, 
+      valor_unitario: Number(valorSaca), 
+      valor_total: valorTotal, 
+      valor_troco: troco, 
+      forma_pagamento: formaPag, 
+      status_pagamento: 'FECHADO', 
+      operador_saida: userName 
+    };
+
+    const { error } = await supabase.from('fat_pesagens').update(payload).eq('id', p.id);
 
     if (!error) {
       load(session.user.id);
-      const doc = new jsPDF();
-      const agora = new Date().toLocaleString('pt-BR');
-      const info = [`Data/Hora Emissão: ${agora}`, `Op. Saída: ${userName}`, `Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada.toFixed(2)}kg`, `Peso Saida: ${pesoSaida.toFixed(2)}kg`, `Peso Liquido: ${pesoLiquido.toFixed(2)}kg`, `Qtd Sacas: ${qtdSacas.toFixed(2)}`, `Valor p/ Saca: R$ ${valUnit.toFixed(2)}`, `Valor Total: R$ ${valTotal.toFixed(2)}`, `Pagamento: ${e.target.pag.value}`];
-      [10, 150].forEach(y => { doc.text("COMPROVANTE GRASEL", 10, y); info.forEach((txt, i) => doc.text(txt, 10, y + 10 + (i * 7))); });
-      doc.save(`comp_${p.comprovante}.pdf`);
+      gerarPDF({ ...p, ...payload }, userName);
     }
   };
 
@@ -189,82 +236,131 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden">
       <aside className="w-48 border-r border-[#ffffff07] p-4 flex flex-col gap-2 shrink-0">
-        <h2 className="font-bold text-sm mb-4"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-6">GRÃOS E INSUMOS</span></h2>
-        <button onClick={() => setAba("dashboard")} className="text-xs text-left">DASHBOARD</button>
-        <button onClick={() => setAba("entrada")} className="text-xs text-left">NOVA ENTRADA</button>
-        <button onClick={() => setAba("saida")} className="text-xs text-left">SAÍDA</button>
+        <h2 className="font-bold text-sm mb-4 flex items-center"><Scale size={16} className="inline mr-2 text-blue-500"/> GRASEL <span className="block text-[8px] text-gray-400 mt-[-2px] pl-2">GRÃOS E INSUMOS</span></h2>
+        <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-1.5 rounded transition-colors ${aba === 'dashboard' ? 'bg-[#1A2030] text-blue-400' : 'text-gray-400 hover:text-white'}`}>DASHBOARD</button>
+        <button onClick={() => setAba("entrada")} className={`text-xs text-left p-1.5 rounded transition-colors ${aba === 'entrada' ? 'bg-[#1A2030] text-blue-400' : 'text-gray-400 hover:text-white'}`}>NOVA ENTRADA</button>
+        <button onClick={() => setAba("saida")} className={`text-xs text-left p-1.5 rounded transition-colors ${aba === 'saida' ? 'bg-[#1A2030] text-blue-400' : 'text-gray-400 hover:text-white'}`}>SAÍDA</button>
         
-        <div className="mt-auto">
-            <p className="text-[10px] text-gray-500 mb-1">{userName}</p>
-            <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-500 flex items-center gap-2"><LogOut size={12}/> SAIR</button>
+        <div className="mt-auto pt-4 border-t border-[#ffffff07]">
+            <p className="text-[10px] text-gray-400 mb-1 font-semibold">{userName}</p>
+            <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-500 hover:text-red-400 flex items-center gap-1"><LogOut size={12}/> SAIR</button>
         </div>
 
         <hr className="border-[#ffffff07] my-2" />
-        <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataI: e.target.value})}/>
-        <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, dataF: e.target.value})}/>
-        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, mes: e.target.value})}><option value="">Mês</option>{Array.from({length: 12}, (_, i) => <option key={i+1} value={(i+1).toString().padStart(2, '0')}>{i+1}</option>)}</select>
-        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, ano: e.target.value})}><option value="">Ano</option>{[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
-        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, prod: e.target.value})}><option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}</select>
-        <select className="bg-[#1A2030] p-1 rounded text-[10px]" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
+        <p className="text-[10px] text-gray-500 mb-1">Filtros:</p>
+        <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px] outline-none" onChange={e => setF({...f, dataI: e.target.value})}/>
+        <input type="date" className="bg-[#1A2030] p-1 rounded text-[10px] outline-none" onChange={e => setF({...f, dataF: e.target.value})}/>
+        <select className="bg-[#1A2030] p-1 rounded text-[10px] outline-none" onChange={e => setF({...f, mes: e.target.value})}><option value="">Mês</option>{Array.from({length: 12}, (_, i) => <option key={i+1} value={(i+1).toString().padStart(2, '0')}>{i+1}</option>)}</select>
+        <select className="bg-[#1A2030] p-1 rounded text-[10px] outline-none" onChange={e => setF({...f, ano: e.target.value})}><option value="">Ano</option>{[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+        <select className="bg-[#1A2030] p-1 rounded text-[10px] outline-none" onChange={e => setF({...f, prod: e.target.value})}><option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}</select>
+        <select className="bg-[#1A2030] p-1 rounded text-[10px] outline-none" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
       </aside>
       <main className="flex-1 p-6 overflow-y-auto">
         {aba === "dashboard" && (
            <div className="flex flex-col gap-6">
                <div className="grid grid-cols-6 gap-2">
-                 {[ {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg`}, {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, {l: "TOTAL", v: filt.length.toFixed(0)} ].map((k, i) => (
-                    <button key={i} onClick={() => setActiveKpi(k.l)} className={`p-3 rounded border text-left ${activeKpi === k.l ? 'bg-[#1A2030] border-blue-500' : 'bg-[#161B23] border-[#ffffff07]'}`}>
+                 {[ 
+                   {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, 
+                   {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg`}, 
+                   {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, 
+                   {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, 
+                   {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}, 
+                   {l: "TODOS", v: filt.length.toFixed(0)} 
+                 ].map((k, i) => (
+                    <button key={i} onClick={() => setActiveKpi(k.l)} className={`p-3 rounded border text-left cursor-pointer transition-colors ${activeKpi === k.l ? 'bg-[#1A2030] border-blue-500' : 'bg-[#161B23] border-[#ffffff07]'}`}>
                       <p className="text-[8px] text-gray-400 uppercase">{k.l}</p><p className="font-bold text-sm">{k.v}</p>
                     </button>
                   ))}
                </div>
                <div className="grid grid-cols-2 gap-4 h-[220px]">
-                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PAGAMENTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
-                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden"><p className="text-[10px] mb-1">PRODUTOS ({activeKpi})</p><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">{COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} /><Legend /></PieChart></ResponsiveContainer></div>
+                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden">
+                    <p className="text-[10px] mb-1 font-semibold text-gray-400">PAGAMENTOS ({activeKpi})</p>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={[{name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}]} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">
+                          {COLORS.map((c, i) => <Cell key={i} fill={c} />)}
+                        </Pie>
+                        <Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="bg-[#161B23] p-2 rounded border border-[#ffffff07] overflow-hidden">
+                    <p className="text-[10px] mb-1 font-semibold text-gray-400">PRODUTOS ({activeKpi})</p>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} innerRadius={30} outerRadius={45} labelLine={true} label={renderCustomizedLabel} dataKey="value">
+                          {COLORS.map((c, i) => <Cell key={i} fill={c} />)}
+                        </Pie>
+                        <Tooltip formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                </div>
                <div className="bg-[#161B23] rounded border border-[#ffffff07] p-3">
                     <table className="w-full text-left text-[10px]">
                         <thead><tr className="text-gray-500 border-b border-[#ffffff07]">{["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag.", "Ação"].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
-                        <tbody>{[...filt].sort((a,b) => b.comprovante.localeCompare(a.comprovante)).slice(0, 10).map((p, i) => <tr key={i} className="border-b border-[#ffffff05]">
-                          <td className="p-2">{p.data}</td>
-                          <td className="p-2">{p.comprovante}</td>
-                          <td className="p-2">{p.produto}</td>
-                          <td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
-                          <td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-2">{p.forma_pagamento}</td>
-                          <td className="p-2">
-                             <button onClick={() => {
-                                const doc = new jsPDF();
-                                const info = [`Data: ${p.data}`, `Op. Saída: ${p.operador_saida || 'N/A'}`, `Comprovante: ${p.comprovante}`, `Placa: ${p.placa}`, `Peso Entrada: ${p.peso_entrada.toFixed(2)}kg`, `Peso Saida: ${p.peso_saida.toFixed(2)}kg`, `Peso Liquido: ${p.peso_liquido.toFixed(2)}kg`, `Qtd Sacas: ${p.sacas.toFixed(2)}`, `Valor p/ Saca: R$ ${p.valor_unitario.toFixed(2)}`, `Valor Total: R$ ${p.valor_total.toFixed(2)}`, `Pagamento: ${p.forma_pagamento}`];
-                                [10, 150].forEach(y => { doc.text("COMPROVANTE GRASEL", 10, y); info.forEach((txt, i) => doc.text(txt, 10, y + 10 + (i * 7))); });
-                                doc.save(`comp_${p.comprovante}.pdf`);
-                             }} className="text-blue-400 hover:text-white">Imprimir</button>
-                          </td>
-                        </tr>)}</tbody>
+                        <tbody>{[...filt].sort((a,b) => (b.comprovante || '').localeCompare(a.comprovante || '')).slice(0, 10).map((p, i) => (
+                          <tr key={p.id || i} className="border-b border-[#ffffff05] hover:bg-[#1A2030]/50 transition-colors">
+                            <td className="p-2">{p.data}</td>
+                            <td className="p-2">{p.comprovante}</td>
+                            <td className="p-2">{p.produto}</td>
+                            <td className="p-2">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
+                            <td className="p-2 font-bold text-green-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td className="p-2 text-orange-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td className="p-2">{p.forma_pagamento}</td>
+                            <td className="p-2">
+                               <button onClick={() => gerarPDF(p, p.operador_saida)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer">
+                                 <Printer size={12}/> Imprimir
+                               </button>
+                            </td>
+                          </tr>
+                        ))}</tbody>
                     </table>
                </div>
            </div>
         )}
         {aba === "entrada" && (
-            <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded max-w-md border border-[#ffffff07]">
-            <h2 className="mb-4 font-bold">Nova Entrada</h2>
-            <input name="placa" placeholder="Placa" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required />
-            <select name="prod" className="w-full bg-[#1A2030] p-2 mb-2 rounded" required>
-              <option value="Milho ensacado">Milho ensacado</option><option value="Milho granel">Milho granel</option><option value="Quebradinho">Quebradinho</option>
-            </select>
-            <input name="peso" type="number" step="10" placeholder="Peso Entrada (ex: 5000)" className="w-full bg-[#1A2030] p-2 mb-4 rounded" required />
-            <button className="bg-blue-600 w-full p-2 rounded font-bold">REGISTRAR ENTRADA</button>
+            <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded max-w-md border border-[#ffffff07] flex flex-col gap-3">
+              <h2 className="font-bold text-sm">Nova Entrada de Veículo</h2>
+              <input name="placa" placeholder="Placa do Veículo" className="w-full bg-[#1A2030] p-2 rounded text-sm outline-none border border-transparent focus:border-blue-500" required />
+              <select name="prod" className="w-full bg-[#1A2030] p-2 rounded text-sm outline-none border border-transparent focus:border-blue-500" required>
+                <option value="Milho ensacado">Milho ensacado</option>
+                <option value="Milho granel">Milho granel</option>
+                <option value="Quebradinho">Quebradinho</option>
+              </select>
+              <input name="peso" type="number" step="0.01" placeholder="Peso Entrada em KG (ex: 5000)" className="w-full bg-[#1A2030] p-2 rounded text-sm outline-none border border-transparent focus:border-blue-500" required />
+              <button className="bg-blue-600 hover:bg-blue-500 w-full p-2 rounded font-bold text-xs transition-colors cursor-pointer">REGISTRAR ENTRADA</button>
           </form>
         )}
         {aba === "saida" && (
           <div className="flex flex-col gap-4">
-            <div className="bg-[#161B23] p-4 rounded border border-blue-500 flex justify-between items-center">
-               <div><p className="text-[10px] text-gray-400">SALDO EM CAIXA (TROCO)</p><p className="text-xl font-bold text-blue-500">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p></div>
-               <input type="number" step="0.01" placeholder="Atualizar Saldo" className="bg-[#1A2030] p-1 rounded text-sm w-32 border border-[#ffffff07]" onBlur={(e) => { if(e.target.value !== "") updateSaldoCaixa(Number(e.target.value)); }} />
+            <div className="bg-[#161B23] p-4 rounded border border-blue-500/30 flex justify-between items-center">
+               <div>
+                 <p className="text-[10px] text-gray-400 font-semibold">SALDO EM CAIXA (TROCO)</p>
+                 <p className="text-xl font-bold text-blue-400">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+               </div>
+               <input 
+                 type="number" 
+                 step="0.01" 
+                 placeholder="Ajustar Saldo" 
+                 className="bg-[#1A2030] p-1.5 rounded text-xs w-36 border border-[#ffffff07] outline-none focus:border-blue-500" 
+                 onKeyDown={(e) => {
+                   if (e.key === 'Enter' && e.target.value !== "") {
+                     updateSaldoCaixa(Number(e.target.value));
+                     e.target.value = "";
+                     alert("Saldo do caixa atualizado!");
+                   }
+                 }} 
+               />
             </div>
             {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
               <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} />
             ))}
+            {pesagens.filter(p => p.status_pagamento === 'ABERTO').length === 0 && (
+              <p className="text-gray-500 text-xs text-center py-8">Nenhuma pesagem aberta aguardando saída.</p>
+            )}
           </div>
         )}
       </main>
