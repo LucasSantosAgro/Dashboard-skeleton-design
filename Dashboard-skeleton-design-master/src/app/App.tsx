@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Scale, Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -8,6 +8,29 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
+
+// Componente da Logo Grasel (Ícone + Tipografia com efeito Backlight/Glow)
+const GraselLogo = () => (
+  <div className="flex items-center gap-2.5 py-1">
+    <svg width="34" height="34" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_6px_rgba(255,255,255,0.3)]">
+      {/* Círculo do G */}
+      <path d="M50 8C26.8 8 8 26.8 8 50C8 73.2 26.8 92 50 92C65.5 92 78.9 83.6 86 71C80 77 71 81 61 81C40 81 23 64 23 43C23 29.5 30 17.6 40.5 11C43.5 9.8 46.7 9 50 8Z" fill="white"/>
+      <path d="M50 15C30.7 15 15 30.7 15 50C15 69.3 30.7 85 50 85C62.5 85 73.4 78.4 79.5 68.5C73.5 73.5 65.5 76.5 56.5 76.5C38.5 76.5 24 62 24 44C24 32.5 30 22.5 39 17C42.5 15.8 46.2 15 50 15Z" fill="#0B0F15"/>
+      {/* Folha Central */}
+      <path d="M32 52C32 52 42 32 68 28C68 28 62 52 42 62C38 64 34 60 32 52Z" fill="white"/>
+      <path d="M35 51C40 45 48 35 64 31C58 42 50 54 41 58C37 60 35 56 35 51Z" fill="#0B0F15"/>
+      <path d="M36 53C46 47 54 40 65 30" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+    </svg>
+    <div className="flex flex-col">
+      <span className="font-extrabold text-lg text-white tracking-[0.18em] leading-none drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        GRASEL
+      </span>
+      <span className="text-[7.5px] font-bold text-blue-300 tracking-[0.22em] leading-tight mt-1 opacity-90 uppercase">
+        GRÃOS E INSUMOS
+      </span>
+    </div>
+  </div>
+);
 
 // Função Utilitária Isolada para PDF
 const gerarPDF = (p, operador) => {
@@ -65,7 +88,6 @@ const PesagemItem = ({ p, onFinalizar, onExcluir }) => {
   const valorTotal = qtdSacas * Number(valorSaca);
   const troco = formaPag === "DINHEIRO" ? Math.max(0, Number(valorRecebido) - valorTotal) : 0;
 
-  // Atualiza automaticamente a forma de pagamento para DINHEIRO ao digitar no campo recebido
   const handleRecebidoChange = (e) => {
     const val = e.target.value;
     setValorRecebido(val);
@@ -226,17 +248,22 @@ export default function App() {
 
   if (!session) return (
     <div className="flex h-screen items-center justify-center bg-[#0B0F15]">
-      <div className="w-96 p-8 bg-[#161B23] rounded-2xl border border-white/5 shadow-2xl">
-        <h1 className="text-white font-bold mb-4 text-center tracking-wider">LOGIN GRASEL</h1>
-        <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} providers={[]} />
+      <div className="w-96 p-8 bg-[#161B23] rounded-2xl border border-white/5 shadow-2xl flex flex-col items-center">
+        <GraselLogo />
+        <div className="w-full mt-6">
+          <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} providers={[]} />
+        </div>
       </div>
     </div>
   );
 
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden font-sans">
-      <aside className="w-52 border-r border-white/5 p-4 flex flex-col gap-2 shrink-0 bg-[#0E131B]">
-        <h2 className="font-bold text-sm mb-4 flex items-center tracking-wide"><Scale size={18} className="inline mr-2 text-blue-400"/> GRASEL <span className="block text-[9px] text-gray-500 font-normal mt-[-2px] pl-2">GRÃOS E INSUMOS</span></h2>
+      <aside className="w-56 border-r border-white/5 p-4 flex flex-col gap-3 shrink-0 bg-[#0E131B]">
+        {/* Renderização do Logo idêntico à foto */}
+        <div className="mb-2">
+          <GraselLogo />
+        </div>
         
         <nav className="flex flex-col gap-1">
           <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>DASHBOARD</button>
@@ -249,7 +276,7 @@ export default function App() {
             <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 font-medium transition-colors"><LogOut size={12}/> SAIR</button>
         </div>
 
-        <hr className="border-white/5 my-2" />
+        <hr className="border-white/5 my-1" />
         <p className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase mb-1">Filtros</p>
         <div className="flex flex-col gap-1.5">
           <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataI: e.target.value})}/>
@@ -264,7 +291,6 @@ export default function App() {
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
         {aba === "dashboard" && (
            <div className="flex flex-col gap-6">
-               {/* Cards de KPIs Redesenhados */}
                <div className="grid grid-cols-6 gap-3">
                  {[ 
                    {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Calendar, color: "from-blue-500/10 to-transparent", text: "text-blue-400"}, 
@@ -272,7 +298,7 @@ export default function App() {
                    {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: DollarSign, color: "from-emerald-500/10 to-transparent", text: "text-emerald-400"}, 
                    {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Activity, color: "from-indigo-500/10 to-transparent", text: "text-indigo-400"}, 
                    {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: RefreshCw, color: "from-amber-500/10 to-transparent", text: "text-amber-400"}, 
-                   {l: "TODOS", v: filt.length.toFixed(0), icon: Scale, color: "from-gray-500/10 to-transparent", text: "text-gray-300"} 
+                   {l: "TODOS", v: filt.length.toFixed(0), icon: DollarSign, color: "from-gray-500/10 to-transparent", text: "text-gray-300"} 
                  ].map((k, i) => {
                     const IconComponent = k.icon;
                     const isActive = activeKpi === k.l;
@@ -296,7 +322,6 @@ export default function App() {
                   })}
                </div>
 
-               {/* Gráficos Estilizados */}
                <div className="grid grid-cols-2 gap-4 h-[240px]">
                   <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
                     <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
@@ -360,7 +385,6 @@ export default function App() {
                   </div>
                </div>
 
-               {/* Tabela Refinada */}
                <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl">
                     <table className="w-full text-left text-[11px]">
                         <thead>
