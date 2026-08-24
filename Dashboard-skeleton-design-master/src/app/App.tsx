@@ -9,23 +9,51 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
-// Componente da Logo Grasel (Ícone + Tipografia com efeito Backlight/Glow)
+// Componente da Logo Grasel (Fidelidade Corrigida)
 const GraselLogo = () => (
-  <div className="flex items-center gap-2.5 py-1">
-    <svg width="34" height="34" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_6px_rgba(255,255,255,0.3)]">
-      {/* Círculo do G */}
-      <path d="M50 8C26.8 8 8 26.8 8 50C8 73.2 26.8 92 50 92C65.5 92 78.9 83.6 86 71C80 77 71 81 61 81C40 81 23 64 23 43C23 29.5 30 17.6 40.5 11C43.5 9.8 46.7 9 50 8Z" fill="white"/>
-      <path d="M50 15C30.7 15 15 30.7 15 50C15 69.3 30.7 85 50 85C62.5 85 73.4 78.4 79.5 68.5C73.5 73.5 65.5 76.5 56.5 76.5C38.5 76.5 24 62 24 44C24 32.5 30 22.5 39 17C42.5 15.8 46.2 15 50 15Z" fill="#0B0F15"/>
-      {/* Folha Central */}
-      <path d="M32 52C32 52 42 32 68 28C68 28 62 52 42 62C38 64 34 60 32 52Z" fill="white"/>
-      <path d="M35 51C40 45 48 35 64 31C58 42 50 54 41 58C37 60 35 56 35 51Z" fill="#0B0F15"/>
-      <path d="M36 53C46 47 54 40 65 30" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+  <div className="flex items-center gap-3 py-1">
+    <svg 
+      width="40" 
+      height="40" 
+      viewBox="0 0 100 100" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg" 
+      className="drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] shrink-0"
+    >
+      {/* Arco Externo Espesso do G em Itálico */}
+      <path 
+        d="M78 22 C64 6 36 6 18 24 C2 40 2 68 18 84 C34 100 66 98 82 82 C88 76 92 68 94 58 L72 58 C70 63 66 68 62 72 C50 82 28 80 18 68 C8 56 10 36 22 24 C34 12 56 12 68 22 L78 22 Z" 
+        fill="white" 
+      />
+      {/* Folha Interna Estilizada */}
+      <path 
+        d="M36 62 C32 46 44 32 68 28 C70 44 58 60 36 62 Z" 
+        fill="white" 
+      />
+      {/* Recorte/Nervura da Folha */}
+      <path 
+        d="M38 60 C48 50 58 40 66 30" 
+        stroke="#0B0F15" 
+        strokeWidth="3.5" 
+        strokeLinecap="round" 
+      />
+      {/* Traço Diagonal de Acabamento */}
+      <path 
+        d="M48 46 C56 38 64 32 66 30" 
+        stroke="white" 
+        strokeWidth="1.5" 
+        strokeLinecap="round" 
+      />
     </svg>
+
     <div className="flex flex-col">
-      <span className="font-extrabold text-lg text-white tracking-[0.18em] leading-none drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <span 
+        className="font-black text-xl text-white tracking-[0.16em] leading-none drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]" 
+        style={{ fontFamily: 'Arial Black, system-ui, sans-serif' }}
+      >
         GRASEL
       </span>
-      <span className="text-[7.5px] font-bold text-blue-300 tracking-[0.22em] leading-tight mt-1 opacity-90 uppercase">
+      <span className="text-[7.5px] font-extrabold text-blue-300 tracking-[0.24em] leading-tight mt-1 opacity-90 uppercase">
         GRÃOS E INSUMOS
       </span>
     </div>
