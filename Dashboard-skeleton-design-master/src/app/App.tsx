@@ -161,6 +161,11 @@ export default function App() {
   const [activeKpi, setActiveKpi] = useState("TODOS");
   const [saldoCaixa, setSaldoCaixa] = useState(0);
 
+  // Alteração dinâmica do título da aba/navegador
+  useEffect(() => {
+    document.title = "Grasel Cerealista";
+  }, []);
+
   const load = useCallback(async (userId) => {
     setLoading(true);
     const { data: pesagensData } = await supabase.from('fat_pesagens').select('*').neq('status_pagamento', 'EXCLUÍDO');
@@ -328,26 +333,26 @@ export default function App() {
                    {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: RefreshCw, color: "from-amber-500/10 to-transparent", text: "text-amber-400"}, 
                    {l: "TODOS", v: filt.length.toFixed(0), icon: DollarSign, color: "from-gray-500/10 to-transparent", text: "text-gray-300"} 
                  ].map((k, i) => {
-                    const IconComponent = k.icon;
-                    const isActive = activeKpi === k.l;
-                    return (
-                      <button 
-                        key={i} 
-                        onClick={() => setActiveKpi(k.l)} 
-                        className={`relative p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 overflow-hidden bg-gradient-to-b ${k.color} ${
-                          isActive 
-                            ? 'bg-[#1A2030] border-blue-500 shadow-lg shadow-blue-500/10 scale-[1.02]' 
-                            : 'bg-[#161B23] border-white/5 hover:border-white/10 hover:bg-[#1A2030]/50'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">{k.l}</p>
-                          <IconComponent size={14} className={k.text} />
-                        </div>
-                        <p className="font-extrabold text-sm tracking-tight">{k.v}</p>
-                      </button>
-                    );
-                  })}
+                   const IconComponent = k.icon;
+                   const isActive = activeKpi === k.l;
+                   return (
+                     <button 
+                       key={i} 
+                       onClick={() => setActiveKpi(k.l)} 
+                       className={`relative p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 overflow-hidden bg-gradient-to-b ${k.color} ${
+                         isActive 
+                           ? 'bg-[#1A2030] border-blue-500 shadow-lg shadow-blue-500/10 scale-[1.02]' 
+                           : 'bg-[#161B23] border-white/5 hover:border-white/10 hover:bg-[#1A2030]/50'
+                       }`}
+                     >
+                       <div className="flex justify-between items-start mb-2">
+                         <p className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">{k.l}</p>
+                         <IconComponent size={14} className={k.text} />
+                       </div>
+                       <p className="font-extrabold text-sm tracking-tight">{k.v}</p>
+                     </button>
+                   );
+                 })}
                </div>
 
                <div className="grid grid-cols-2 gap-4 h-[240px]">
@@ -448,7 +453,7 @@ export default function App() {
         )}
 
         {aba === "entrada" && (
-            <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded-2xl max-w-md border border-white/5 flex flex-col gap-4 shadow-2xl">
+             <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded-2xl max-w-md border border-white/5 flex flex-col gap-4 shadow-2xl">
               <h2 className="font-bold text-base tracking-wide">Nova Entrada de Veículo</h2>
               <input name="placa" placeholder="Placa do Veículo" className="w-full bg-[#1A2030] p-2.5 rounded-xl text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
               <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-xl text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required>
