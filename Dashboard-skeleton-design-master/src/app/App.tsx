@@ -322,6 +322,8 @@ export default function App() {
   const pesoTotal = filt.reduce((a, b) => a + (Number(b.peso_liquido) || 0), 0);
   const totalTroco = filt.reduce((a, b) => a + (Number(b.valor_troco) || 0), 0);
 
+  const pesagensAbertas = useMemo(() => pesagens.filter(p => p.status_pagamento === 'ABERTO'), [pesagens]);
+
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
 
   if (!session) return (
@@ -544,7 +546,7 @@ export default function App() {
                    <input 
                      type="number" 
                      step="0.01" 
-                     placeholder="Gasto R$" 
+                     placeholder="Sangria R$" 
                      value={valorSangria}
                      onChange={(e) => setValorSangria(e.target.value)}
                      className="bg-transparent p-1.5 text-xs w-24 outline-none text-white" 
@@ -554,71 +556,75 @@ export default function App() {
                      placeholder="Motivo / Descrição" 
                      value={motivoSangria}
                      onChange={(e) => setMotivoSangria(e.target.value)}
-                     className="bg-transparent p-1.5 text-xs w-36 outline-none text-white border-l border-white/10" 
+                     className="bg-transparent p-1.5 text-xs w-32 outline-none text-white border-l border-white/10" 
                    />
-                   <button className="bg-amber-600 hover:bg-amber-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
-                     <MinusCircle size={14}/> Registrar Sangria
+                   <button className="bg-rose-600 hover:bg-rose-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
+                     <MinusCircle size={14}/> Retirar / Sangria
                    </button>
                  </form>
                </div>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <h3 className="font-bold text-sm tracking-wide text-gray-300">Pesagens Abertas para Saída</h3>
-              {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
-                <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
-              ))}
-              {pesagens.filter(p => p.status_pagamento === 'ABERTO').length === 0 && (
-                <p className="text-gray-500 text-xs text-center py-6 font-medium bg-[#161B23] rounded-xl border border-white/5">Nenhuma pesagem aberta aguardando saída.</p>
+            <div className="flex flex-col gap-4">
+              <h2 className="font-bold text-base tracking-wide flex items-center gap-2">
+                Pesagens em Aberto
+                <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded-full font-extrabold">
+                  {pesagensAbertas.length}
+                </span>
+              </h2>
+
+              {pesagensAbertas.length === 0 ? (
+                <div className="bg-[#161B23] p-8 rounded-xl border border-white/5 text-center text-gray-500 text-sm font-medium">
+                  Nenhuma pesagem em aberto no momento.
+                </div>
+              ) : (
+                pesagensAbertas.map(p => (
+                  <PesagemItem 
+                    key={p.id} 
+                    p={p} 
+                    onFinalizar={finalizarPesagem} 
+                    onExcluir={excluirPesagem} 
+                    saldoCaixa={saldoCaixa} 
+                  />
+                ))
               )}
             </div>
 
-            <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-gray-300">
-                <History size={16} className="text-blue-400"/>
-                <h3 className="font-bold text-xs tracking-wider uppercase">Histórico de Movimentações de Caixa</h3>
-              </div>
-              
-              <div className="max-h-60 overflow-y-auto">
+            <div className="bg-[#161B23] p-5 rounded-2xl border border-white/5 flex flex-col gap-3 shadow-xl">
+              <h3 className="text-xs font-bold tracking-wider uppercase text-gray-400 flex items-center gap-2">
+                <History size={14} /> Histórico Recente de Movimentações de Caixa
+              </h3>
+              <div className="overflow-x-auto">
                 <table className="w-full text-left text-[11px]">
                   <thead>
-                    <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
+                    <tr className="text-gray-500 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
                       <th className="p-2">Data/Hora</th>
-                      <th className="p-2">Operador</th>
                       <th className="p-2">Tipo</th>
-                      <th className="p-2">Descrição / Motivo</th>
                       <th className="p-2">Valor</th>
+                      <th className="p-2">Motivo</th>
+                      <th className="p-2">Operador</th>
                       <th className="p-2">Saldo Resultante</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {movimentacoes.slice(0, 15).map((m) => (
-                      <tr key={m.id} className="hover:bg-white/[0.02] transition-colors">
+                    {movimentacoes.slice(0, 10).map((m, i) => (
+                      <tr key={m.id || i} className="hover:bg-white/[0.02] transition-colors">
                         <td className="p-2 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
-                        <td className="p-2 text-gray-200 font-medium">{m.operador}</td>
-                        <td className="p-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${
-                            m.tipo === 'ENTRADA_TROCO' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                              : m.tipo === 'SANGRIA_GASTO'
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                        <td className="p-2 font-bold">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] ${
+                            m.tipo === 'ENTRADA_TROCO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+                            m.tipo === 'SANGRIA_GASTO' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 
+                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                           }`}>
-                            {m.tipo === 'ENTRADA_TROCO' ? 'ENTRADA DE TROCO' : m.tipo === 'SANGRIA_GASTO' ? 'SANGRIA / GASTO' : 'TROCO EM SAÍDA'}
+                            {m.tipo}
                           </span>
                         </td>
-                        <td className="p-2 text-gray-300">{m.motivo || '-'}</td>
-                        <td className={`p-2 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                        </td>
-                        <td className="p-2 font-medium text-gray-300">R$ {Number(m.saldo_resultante).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td className="p-2 font-bold text-white">R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td className="p-2 text-gray-300">{m.motivo}</td>
+                        <td className="p-2 text-gray-400">{m.operador}</td>
+                        <td className="p-2 font-medium text-blue-400">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                       </tr>
                     ))}
-                    {movimentacoes.length === 0 && (
-                      <tr>
-                        <td colSpan="6" className="text-center py-4 text-gray-500 text-xs">Nenhuma movimentação de caixa registrada até o momento.</td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
