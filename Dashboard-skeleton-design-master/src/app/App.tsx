@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Wallet } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -347,7 +347,8 @@ export default function App() {
         <nav className="flex flex-col gap-1">
           <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>DASHBOARD</button>
           <button onClick={() => setAba("entrada")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'entrada' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>NOVA ENTRADA</button>
-          <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA & CAIXA</button>
+          <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA DE VEÍCULOS</button>
+          <button onClick={() => setAba("caixa")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'caixa' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>CONTROLE DE CAIXA</button>
         </nav>
         
         <div className="mt-auto pt-4 border-t border-white/5">
@@ -500,7 +501,9 @@ export default function App() {
 
         {aba === "entrada" && (
              <form onSubmit={registrarEntrada} className="bg-[#161B23] p-6 rounded-2xl max-w-md border border-white/5 flex flex-col gap-4 shadow-2xl">
-              <h2 className="font-bold text-base tracking-wide">Nova Entrada de Veículo</h2>
+              <h2 className="font-bold text-base tracking-wide flex items-center gap-2">
+                <Truck size={18} className="text-blue-400" /> Nova Entrada de Veículo
+              </h2>
               <input name="placa" placeholder="Placa do Veículo" className="w-full bg-[#1A2030] p-2.5 rounded-xl text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
               <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-xl text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required>
                 <option value="Milho ensacado">Milho ensacado</option>
@@ -514,60 +517,9 @@ export default function App() {
 
         {aba === "saida" && (
           <div className="flex flex-col gap-6">
-            <div className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl transition-all ${saldoCaixa < 50 ? 'bg-red-500/10 border-red-500/40' : 'bg-[#161B23] border-blue-500/20'}`}>
-               <div>
-                 {saldoCaixa < 50 && (
-                   <p className="text-red-400 font-bold text-xs mb-1 flex items-center gap-1.5 animate-pulse">
-                     <AlertTriangle size={14} /> ATENÇÃO: SALDO DE TROCO BAIXO (MENOR QUE R$ 50,00)
-                   </p>
-                 )}
-                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">SALDO EM CAIXA (TROCO)</p>
-                 <p className={`text-3xl font-extrabold tracking-tight ${saldoCaixa < 50 ? 'text-red-400' : 'text-blue-400'}`}>
-                   R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                 </p>
-               </div>
-
-               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                 <form onSubmit={handleAdicionarTroco} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
-                   <input 
-                     type="number" 
-                     step="0.01" 
-                     placeholder="Aporte R$" 
-                     value={valorAporte}
-                     onChange={(e) => setValorAporte(e.target.value)}
-                     className="bg-transparent p-1.5 text-xs w-28 outline-none text-white" 
-                   />
-                   <button className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
-                     <PlusCircle size={14}/> Adicionar Troco
-                   </button>
-                 </form>
-
-                 <form onSubmit={handleSangriaGasto} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
-                   <input 
-                     type="number" 
-                     step="0.01" 
-                     placeholder="Sangria R$" 
-                     value={valorSangria}
-                     onChange={(e) => setValorSangria(e.target.value)}
-                     className="bg-transparent p-1.5 text-xs w-24 outline-none text-white" 
-                   />
-                   <input 
-                     type="text" 
-                     placeholder="Motivo / Descrição" 
-                     value={motivoSangria}
-                     onChange={(e) => setMotivoSangria(e.target.value)}
-                     className="bg-transparent p-1.5 text-xs w-32 outline-none text-white border-l border-white/10" 
-                   />
-                   <button className="bg-rose-600 hover:bg-rose-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
-                     <MinusCircle size={14}/> Retirar / Sangria
-                   </button>
-                 </form>
-               </div>
-            </div>
-
             <div className="flex flex-col gap-4">
               <h2 className="font-bold text-base tracking-wide flex items-center gap-2">
-                Pesagens em Aberto
+                Pesagens em Aberto (Saída)
                 <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded-full font-extrabold">
                   {pesagensAbertas.length}
                 </span>
@@ -589,6 +541,73 @@ export default function App() {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {aba === "caixa" && (
+          <div className="flex flex-col gap-6">
+            <div className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl transition-all ${saldoCaixa < 50 ? 'bg-red-500/10 border-red-500/40' : 'bg-[#161B23] border-blue-500/20'}`}>
+               <div>
+                 {saldoCaixa < 50 && (
+                   <p className="text-red-400 font-bold text-xs mb-1 flex items-center gap-1.5 animate-pulse">
+                     <AlertTriangle size={14} /> ATENÇÃO: SALDO DE TROCO BAIXO (MENOR QUE R$ 50,00)
+                   </p>
+                 )}
+                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                   <Wallet size={13} className="text-blue-400" /> SALDO EM CAIXA (TROCO)
+                 </p>
+                 <p className={`text-3xl font-extrabold tracking-tight ${saldoCaixa < 50 ? 'text-red-400' : 'text-blue-400'}`}>
+                   R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                 </p>
+               </div>
+
+               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                 <form onSubmit={handleAdicionarTroco} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
+                   <input 
+                     type="number" 
+                     step="0.01" 
+                     placeholder="Aporte R$" 
+                     value={valorAporte}
+                     onChange={(e) => setValorAporte(e.target.value)}
+                     className="bg-transparent p-1.5 text-xs w-28 outline-none text-white focus:border-b focus:border-emerald-500" 
+                     required
+                   />
+                   <button className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
+                     <PlusCircle size={14}/> Adicionar Troco
+                   </button>
+                 </form>
+
+                 <form onSubmit={handleSangriaGasto} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
+                   <input 
+                     type="number" 
+                     step="0.01" 
+                     placeholder="Sangria R$" 
+                     value={valorSangria}
+                     onChange={(e) => setValorSangria(e.target.value)}
+                     className="bg-transparent p-1.5 text-xs w-24 outline-none text-white focus:border-b focus:border-rose-500" 
+                     required
+                   />
+                   <input 
+                     type="text" 
+                     placeholder="Motivo / Descrição *" 
+                     value={motivoSangria}
+                     onChange={(e) => setMotivoSangria(e.target.value)}
+                     className="bg-transparent p-1.5 text-xs w-36 outline-none text-white border-l border-white/10 focus:border-b focus:border-rose-500" 
+                     required
+                   />
+                   <button 
+                     disabled={!motivoSangria.trim() || !valorSangria || Number(valorSangria) <= 0}
+                     className={`p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+                       !motivoSangria.trim() || !valorSangria || Number(valorSangria) <= 0
+                         ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                         : 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/20'
+                     }`}
+                   >
+                     <MinusCircle size={14}/> Retirar / Sangria
+                   </button>
+                 </form>
+               </div>
+            </div>
 
             <div className="bg-[#161B23] p-5 rounded-2xl border border-white/5 flex flex-col gap-3 shadow-xl">
               <h3 className="text-xs font-bold tracking-wider uppercase text-gray-400 flex items-center gap-2">
@@ -607,7 +626,7 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {movimentacoes.slice(0, 10).map((m, i) => (
+                    {movimentacoes.slice(0, 15).map((m, i) => (
                       <tr key={m.id || i} className="hover:bg-white/[0.02] transition-colors">
                         <td className="p-2 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
                         <td className="p-2 font-bold">
