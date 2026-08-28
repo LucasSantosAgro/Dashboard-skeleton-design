@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -9,7 +9,6 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
-// Componente da Logo Grasel (Fidelidade Corrigida)
 const GraselLogo = () => (
   <div className="flex items-center gap-3 py-1">
     <svg 
@@ -20,24 +19,20 @@ const GraselLogo = () => (
       xmlns="http://www.w3.org/2000/svg" 
       className="drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] shrink-0"
     >
-      {/* Arco Externo Espesso do G em Itálico */}
       <path 
         d="M78 22 C64 6 36 6 18 24 C2 40 2 68 18 84 C34 100 66 98 82 82 C88 76 92 68 94 58 L72 58 C70 63 66 68 62 72 C50 82 28 80 18 68 C8 56 10 36 22 24 C34 12 56 12 68 22 L78 22 Z" 
         fill="white" 
       />
-      {/* Folha Interna Estilizada */}
       <path 
         d="M36 62 C32 46 44 32 68 28 C70 44 58 60 36 62 Z" 
         fill="white" 
       />
-      {/* Recorte/Nervura da Folha */}
       <path 
         d="M38 60 C48 50 58 40 66 30" 
         stroke="#0B0F15" 
         strokeWidth="3.5" 
         strokeLinecap="round" 
       />
-      {/* Traço Diagonal de Acabamento */}
       <path 
         d="M48 46 C56 38 64 32 66 30" 
         stroke="white" 
@@ -60,7 +55,6 @@ const GraselLogo = () => (
   </div>
 );
 
-// Função Utilitária Isolada para PDF
 const gerarPDF = (p, operador) => {
   const doc = new jsPDF();
   const agora = new Date().toLocaleString('pt-BR');
@@ -105,7 +99,7 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
-const PesagemItem = ({ p, onFinalizar, onExcluir }) => {
+const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
   const [pesoSaida, setPesoSaida] = useState("");
   const [valorSaca, setValorSaca] = useState("");
   const [valorRecebido, setValorRecebido] = useState("");
@@ -115,6 +109,7 @@ const PesagemItem = ({ p, onFinalizar, onExcluir }) => {
   const qtdSacas = pesoLiquido / 60;
   const valorTotal = qtdSacas * Number(valorSaca);
   const troco = formaPag === "DINHEIRO" ? Math.max(0, Number(valorRecebido) - valorTotal) : 0;
+  const trocoInvalido = formaPag === "DINHEIRO" && troco > saldoCaixa;
 
   const handleRecebidoChange = (e) => {
     const val = e.target.value;
@@ -136,15 +131,22 @@ const PesagemItem = ({ p, onFinalizar, onExcluir }) => {
         <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" value={valorSaca} onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
         <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" value={valorRecebido} onChange={handleRecebidoChange} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
         <select name="pag" value={formaPag} onChange={(e) => setFormaPag(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-        <button className="bg-green-600 hover:bg-green-500 p-2 px-5 rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-md shadow-green-900/20">FINALIZAR</button>
+        <button disabled={trocoInvalido} className={`p-2 px-5 rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-md ${trocoInvalido ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white shadow-green-900/20'}`}>FINALIZAR</button>
         <button type="button" onClick={() => onExcluir(p.id)} className="bg-red-900/40 hover:bg-red-800 p-2 px-3 rounded-lg cursor-pointer transition-colors"><Trash2 size={16} color="#EF4444"/></button>
       </div>
-      <div className="flex gap-6 text-[11px] text-gray-400 border-t border-white/5 pt-2 font-medium">
-        <span>Líquido: <b className="text-white">{pesoLiquido.toFixed(2)}kg</b></span>
-        <span>Sacas: <b className="text-white">{qtdSacas.toFixed(2)}</b></span>
-        <span>Total: <b className="text-green-400">R$ {valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-        {formaPag === "DINHEIRO" && (
-           <span>Troco: <b className="text-amber-400">R$ {troco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+      <div className="flex gap-6 text-[11px] text-gray-400 border-t border-white/5 pt-2 font-medium items-center justify-between">
+        <div className="flex gap-6">
+          <span>Líquido: <b className="text-white">{pesoLiquido.toFixed(2)}kg</b></span>
+          <span>Sacas: <b className="text-white">{qtdSacas.toFixed(2)}</b></span>
+          <span>Total: <b className="text-green-400">R$ {valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+          {formaPag === "DINHEIRO" && (
+             <span>Troco: <b className={trocoInvalido ? "text-red-400 font-bold" : "text-amber-400"}>R$ {troco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+          )}
+        </div>
+        {trocoInvalido && (
+          <span className="text-red-400 text-[10px] font-bold flex items-center gap-1">
+            <AlertTriangle size={12} /> Saldo de caixa insuficiente para troco!
+          </span>
         )}
       </div>
     </form>
@@ -157,11 +159,15 @@ export default function App() {
   const [userName, setUserName] = useState("Operador");
   const [aba, setAba] = useState("dashboard");
   const [pesagens, setPesagens] = useState([]);
+  const [movimentacoes, setMovimentacoes] = useState([]);
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "", ano: "" });
   const [activeKpi, setActiveKpi] = useState("TODOS");
   const [saldoCaixa, setSaldoCaixa] = useState(0);
 
-  // Alteração dinâmica do título da aba/navegador
+  const [valorAporte, setValorAporte] = useState("");
+  const [valorSangria, setValorSangria] = useState("");
+  const [motivoSangria, setMotivoSangria] = useState("");
+
   useEffect(() => {
     document.title = "Grasel Cerealista";
   }, []);
@@ -170,10 +176,12 @@ export default function App() {
     setLoading(true);
     const { data: pesagensData } = await supabase.from('fat_pesagens').select('*').neq('status_pagamento', 'EXCLUÍDO');
     const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).maybeSingle();
+    const { data: movData } = await supabase.from('movimentacoes_caixa').select('*').order('created_at', { ascending: false });
     const { data: profile } = await supabase.from('profiles').select('nome').eq('id', userId).maybeSingle();
     
     setPesagens(pesagensData || []);
-    setSaldoCaixa(caixaData?.saldo_atual || 0);
+    setMovimentacoes(movData || []);
+    setSaldoCaixa(Number(caixaData?.saldo_atual || 0));
     if (profile?.nome) setUserName(profile.nome);
     setLoading(false);
   }, []);
@@ -190,9 +198,41 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, [load]);
 
-  const updateSaldoCaixa = async (novoSaldo) => {
-    setSaldoCaixa(novoSaldo);
+  const registrarMovimentacao = async (tipo, valor, motivo, novoSaldo) => {
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
+    await supabase.from('movimentacoes_caixa').insert([{
+      tipo,
+      valor,
+      motivo,
+      operador: userName,
+      saldo_resultante: novoSaldo
+    }]);
+    setSaldoCaixa(novoSaldo);
+    load(session.user.id);
+  };
+
+  const handleAdicionarTroco = async (e) => {
+    e.preventDefault();
+    const val = Number(valorAporte);
+    if (val <= 0) return alert("Informe um valor válido de troco.");
+    const novoSaldo = saldoCaixa + val;
+    await registrarMovimentacao('ENTRADA_TROCO', val, 'Aporte / Adição de Troco no Caixa', novoSaldo);
+    setValorAporte("");
+    alert("Troco adicionado com sucesso!");
+  };
+
+  const handleSangriaGasto = async (e) => {
+    e.preventDefault();
+    const val = Number(valorSangria);
+    if (val <= 0) return alert("Informe um valor válido.");
+    if (!motivoSangria.trim()) return alert("Descreva o motivo do gasto/retirada.");
+    if (val > saldoCaixa) return alert("Saldo de troco insuficiente para realizar esta retirada!");
+
+    const novoSaldo = saldoCaixa - val;
+    await registrarMovimentacao('SANGRIA_GASTO', val, motivoSangria, novoSaldo);
+    setValorSangria("");
+    setMotivoSangria("");
+    alert("Retirada registrada com sucesso!");
   };
 
   const excluirPesagem = async (id) => {
@@ -228,7 +268,12 @@ export default function App() {
     const { pesoSaida, valorSaca, formaPag, pesoLiquido, qtdSacas, valorTotal, troco } = calcData;
 
     if (formaPag === "DINHEIRO") {
-        await updateSaldoCaixa(saldoCaixa - troco);
+      if (troco > saldoCaixa) {
+        alert("OPERAÇÃO CANCELADA: Saldo de troco insuficiente em caixa!");
+        return;
+      }
+      const novoSaldo = saldoCaixa - troco;
+      await registrarMovimentacao('SAIDA_TROCO', troco, `Troco referente ao comprovante ${p.comprovante}`, novoSaldo);
     }
 
     const payload = {
@@ -293,7 +338,6 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden font-sans">
       <aside className="w-56 border-r border-white/5 p-4 flex flex-col gap-3 shrink-0 bg-[#0E131B]">
-        {/* Renderização do Logo idêntico à foto */}
         <div className="mb-2">
           <GraselLogo />
         </div>
@@ -301,7 +345,7 @@ export default function App() {
         <nav className="flex flex-col gap-1">
           <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>DASHBOARD</button>
           <button onClick={() => setAba("entrada")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'entrada' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>NOVA ENTRADA</button>
-          <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA</button>
+          <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA & CAIXA</button>
         </nav>
         
         <div className="mt-auto pt-4 border-t border-white/5">
@@ -467,32 +511,118 @@ export default function App() {
         )}
 
         {aba === "saida" && (
-          <div className="flex flex-col gap-4">
-            <div className="bg-[#161B23] p-5 rounded-2xl border border-blue-500/20 flex justify-between items-center shadow-xl">
+          <div className="flex flex-col gap-6">
+            <div className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl transition-all ${saldoCaixa < 50 ? 'bg-red-500/10 border-red-500/40' : 'bg-[#161B23] border-blue-500/20'}`}>
                <div>
+                 {saldoCaixa < 50 && (
+                   <p className="text-red-400 font-bold text-xs mb-1 flex items-center gap-1.5 animate-pulse">
+                     <AlertTriangle size={14} /> ATENÇÃO: SALDO DE TROCO BAIXO (MENOR QUE R$ 50,00)
+                   </p>
+                 )}
                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">SALDO EM CAIXA (TROCO)</p>
-                 <p className="text-2xl font-extrabold text-blue-400 tracking-tight">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                 <p className={`text-3xl font-extrabold tracking-tight ${saldoCaixa < 50 ? 'text-red-400' : 'text-blue-400'}`}>
+                   R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                 </p>
                </div>
-               <input 
-                 type="number" 
-                 step="0.01" 
-                 placeholder="Ajustar Saldo" 
-                 className="bg-[#1A2030] p-2 rounded-xl text-xs w-40 border border-white/5 outline-none focus:border-blue-500 transition-all" 
-                 onKeyDown={(e) => {
-                   if (e.key === 'Enter' && e.target.value !== "") {
-                     updateSaldoCaixa(Number(e.target.value));
-                     e.target.value = "";
-                     alert("Saldo do caixa atualizado!");
-                   }
-                 }} 
-               />
+
+               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                 <form onSubmit={handleAdicionarTroco} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
+                   <input 
+                     type="number" 
+                     step="0.01" 
+                     placeholder="Aporte R$" 
+                     value={valorAporte}
+                     onChange={(e) => setValorAporte(e.target.value)}
+                     className="bg-transparent p-1.5 text-xs w-28 outline-none text-white" 
+                   />
+                   <button className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
+                     <PlusCircle size={14}/> Adicionar Troco
+                   </button>
+                 </form>
+
+                 <form onSubmit={handleSangriaGasto} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
+                   <input 
+                     type="number" 
+                     step="0.01" 
+                     placeholder="Gasto R$" 
+                     value={valorSangria}
+                     onChange={(e) => setValorSangria(e.target.value)}
+                     className="bg-transparent p-1.5 text-xs w-24 outline-none text-white" 
+                   />
+                   <input 
+                     type="text" 
+                     placeholder="Motivo / Descrição" 
+                     value={motivoSangria}
+                     onChange={(e) => setMotivoSangria(e.target.value)}
+                     className="bg-transparent p-1.5 text-xs w-36 outline-none text-white border-l border-white/10" 
+                   />
+                   <button className="bg-amber-600 hover:bg-amber-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
+                     <MinusCircle size={14}/> Registrar Sangria
+                   </button>
+                 </form>
+               </div>
             </div>
-            {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
-              <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} />
-            ))}
-            {pesagens.filter(p => p.status_pagamento === 'ABERTO').length === 0 && (
-              <p className="text-gray-500 text-xs text-center py-12 font-medium">Nenhuma pesagem aberta aguardando saída.</p>
-            )}
+
+            <div className="flex flex-col gap-3">
+              <h3 className="font-bold text-sm tracking-wide text-gray-300">Pesagens Abertas para Saída</h3>
+              {pesagens.filter(p => p.status_pagamento === 'ABERTO').map(p => (
+                <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
+              ))}
+              {pesagens.filter(p => p.status_pagamento === 'ABERTO').length === 0 && (
+                <p className="text-gray-500 text-xs text-center py-6 font-medium bg-[#161B23] rounded-xl border border-white/5">Nenhuma pesagem aberta aguardando saída.</p>
+              )}
+            </div>
+
+            <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-gray-300">
+                <History size={16} className="text-blue-400"/>
+                <h3 className="font-bold text-xs tracking-wider uppercase">Histórico de Movimentações de Caixa</h3>
+              </div>
+              
+              <div className="max-h-60 overflow-y-auto">
+                <table className="w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
+                      <th className="p-2">Data/Hora</th>
+                      <th className="p-2">Operador</th>
+                      <th className="p-2">Tipo</th>
+                      <th className="p-2">Descrição / Motivo</th>
+                      <th className="p-2">Valor</th>
+                      <th className="p-2">Saldo Resultante</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {movimentacoes.slice(0, 15).map((m) => (
+                      <tr key={m.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="p-2 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                        <td className="p-2 text-gray-200 font-medium">{m.operador}</td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${
+                            m.tipo === 'ENTRADA_TROCO' 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                              : m.tipo === 'SANGRIA_GASTO'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                          }`}>
+                            {m.tipo === 'ENTRADA_TROCO' ? 'ENTRADA DE TROCO' : m.tipo === 'SANGRIA_GASTO' ? 'SANGRIA / GASTO' : 'TROCO EM SAÍDA'}
+                          </span>
+                        </td>
+                        <td className="p-2 text-gray-300">{m.motivo || '-'}</td>
+                        <td className={`p-2 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </td>
+                        <td className="p-2 font-medium text-gray-300">R$ {Number(m.saldo_resultante).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                      </tr>
+                    ))}
+                    {movimentacoes.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="text-center py-4 text-gray-500 text-xs">Nenhuma movimentação de caixa registrada até o momento.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
       </main>
