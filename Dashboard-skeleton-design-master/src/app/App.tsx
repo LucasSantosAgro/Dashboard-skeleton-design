@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Wallet } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Wallet, Filter, Search } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -28,22 +28,18 @@ const GraselLogo = () => (
       xmlns="http://www.w3.org/2000/svg" 
       className="drop-shadow-[0_2px_8px_rgba(56,189,248,0.2)] shrink-0 transition-transform hover:scale-105 duration-300"
     >
-      {/* Estrutura principal em 'G' Branco */}
       <path 
         d="M 85 22 C 75.5 11.5 61 5 45 5 C 22.9 5 5 22.9 5 45 C 5 67.1 22.9 85 45 85 C 60.5 85 74.2 76.2 81 63.5 L 68 63.5 C 62.5 71 54 75.5 45 75.5 C 28.2 75.5 14.5 61.8 14.5 45 C 14.5 28.2 28.2 14.5 45 14.5 C 57.5 14.5 68.2 22 73 32 L 85 22 Z" 
         fill="#FFFFFF" 
       />
-      {/* Detalhe Azul Inferior do G */}
       <path 
         d="M 14.5 45 C 14.5 61.8 28.2 75.5 45 75.5 C 32 75.5 14.5 61 14.5 45 Z" 
         fill="#38BDF8" 
       />
-      {/* Folha Azul na Barra Central */}
       <path 
         d="M 45 43 L 83 43 C 94 48 95 62 82 72 C 68 81 53 62 45 43 Z" 
         fill="#38BDF8" 
       />
-      {/* Nervura Central da Folha */}
       <path 
         d="M 47 45 C 62 50 75 58 83 67" 
         stroke="#0B0F15" 
@@ -178,6 +174,13 @@ export default function App() {
   const [valorAporte, setValorAporte] = useState("");
   const [valorSangria, setValorSangria] = useState("");
   const [motivoSangria, setMotivoSangria] = useState("");
+
+  // ESTADOS DOS FILTROS DO CONTROLE DE CAIXA
+  const [fCaixaTipo, setFCaixaTipo] = useState("");
+  const [fCaixaDataI, setFCaixaDataI] = useState("");
+  const [fCaixaDataF, setFCaixaDataF] = useState("");
+  const [fCaixaOperador, setFCaixaOperador] = useState("");
+  const [fCaixaBusca, setFCaixaBusca] = useState("");
 
   useEffect(() => {
     document.title = "Grasel Cerealista";
@@ -324,7 +327,43 @@ export default function App() {
     (!f.mes || p.data?.slice(5, 7) === f.mes) && 
     (!f.ano || p.data?.slice(0, 4) === f.ano)
   ), [pesagens, f]);
-  
+
+  // FILTRAGEM DAS MOVIMENTAÇÕES DE CAIXA
+  const movimentacoesFiltradas = useMemo(() => {
+    return movimentacoes.filter(m => {
+      const dataMov = m.created_at ? m.created_at.split('T')[0] : '';
+      
+      const matchTipo = fCaixaTipo === "" || m.tipo === fCaixaTipo;
+      const matchDataI = !fCaixaDataI || dataMov >= fCaixaDataI;
+      const matchDataF = !fCaixaDataF || dataMov <= fCaixaDataF;
+      const matchOperador = fCaixaOperador === "" || m.operador === fCaixaOperador;
+      const matchBusca = fCaixaBusca === "" || (m.motivo || "").toLowerCase().includes(fCaixaBusca.toLowerCase());
+
+      return matchTipo && matchDataI && matchDataF && matchOperador && matchBusca;
+    });
+  }, [movimentacoes, fCaixaTipo, fCaixaDataI, fCaixaDataF, fCaixaOperador, fCaixaBusca]);
+
+  // RESUMO DOS FILTROS DO CAIXA
+  const resumoCaixaFiltro = useMemo(() => {
+    const totalAportes = movimentacoesFiltradas
+      .filter(m => m.tipo === 'ENTRADA_TROCO')
+      .reduce((acc, m) => acc + (Number(m.valor) || 0), 0);
+
+    const totalSaidas = movimentacoesFiltradas
+      .filter(m => m.tipo === 'SAIDA_TROCO' || m.tipo === 'SANGRIA_GASTO')
+      .reduce((acc, m) => acc + (Number(m.valor) || 0), 0);
+
+    return {
+      totalAportes,
+      totalSaidas,
+      saldoPeriodo: totalAportes - totalSaidas
+    };
+  }, [movimentacoesFiltradas]);
+
+  const operadoresCaixa = useMemo(() => {
+    return [...new Set(movimentacoes.map(m => m.operador))].filter(Boolean);
+  }, [movimentacoes]);
+
   const dataForCharts = useMemo(() => {
     let base = filt;
     const now = new Date().toISOString().split('T')[0];
@@ -377,7 +416,7 @@ export default function App() {
         </div>
 
         <hr className="border-white/5 my-1" />
-        <p className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase mb-1">Filtros</p>
+        <p className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase mb-1">Filtros Vendas</p>
         <div className="flex flex-col gap-1.5">
           <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataI: e.target.value})}/>
           <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataF: e.target.value})}/>
@@ -566,6 +605,7 @@ export default function App() {
 
         {aba === "caixa" && (
           <div className="flex flex-col gap-6">
+            {/* CARD DE SALDO ATUAL DO CAIXA */}
             <div className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl transition-all ${saldoCaixa < 50 ? 'bg-red-500/10 border-red-500/40' : 'bg-[#161B23] border-blue-500/20'}`}>
               <div>
                 <p className="text-xs text-gray-400 font-bold tracking-wider uppercase flex items-center gap-2">
@@ -582,6 +622,7 @@ export default function App() {
               )}
             </div>
 
+            {/* FORMULÁRIOS DE OPERAÇÃO */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <form onSubmit={handleAdicionarTroco} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 flex flex-col gap-3 shadow-xl">
                 <h4 className="text-xs font-bold text-emerald-400 tracking-wider uppercase flex items-center gap-2">
@@ -628,10 +669,120 @@ export default function App() {
               </form>
             </div>
 
+            {/* SEÇÃO DE FILTROS DAS MOVIMENTAÇÕES DE CAIXA */}
+            <div className="bg-[#161B23] p-4 rounded-2xl border border-white/5 flex flex-col gap-3 shadow-xl">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-300 uppercase tracking-wider">
+                  <Filter size={14} className="text-blue-400" /> Filtros de Movimentações
+                </div>
+                {(fCaixaTipo || fCaixaDataI || fCaixaDataF || fCaixaOperador || fCaixaBusca) && (
+                  <button 
+                    onClick={() => {
+                      setFCaixaTipo("");
+                      setFCaixaDataI("");
+                      setFCaixaDataF("");
+                      setFCaixaOperador("");
+                      setFCaixaBusca("");
+                    }} 
+                    className="text-[10px] text-red-400 hover:underline font-semibold"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5">
+                {/* Filtro Tipo */}
+                <select 
+                  value={fCaixaTipo} 
+                  onChange={e => setFCaixaTipo(e.target.value)}
+                  className="bg-[#1A2030] p-2 rounded-xl text-xs text-gray-200 outline-none border border-transparent focus:border-blue-500/50"
+                >
+                  <option value="">Todos os Tipos</option>
+                  <option value="ENTRADA_TROCO">Aporte Troco (+)</option>
+                  <option value="SAIDA_TROCO">Saída Troco (-)</option>
+                  <option value="SANGRIA_GASTO">Sangria / Gasto (-)</option>
+                </select>
+
+                {/* Filtro Data Inicial */}
+                <input 
+                  type="date" 
+                  value={fCaixaDataI} 
+                  onChange={e => setFCaixaDataI(e.target.value)}
+                  className="bg-[#1A2030] p-2 rounded-xl text-xs text-gray-200 outline-none border border-transparent focus:border-blue-500/50"
+                  placeholder="Data Início"
+                />
+
+                {/* Filtro Data Final */}
+                <input 
+                  type="date" 
+                  value={fCaixaDataF} 
+                  onChange={e => setFCaixaDataF(e.target.value)}
+                  className="bg-[#1A2030] p-2 rounded-xl text-xs text-gray-200 outline-none border border-transparent focus:border-blue-500/50"
+                  placeholder="Data Fim"
+                />
+
+                {/* Filtro Operador */}
+                <select 
+                  value={fCaixaOperador} 
+                  onChange={e => setFCaixaOperador(e.target.value)}
+                  className="bg-[#1A2030] p-2 rounded-xl text-xs text-gray-200 outline-none border border-transparent focus:border-blue-500/50"
+                >
+                  <option value="">Todos os Operadores</option>
+                  {operadoresCaixa.map(op => (
+                    <option key={op} value={op}>{op}</option>
+                  ))}
+                </select>
+
+                {/* Busca por Texto/Motivo */}
+                <div className="relative flex items-center">
+                  <Search size={12} className="absolute left-2.5 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar no motivo..." 
+                    value={fCaixaBusca} 
+                    onChange={e => setFCaixaBusca(e.target.value)}
+                    className="w-full bg-[#1A2030] pl-8 pr-2 py-2 rounded-xl text-xs text-gray-200 outline-none border border-transparent focus:border-blue-500/50"
+                  />
+                </div>
+              </div>
+
+              {/* CARD DE RESUMO DINÂMICO DOS FILTROS DO CAIXA */}
+              <div className="grid grid-cols-3 gap-2 mt-1 pt-3 border-t border-white/5 text-[11px]">
+                <div className="bg-[#1A2030]/60 p-2.5 rounded-xl border border-emerald-500/10">
+                  <span className="text-gray-400 font-medium block">Total Aportes (+):</span>
+                  <span className="text-emerald-400 font-extrabold text-xs">
+                    R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="bg-[#1A2030]/60 p-2.5 rounded-xl border border-red-500/10">
+                  <span className="text-gray-400 font-medium block">Total Saídas (-):</span>
+                  <span className="text-red-400 font-extrabold text-xs">
+                    R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="bg-[#1A2030]/60 p-2.5 rounded-xl border border-blue-500/10">
+                  <span className="text-gray-400 font-medium block">Resultado Filtro:</span>
+                  <span className={`font-extrabold text-xs ${resumoCaixaFiltro.saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    R$ {resumoCaixaFiltro.saldoPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* TABELA COM MOVIMENTAÇÕES FILTRADAS */}
             <div className="bg-[#161B23] rounded-2xl border border-white/5 p-4 shadow-xl">
-              <h4 className="text-xs font-bold text-gray-300 tracking-wider uppercase mb-3 flex items-center gap-2">
-                <History size={16} className="text-blue-400" /> Histórico de Movimentações de Caixa
+              <h4 className="text-xs font-bold text-gray-300 tracking-wider uppercase mb-3 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <History size={16} className="text-blue-400" /> Histórico de Movimentações
+                </span>
+                <span className="text-[10px] text-gray-400 font-normal">
+                  Exibindo {movimentacoesFiltradas.length} de {movimentacoes.length} registros
+                </span>
               </h4>
+
               <table className="w-full text-left text-[11px]">
                 <thead>
                   <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
@@ -639,12 +790,14 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {movimentacoes.length === 0 ? (
+                  {movimentacoesFiltradas.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-center text-gray-500">Nenhuma movimentação registrada.</td>
+                      <td colSpan={6} className="p-4 text-center text-gray-500">
+                        Nenhuma movimentação encontrada com os filtros selecionados.
+                      </td>
                     </tr>
                   ) : (
-                    movimentacoes.slice(0, 15).map(m => (
+                    movimentacoesFiltradas.map(m => (
                       <tr key={m.id} className="hover:bg-white/[0.02] transition-colors">
                         <td className="p-2.5 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
                         <td className="p-2.5">
