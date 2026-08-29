@@ -9,48 +9,53 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
+const faviconSvg = `data:image/svg+xml,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <path d="M 80 26 C 71.5 16 58.5 11 44 13 C 23.5 16 8 33.5 8 54.5 C 8 76 25 91 47 91 C 67.5 91 84 76.5 87 57.5 L 52 57.5 L 52 45.5 L 98 45.5 C 99 50 99.5 54.5 99.5 59 C 96 82.5 75 99.5 50 99.5 C 22.5 99.5 0 77 0 49.5 C 0 22 22.5 0 50 0 C 65.5 0 79.5 6.5 89.5 17 L 80 26 Z" fill="#FFFFFF"/>
+  <path d="M 18 58 C 14 42 25 26 33 18 C 30 36 38 52 52 62 C 37 64 22 71 18 58 Z" fill="#38BDF8"/>
+  <path d="M 48 44 C 61 39 80 44 91 58 C 80 70 59 69 48 44 Z" fill="#38BDF8"/>
+  <path d="M 50 46 C 65 54 77 58 87 60" stroke="#0B0F15" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
+`)}`;
+
 const GraselLogo = () => (
-  <div className="flex items-center gap-3 py-1">
+  <div className="flex items-center gap-3 py-1.5 select-none">
     <svg 
-      width="40" 
-      height="40" 
+      width="42" 
+      height="42" 
       viewBox="0 0 100 100" 
       fill="none" 
       xmlns="http://www.w3.org/2000/svg" 
-      className="drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] shrink-0"
+      className="drop-shadow-[0_2px_8px_rgba(56,189,248,0.2)] shrink-0 transition-transform hover:scale-105 duration-300"
     >
-      {/* Corpo principal do 'G' em branco */}
       <path 
-        d="M 82 25 C 68 10 38 10 22 28 C 6 46 8 72 24 88 C 40 104 68 102 84 86 C 88 82 92 76 94 68 L 52 68 L 52 52 L 96 52 C 98 62 96 76 88 88 C 68 108 34 108 14 88 C -6 68 -4 38 14 18 C 34 -2 70 -2 88 18 Z" 
-        fill="white" 
+        d="M 80 26 C 71.5 16 58.5 11 44 13 C 23.5 16 8 33.5 8 54.5 C 8 76 25 91 47 91 C 67.5 91 84 76.5 87 57.5 L 52 57.5 L 52 45.5 L 98 45.5 C 99 50 99.5 54.5 99.5 59 C 96 82.5 75 99.5 50 99.5 C 22.5 99.5 0 77 0 49.5 C 0 22 22.5 0 50 0 C 65.5 0 79.5 6.5 89.5 17 L 80 26 Z" 
+        fill="#FFFFFF" 
       />
-      {/* Detalhe da folha azul externa */}
       <path 
-        d="M 18 64 C 15 48 24 32 30 24 C 28 42 36 58 52 68 C 36 70 22 78 18 64 Z" 
+        d="M 18 58 C 14 42 25 26 33 18 C 30 36 38 52 52 62 C 37 64 22 71 18 58 Z" 
         fill="#38BDF8" 
       />
-      {/* Folha azul interna dentro da curva do 'G' */}
       <path 
-        d="M 50 48 C 62 44 82 50 94 66 C 82 78 60 76 50 48 Z" 
+        d="M 48 44 C 61 39 80 44 91 58 C 80 70 59 69 48 44 Z" 
         fill="#38BDF8" 
       />
-      {/* Linha divisória da folha */}
       <path 
-        d="M 52 50 C 68 58 80 62 90 64" 
+        d="M 50 46 C 65 54 77 58 87 60" 
         stroke="#0B0F15" 
         strokeWidth="2.5" 
         strokeLinecap="round" 
       />
     </svg>
 
-    <div className="flex flex-col">
+    <div className="flex flex-col justify-center">
       <span 
-        className="font-black text-xl text-white tracking-[0.16em] leading-none drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]" 
-        style={{ fontFamily: 'Arial Black, system-ui, sans-serif' }}
+        className="font-black text-xl text-white tracking-[0.18em] leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" 
+        style={{ fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
       >
         GRASEL
       </span>
-      <span className="text-[7.5px] font-extrabold text-blue-300 tracking-[0.24em] leading-tight mt-1 opacity-90 uppercase">
+      <span className="text-[8px] font-bold text-sky-400 tracking-[0.28em] leading-tight mt-1 uppercase opacity-90">
         GRÃOS E INSUMOS
       </span>
     </div>
@@ -172,6 +177,15 @@ export default function App() {
 
   useEffect(() => {
     document.title = "Grasel Cerealista";
+
+    let link = document.querySelector("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.type = 'image/svg+xml';
+    link.href = faviconSvg;
   }, []);
 
   const load = useCallback(async (userId) => {
