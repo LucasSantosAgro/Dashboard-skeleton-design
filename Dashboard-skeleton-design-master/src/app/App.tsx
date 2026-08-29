@@ -11,10 +11,10 @@ const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
 const faviconSvg = `data:image/svg+xml,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <path d="M 80 26 C 71.5 16 58.5 11 44 13 C 23.5 16 8 33.5 8 54.5 C 8 76 25 91 47 91 C 67.5 91 84 76.5 87 57.5 L 52 57.5 L 52 45.5 L 98 45.5 C 99 50 99.5 54.5 99.5 59 C 96 82.5 75 99.5 50 99.5 C 22.5 99.5 0 77 0 49.5 C 0 22 22.5 0 50 0 C 65.5 0 79.5 6.5 89.5 17 L 80 26 Z" fill="#FFFFFF"/>
-  <path d="M 18 58 C 14 42 25 26 33 18 C 30 36 38 52 52 62 C 37 64 22 71 18 58 Z" fill="#38BDF8"/>
-  <path d="M 48 44 C 61 39 80 44 91 58 C 80 70 59 69 48 44 Z" fill="#38BDF8"/>
-  <path d="M 50 46 C 65 54 77 58 87 60" stroke="#0B0F15" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 85 22 C 75.5 11.5 61 5 45 5 C 22.9 5 5 22.9 5 45 C 5 67.1 22.9 85 45 85 C 60.5 85 74.2 76.2 81 63.5 L 68 63.5 C 62.5 71 54 75.5 45 75.5 C 28.2 75.5 14.5 61.8 14.5 45 C 14.5 28.2 28.2 14.5 45 14.5 C 57.5 14.5 68.2 22 73 32 L 85 22 Z" fill="#FFFFFF"/>
+  <path d="M 14.5 45 C 14.5 61.8 28.2 75.5 45 75.5 C 32 75.5 14.5 61 14.5 45 Z" fill="#38BDF8"/>
+  <path d="M 45 43 L 83 43 C 94 48 95 62 82 72 C 68 81 53 62 45 43 Z" fill="#38BDF8"/>
+  <path d="M 47 45 C 62 50 75 58 83 67" stroke="#0B0F15" stroke-width="2.5" stroke-linecap="round"/>
 </svg>
 `)}`;
 
@@ -28,20 +28,24 @@ const GraselLogo = () => (
       xmlns="http://www.w3.org/2000/svg" 
       className="drop-shadow-[0_2px_8px_rgba(56,189,248,0.2)] shrink-0 transition-transform hover:scale-105 duration-300"
     >
+      {/* Estrutura principal em 'G' Branco */}
       <path 
-        d="M 80 26 C 71.5 16 58.5 11 44 13 C 23.5 16 8 33.5 8 54.5 C 8 76 25 91 47 91 C 67.5 91 84 76.5 87 57.5 L 52 57.5 L 52 45.5 L 98 45.5 C 99 50 99.5 54.5 99.5 59 C 96 82.5 75 99.5 50 99.5 C 22.5 99.5 0 77 0 49.5 C 0 22 22.5 0 50 0 C 65.5 0 79.5 6.5 89.5 17 L 80 26 Z" 
+        d="M 85 22 C 75.5 11.5 61 5 45 5 C 22.9 5 5 22.9 5 45 C 5 67.1 22.9 85 45 85 C 60.5 85 74.2 76.2 81 63.5 L 68 63.5 C 62.5 71 54 75.5 45 75.5 C 28.2 75.5 14.5 61.8 14.5 45 C 14.5 28.2 28.2 14.5 45 14.5 C 57.5 14.5 68.2 22 73 32 L 85 22 Z" 
         fill="#FFFFFF" 
       />
+      {/* Detalhe Azul Inferior do G */}
       <path 
-        d="M 18 58 C 14 42 25 26 33 18 C 30 36 38 52 52 62 C 37 64 22 71 18 58 Z" 
+        d="M 14.5 45 C 14.5 61.8 28.2 75.5 45 75.5 C 32 75.5 14.5 61 14.5 45 Z" 
         fill="#38BDF8" 
       />
+      {/* Folha Azul na Barra Central */}
       <path 
-        d="M 48 44 C 61 39 80 44 91 58 C 80 70 59 69 48 44 Z" 
+        d="M 45 43 L 83 43 C 94 48 95 62 82 72 C 68 81 53 62 45 43 Z" 
         fill="#38BDF8" 
       />
+      {/* Nervura Central da Folha */}
       <path 
-        d="M 50 46 C 65 54 77 58 87 60" 
+        d="M 47 45 C 62 50 75 58 83 67" 
         stroke="#0B0F15" 
         strokeWidth="2.5" 
         strokeLinecap="round" 
