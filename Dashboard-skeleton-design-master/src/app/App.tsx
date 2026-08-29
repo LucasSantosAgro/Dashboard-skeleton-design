@@ -17,26 +17,28 @@ const GraselLogo = () => (
       viewBox="0 0 100 100" 
       fill="none" 
       xmlns="http://www.w3.org/2000/svg" 
-      className="drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] shrink-0"
+      className="drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] shrink-0"
     >
+      {/* Corpo principal do 'G' em branco */}
       <path 
-        d="M78 22 C64 6 36 6 18 24 C2 40 2 68 18 84 C34 100 66 98 82 82 C88 76 92 68 94 58 L72 58 C70 63 66 68 62 72 C50 82 28 80 18 68 C8 56 10 36 22 24 C34 12 56 12 68 22 L78 22 Z" 
+        d="M 82 25 C 68 10 38 10 22 28 C 6 46 8 72 24 88 C 40 104 68 102 84 86 C 88 82 92 76 94 68 L 52 68 L 52 52 L 96 52 C 98 62 96 76 88 88 C 68 108 34 108 14 88 C -6 68 -4 38 14 18 C 34 -2 70 -2 88 18 Z" 
         fill="white" 
       />
+      {/* Detalhe da folha azul externa */}
       <path 
-        d="M36 62 C32 46 44 32 68 28 C70 44 58 60 36 62 Z" 
-        fill="white" 
+        d="M 18 64 C 15 48 24 32 30 24 C 28 42 36 58 52 68 C 36 70 22 78 18 64 Z" 
+        fill="#38BDF8" 
       />
+      {/* Folha azul interna dentro da curva do 'G' */}
       <path 
-        d="M38 60 C48 50 58 40 66 30" 
+        d="M 50 48 C 62 44 82 50 94 66 C 82 78 60 76 50 48 Z" 
+        fill="#38BDF8" 
+      />
+      {/* Linha divisória da folha */}
+      <path 
+        d="M 52 50 C 68 58 80 62 90 64" 
         stroke="#0B0F15" 
-        strokeWidth="3.5" 
-        strokeLinecap="round" 
-      />
-      <path 
-        d="M48 46 C56 38 64 32 66 30" 
-        stroke="white" 
-        strokeWidth="1.5" 
+        strokeWidth="2.5" 
         strokeLinecap="round" 
       />
     </svg>
@@ -547,106 +549,110 @@ export default function App() {
         {aba === "caixa" && (
           <div className="flex flex-col gap-6">
             <div className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl transition-all ${saldoCaixa < 50 ? 'bg-red-500/10 border-red-500/40' : 'bg-[#161B23] border-blue-500/20'}`}>
-               <div>
-                 {saldoCaixa < 50 && (
-                   <p className="text-red-400 font-bold text-xs mb-1 flex items-center gap-1.5 animate-pulse">
-                     <AlertTriangle size={14} /> ATENÇÃO: SALDO DE TROCO BAIXO (MENOR QUE R$ 50,00)
-                   </p>
-                 )}
-                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                   <Wallet size={13} className="text-blue-400" /> SALDO EM CAIXA (TROCO)
-                 </p>
-                 <p className={`text-3xl font-extrabold tracking-tight ${saldoCaixa < 50 ? 'text-red-400' : 'text-blue-400'}`}>
-                   R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                 </p>
-               </div>
-
-               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                 <form onSubmit={handleAdicionarTroco} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
-                   <input 
-                     type="number" 
-                     step="0.01" 
-                     placeholder="Aporte R$" 
-                     value={valorAporte}
-                     onChange={(e) => setValorAporte(e.target.value)}
-                     className="bg-transparent p-1.5 text-xs w-28 outline-none text-white focus:border-b focus:border-emerald-500" 
-                     required
-                   />
-                   <button className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0">
-                     <PlusCircle size={14}/> Adicionar Troco
-                   </button>
-                 </form>
-
-                 <form onSubmit={handleSangriaGasto} className="flex gap-2 items-center bg-[#1A2030] p-1.5 rounded-xl border border-white/5 flex-1 md:flex-none">
-                   <input 
-                     type="number" 
-                     step="0.01" 
-                     placeholder="Sangria R$" 
-                     value={valorSangria}
-                     onChange={(e) => setValorSangria(e.target.value)}
-                     className="bg-transparent p-1.5 text-xs w-24 outline-none text-white focus:border-b focus:border-rose-500" 
-                     required
-                   />
-                   <input 
-                     type="text" 
-                     placeholder="Motivo / Descrição *" 
-                     value={motivoSangria}
-                     onChange={(e) => setMotivoSangria(e.target.value)}
-                     className="bg-transparent p-1.5 text-xs w-36 outline-none text-white border-l border-white/10 focus:border-b focus:border-rose-500" 
-                     required
-                   />
-                   <button 
-                     disabled={!motivoSangria.trim() || !valorSangria || Number(valorSangria) <= 0}
-                     className={`p-2 rounded-lg font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
-                       !motivoSangria.trim() || !valorSangria || Number(valorSangria) <= 0
-                         ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                         : 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/20'
-                     }`}
-                   >
-                     <MinusCircle size={14}/> Retirar / Sangria
-                   </button>
-                 </form>
-               </div>
+              <div>
+                <p className="text-xs text-gray-400 font-bold tracking-wider uppercase flex items-center gap-2">
+                  <Wallet size={16} className="text-blue-400" /> Saldo Atual de Troco no Caixa
+                </p>
+                <h3 className={`text-3xl font-black mt-1 ${saldoCaixa < 50 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  R$ {saldoCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h3>
+              </div>
+              {saldoCaixa < 50 && (
+                <div className="flex items-center gap-2 text-xs font-bold text-red-400 bg-red-500/10 p-2.5 rounded-xl border border-red-500/20">
+                  <AlertTriangle size={16} /> Saldo de troco baixo! Adicione mais troco.
+                </div>
+              )}
             </div>
 
-            <div className="bg-[#161B23] p-5 rounded-2xl border border-white/5 flex flex-col gap-3 shadow-xl">
-              <h3 className="text-xs font-bold tracking-wider uppercase text-gray-400 flex items-center gap-2">
-                <History size={14} /> Histórico Recente de Movimentações de Caixa
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[11px]">
-                  <thead>
-                    <tr className="text-gray-500 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
-                      <th className="p-2">Data/Hora</th>
-                      <th className="p-2">Tipo</th>
-                      <th className="p-2">Valor</th>
-                      <th className="p-2">Motivo</th>
-                      <th className="p-2">Operador</th>
-                      <th className="p-2">Saldo Resultante</th>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleAdicionarTroco} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 flex flex-col gap-3 shadow-xl">
+                <h4 className="text-xs font-bold text-emerald-400 tracking-wider uppercase flex items-center gap-2">
+                  <PlusCircle size={16} /> Adicionar Troco ao Caixa (Aporte)
+                </h4>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="Valor em R$ (ex: 200.00)" 
+                  value={valorAporte} 
+                  onChange={e => setValorAporte(e.target.value)} 
+                  className="bg-[#1A2030] p-2.5 rounded-xl text-sm outline-none border border-transparent focus:border-emerald-500 transition-all" 
+                  required 
+                />
+                <button className="bg-emerald-600 hover:bg-emerald-500 p-2.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-emerald-600/20">
+                  ADICIONAR TROCO
+                </button>
+              </form>
+
+              <form onSubmit={handleSangriaGasto} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 flex flex-col gap-3 shadow-xl">
+                <h4 className="text-xs font-bold text-red-400 tracking-wider uppercase flex items-center gap-2">
+                  <MinusCircle size={16} /> Registrar Retirada / Sangria
+                </h4>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="Valor em R$ (ex: 50.00)" 
+                  value={valorSangria} 
+                  onChange={e => setValorSangria(e.target.value)} 
+                  className="bg-[#1A2030] p-2.5 rounded-xl text-sm outline-none border border-transparent focus:border-red-500 transition-all" 
+                  required 
+                />
+                <input 
+                  type="text" 
+                  placeholder="Motivo da retirada (ex: Almoço, Sangria de caixa)" 
+                  value={motivoSangria} 
+                  onChange={e => setMotivoSangria(e.target.value)} 
+                  className="bg-[#1A2030] p-2.5 rounded-xl text-sm outline-none border border-transparent focus:border-red-500 transition-all" 
+                  required 
+                />
+                <button className="bg-red-600 hover:bg-red-500 p-2.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-red-600/20">
+                  REGISTRAR RETIRADA
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-[#161B23] rounded-2xl border border-white/5 p-4 shadow-xl">
+              <h4 className="text-xs font-bold text-gray-300 tracking-wider uppercase mb-3 flex items-center gap-2">
+                <History size={16} className="text-blue-400" /> Histórico de Movimentações de Caixa
+              </h4>
+              <table className="w-full text-left text-[11px]">
+                <thead>
+                  <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
+                    {["Data/Hora", "Tipo", "Motivo", "Operador", "Valor", "Saldo Resultante"].map(h => <th key={h} className="p-2.5">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {movimentacoes.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center text-gray-500">Nenhuma movimentação registrada.</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {movimentacoes.slice(0, 15).map((m, i) => (
-                      <tr key={m.id || i} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="p-2 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
-                        <td className="p-2 font-bold">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] ${
-                            m.tipo === 'ENTRADA_TROCO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
-                            m.tipo === 'SANGRIA_GASTO' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 
-                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  ) : (
+                    movimentacoes.slice(0, 15).map(m => (
+                      <tr key={m.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="p-2.5 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                        <td className="p-2.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                            m.tipo === 'ENTRADA_TROCO' 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                              : m.tipo === 'SAIDA_TROCO' 
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
+                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
                           }`}>
-                            {m.tipo}
+                            {m.tipo === 'ENTRADA_TROCO' ? 'APORTE TROCO' : m.tipo === 'SAIDA_TROCO' ? 'SAÍDA TROCO' : 'SANGRIA / GASTO'}
                           </span>
                         </td>
-                        <td className="p-2 font-bold text-white">R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                        <td className="p-2 text-gray-300">{m.motivo}</td>
-                        <td className="p-2 text-gray-400">{m.operador}</td>
-                        <td className="p-2 font-medium text-blue-400">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td className="p-2.5 text-gray-300">{m.motivo}</td>
+                        <td className="p-2.5 text-gray-400">{m.operador || '-'}</td>
+                        <td className={`p-2.5 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-2.5 font-medium text-gray-300">
+                          R$ {Number(m.saldo_resultante).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
