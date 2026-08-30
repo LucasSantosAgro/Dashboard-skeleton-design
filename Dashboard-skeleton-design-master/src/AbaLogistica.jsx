@@ -6,7 +6,7 @@ export default function AbaLogistica() {
   const [viagemAtiva, setViagemAtiva] = useState(null);
   const [historicoViagens, setHistoricoViagens] = useState([]);
 
-  // Estados do Formulário de Nova Viagem (Alinhados com o Banco SQL)
+  // Formulário de Nova Viagem
   const [novaViagem, setNovaViagem] = useState({
     placa: '',
     operador: '',
@@ -17,25 +17,28 @@ export default function AbaLogistica() {
     peso_carregado: ''
   });
 
-  // Estados dos Modais
+  // Modais
   const [modalAbastecimento, setModalAbastecimento] = useState(false);
   const [modalDespesa, setModalDespesa] = useState(false);
   const [modalFinalizar, setModalFinalizar] = useState(false);
 
-  // Formulário de Abastecimento
+  // Modal Abastecimento Completo
   const [abastecimento, setAbastecimento] = useState({
+    posto_combustivel: '',
     numero_nota_combustivel: '',
     valor_combustivel: '',
-    litros_combustivel: ''
+    litros_combustivel: '',
+    km_abastecimento: '',
+    foto: null
   });
 
-  // Formulário de Despesa
+  // Modal Despesa
   const [despesa, setDespesa] = useState({
     outros_gastos: '',
     descricao_outros_gastos: ''
   });
 
-  // Formulário de Encerramento
+  // Modal Encerramento
   const [encerramento, setEncerramento] = useState({
     km_final: '',
     local_descarga: '',
@@ -74,10 +77,35 @@ export default function AbaLogistica() {
     }
   }
 
-  async function uploadImagem(file) {
+  // Funções para abrir modais preenchendo os dados existentes
+  function abrirModalAbastecimento() {
+    if (viagemAtiva) {
+      setAbastecimento({
+        posto_combustivel: viagemAtiva.posto_combustivel || '',
+        numero_nota_combustivel: viagemAtiva.numero_nota_combustivel || '',
+        valor_combustivel: viagemAtiva.valor_combustivel || '',
+        litros_combustivel: viagemAtiva.litros_combustivel || '',
+        km_abastecimento: viagemAtiva.km_abastecimento || '',
+        foto: null
+      });
+    }
+    setModalAbastecimento(true);
+  }
+
+  function abrirModalDespesa() {
+    if (viagemAtiva) {
+      setDespesa({
+        outros_gastos: viagemAtiva.outros_gastos || '',
+        descricao_outros_gastos: viagemAtiva.descricao_outros_gastos || ''
+      });
+    }
+    setModalDespesa(true);
+  }
+
+  async function uploadImagem(file, pasta) {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
-    const fileName = `descargas/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const fileName = `${pasta}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('comprovantes-logistica')
@@ -126,21 +154,28 @@ export default function AbaLogistica() {
     e.preventDefault();
     setLoading(true);
 
+    let fotoUrl = viagemAtiva?.foto_nota_combustivel_url || null;
+    if (abastecimento.foto) {
+      fotoUrl = await uploadImagem(abastecimento.foto, 'abastecimentos');
+    }
+
     const { error } = await supabase
       .from('diario_bordo')
       .update({
+        posto_combustivel: abastecimento.posto_combustivel,
         numero_nota_combustivel: abastecimento.numero_nota_combustivel,
         valor_combustivel: Number(abastecimento.valor_combustivel),
-        litros_combustivel: Number(abastecimento.litros_combustivel)
+        litros_combustivel: Number(abastecimento.litros_combustivel),
+        km_abastecimento: abastecimento.km_abastecimento ? Number(abastecimento.km_abastecimento) : null,
+        foto_nota_combustivel_url: fotoUrl
       })
       .eq('id', viagemAtiva.id);
 
     if (error) {
       alert('Erro ao registrar abastecimento: ' + error.message);
     } else {
-      alert('Abastecimento registrado!');
+      alert('Abastecimento registrado com sucesso!');
       setModalAbastecimento(false);
-      setAbastecimento({ numero_nota_combustivel: '', valor_combustivel: '', litros_combustivel: '' });
       carregarDados();
     }
     setLoading(false);
@@ -163,7 +198,6 @@ export default function AbaLogistica() {
     } else {
       alert('Despesa registrada com sucesso!');
       setModalDespesa(false);
-      setDespesa({ outros_gastos: '', descricao_outros_gastos: '' });
       carregarDados();
     }
     setLoading(false);
@@ -175,7 +209,7 @@ export default function AbaLogistica() {
 
     let fotoUrl = null;
     if (encerramento.foto) {
-      fotoUrl = await uploadImagem(encerramento.foto);
+      fotoUrl = await uploadImagem(encerramento.foto, 'descargas');
     }
 
     const { error } = await supabase
@@ -228,33 +262,84 @@ export default function AbaLogistica() {
       {/* PAINEL DE VIAGEM ATIVA */}
       {viagemAtiva ? (
         <div style={{ background: '#1e293b', border: '2px solid #3b82f6', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
-          <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-            VIAGEM EM TRANSITO
-          </span>
-          <h3 style={{ color: '#ffffff', margin: '15px 0 5px 0' }}>Placa: {viagemAtiva.placa} - Motorista/Operador: {viagemAtiva.operador || 'Não informado'}</h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', margin: '15px 0', color: '#cbd5e1' }}>
-            <p style={{ margin: 0 }}><strong>Local Embarque:</strong> {viagemAtiva.local_carregamento || '-'}</p>
-            <p style={{ margin: 0 }}><strong>Cliente Destino:</strong> {viagemAtiva.cliente_destino || '-'}</p>
-            <p style={{ margin: 0 }}><strong>Produto:</strong> {viagemAtiva.produto || '-'}</p>
-            <p style={{ margin: 0 }}><strong>Peso Carregado:</strong> {viagemAtiva.peso_carregado || '-'}</p>
-            <p style={{ margin: 0 }}><strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+              VIAGEM EM TRÂNSITO
+            </span>
+            <span style={{ color: '#94a3b8', fontSize: '12px' }}>ID #{viagemAtiva.id}</span>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
+          <h3 style={{ color: '#ffffff', margin: '10px 0' }}>
+            Placa: <span style={{ color: '#60a5fa' }}>{viagemAtiva.placa}</span> | Motorista: <span style={{ color: '#60a5fa' }}>{viagemAtiva.operador || 'Não informado'}</span>
+          </h3>
+          
+          {/* Dados do Embarque */}
+          <div style={{ background: '#0f172a', padding: '12px', borderRadius: '8px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '15px', color: '#cbd5e1', border: '1px solid #334155' }}>
+            <p style={{ margin: 0 }}>📍 <strong>Embarque:</strong> {viagemAtiva.local_carregamento || '-'}</p>
+            <p style={{ margin: 0 }}>🎯 <strong>Destino:</strong> {viagemAtiva.cliente_destino || '-'}</p>
+            <p style={{ margin: 0 }}>📦 <strong>Produto:</strong> {viagemAtiva.produto || '-'}</p>
+            <p style={{ margin: 0 }}>⚖️ <strong>Peso Carga:</strong> {viagemAtiva.peso_carregado || '-'}</p>
+            <p style={{ margin: 0 }}>🏎️ <strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km</p>
+          </div>
+
+          {/* PAINEL DE RESUMO DOS LANÇAMENTOS DO MOTORISTA */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+            
+            {/* Card Visual: Abastecimento */}
+            <div style={{ background: '#0f172a', border: '1px solid #d97706', borderRadius: '8px', padding: '12px' }}>
+              <h4 style={{ color: '#f59e0b', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                ⛽ Abastecimento Lançado
+              </h4>
+              {viagemAtiva.numero_nota_combustivel || viagemAtiva.valor_combustivel ? (
+                <div style={{ fontSize: '13px', color: '#e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <p style={{ margin: 0 }}><strong>Posto:</strong> {viagemAtiva.posto_combustivel || 'Não informado'}</p>
+                  <p style={{ margin: 0 }}><strong>Nº Nota Fiscal:</strong> {viagemAtiva.numero_nota_combustivel || '-'}</p>
+                  <p style={{ margin: 0 }}><strong>Valor:</strong> R$ {Number(viagemAtiva.valor_combustivel || 0).toFixed(2)}</p>
+                  <p style={{ margin: 0 }}><strong>Litros:</strong> {viagemAtiva.litros_combustivel || 0} L</p>
+                  <p style={{ margin: 0 }}><strong>KM Abastecimento:</strong> {viagemAtiva.km_abastecimento || '-'} km</p>
+                  {viagemAtiva.foto_nota_combustivel_url && (
+                    <p style={{ margin: '6px 0 0 0' }}>
+                      📷 <a href={viagemAtiva.foto_nota_combustivel_url} target="_blank" rel="noopener noreferrer" style={{ color: '#f59e0b', fontWeight: 'bold', textDecoration: 'underline' }}>Ver Foto da Nota Fiscal</a>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p style={{ color: '#64748b', fontSize: '13px', margin: 0, fontStyle: 'italic' }}>Nenhum abastecimento registrado ainda nesta viagem.</p>
+              )}
+            </div>
+
+            {/* Card Visual: Despesas */}
+            <div style={{ background: '#0f172a', border: '1px solid #9333ea', borderRadius: '8px', padding: '12px' }}>
+              <h4 style={{ color: '#c084fc', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                💸 Outros Gastos Lançados
+              </h4>
+              {viagemAtiva.outros_gastos ? (
+                <div style={{ fontSize: '13px', color: '#e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <p style={{ margin: 0 }}><strong>Valor Total Gastos:</strong> R$ {Number(viagemAtiva.outros_gastos || 0).toFixed(2)}</p>
+                  <p style={{ margin: 0 }}><strong>Descrição:</strong> {viagemAtiva.descricao_outros_gastos || 'Sem descrição'}</p>
+                </div>
+              ) : (
+                <p style={{ color: '#64748b', fontSize: '13px', margin: 0, fontStyle: 'italic' }}>Nenhum outro gasto lançado até o momento.</p>
+              )}
+            </div>
+
+          </div>
+
+          {/* Botões de Ação para o Motorista */}
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
             <button 
-              onClick={() => setModalAbastecimento(true)}
-              style={{ padding: '12px 18px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-              ⛽ Registrar Abastecimento
+              onClick={abrirModalAbastecimento}
+              style={{ flex: '1 1 180px', padding: '12px 18px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+              ⛽ {viagemAtiva.valor_combustivel ? 'Editar Abastecimento' : 'Registrar Abastecimento'}
             </button>
             <button 
-              onClick={() => setModalDespesa(true)}
-              style={{ padding: '12px 18px', background: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-              💸 Registrar Despesa / Gasto
+              onClick={abrirModalDespesa}
+              style={{ flex: '1 1 180px', padding: '12px 18px', background: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+              💸 {viagemAtiva.outros_gastos ? 'Editar Despesa' : 'Registrar Despesa / Gasto'}
             </button>
             <button 
               onClick={() => setModalFinalizar(true)}
-              style={{ padding: '12px 18px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+              style={{ flex: '1 1 180px', padding: '12px 18px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
               🏁 Finalizar Viagem
             </button>
           </div>
@@ -328,25 +413,66 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* MODAL ABASTECIMENTO */}
+      {/* MODAL ABASTECIMENTO COMPLETO */}
       {modalAbastecimento && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '450px', color: '#fff' }}>
             <h3 style={{ marginTop: 0, color: '#f59e0b' }}>⛽ Registrar Abastecimento</h3>
             <form onSubmit={handleRegistrarAbastecimento} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
+                <label style={labelStyle}>Posto de Combustível</label>
+                <input 
+                  type="text" placeholder="Nome / Local do Posto" 
+                  value={abastecimento.posto_combustivel} 
+                  onChange={e => setAbastecimento({...abastecimento, posto_combustivel: e.target.value})} 
+                  style={inputStyle} 
+                />
+              </div>
+              <div>
                 <label style={labelStyle}>Número da Nota Combustível</label>
-                <input type="text" placeholder="Nº NF" required value={abastecimento.numero_nota_combustivel} onChange={e => setAbastecimento({...abastecimento, numero_nota_combustivel: e.target.value})} style={inputStyle} />
+                <input 
+                  type="text" placeholder="Nº NF" required 
+                  value={abastecimento.numero_nota_combustivel} 
+                  onChange={e => setAbastecimento({...abastecimento, numero_nota_combustivel: e.target.value})} 
+                  style={inputStyle} 
+                />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={labelStyle}>Valor Combustível (R$)</label>
-                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.valor_combustivel} onChange={e => setAbastecimento({...abastecimento, valor_combustivel: e.target.value})} style={inputStyle} />
+                  <input 
+                    type="number" step="0.01" placeholder="0.00" required 
+                    value={abastecimento.valor_combustivel} 
+                    onChange={e => setAbastecimento({...abastecimento, valor_combustivel: e.target.value})} 
+                    style={inputStyle} 
+                  />
                 </div>
                 <div>
                   <label style={labelStyle}>Litros Combustível</label>
-                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.litros_combustivel} onChange={e => setAbastecimento({...abastecimento, litros_combustivel: e.target.value})} style={inputStyle} />
+                  <input 
+                    type="number" step="0.01" placeholder="0.00" required 
+                    value={abastecimento.litros_combustivel} 
+                    onChange={e => setAbastecimento({...abastecimento, litros_combustivel: e.target.value})} 
+                    style={inputStyle} 
+                  />
                 </div>
+              </div>
+              <div>
+                <label style={labelStyle}>KM do Abastecimento</label>
+                <input 
+                  type="number" step="0.1" placeholder="Ex: 150250" 
+                  value={abastecimento.km_abastecimento} 
+                  onChange={e => setAbastecimento({...abastecimento, km_abastecimento: e.target.value})} 
+                  style={inputStyle} 
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Foto da Nota Fiscal</label>
+                <input 
+                  type="file" accept="image/*" 
+                  onChange={e => setAbastecimento({...abastecimento, foto: e.target.files[0]})} 
+                  style={{ color: '#fff' }} 
+                />
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
@@ -428,7 +554,7 @@ export default function AbaLogistica() {
                 <th style={{ padding: '12px' }}>Produto</th>
                 <th style={{ padding: '12px' }}>KM Rodados</th>
                 <th style={{ padding: '12px' }}>Peso Descarga</th>
-                <th style={{ padding: '12px' }}>Comprovante</th>
+                <th style={{ padding: '12px' }}>Comprovantes</th>
               </tr>
             </thead>
             <tbody>
@@ -440,9 +566,13 @@ export default function AbaLogistica() {
                   <td style={{ padding: '12px' }}>{(v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0} km</td>
                   <td style={{ padding: '12px' }}>{v.peso_descarga || '-'}</td>
                   <td style={{ padding: '12px' }}>
-                    {v.foto_descarga_url ? (
-                      <a href={v.foto_descarga_url} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontWeight: 'bold' }}>Ver Foto</a>
-                    ) : '-'}
+                    {v.foto_nota_combustivel_url && (
+                      <a href={v.foto_nota_combustivel_url} target="_blank" rel="noopener noreferrer" style={{ color: '#f59e0b', fontWeight: 'bold', marginRight: '10px' }}>NF Abast.</a>
+                    )}
+                    {v.foto_descarga_url && (
+                      <a href={v.foto_descarga_url} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontWeight: 'bold' }}>Descarga</a>
+                    )}
+                    {!v.foto_nota_combustivel_url && !v.foto_descarga_url && '-'}
                   </td>
                 </tr>
               ))}
