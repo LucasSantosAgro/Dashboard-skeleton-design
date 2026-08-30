@@ -1,465 +1,444 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient'; // <-- Usando o cliente global do seu projeto
 
-function AbaLogistica() {
+export default function AbaLogistica() {
+  const [tipoUsuario, setTipoUsuario] = useState('GESTOR'); // 'GESTOR' ou 'MOTORISTA'
+
+  const [viagensFinalizadas, setViagensFinalizadas] = useState([]);
   const [viagemAtiva, setViagemAtiva] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [carregando, setCarregando] = useState(true);
 
-  // Estados para formulário de nova viagem
-  const [novaViagem, setNovaViagem] = useState({
+  // Formulário Nova Viagem (Baseado na tabela diario_bordo)
+  const [formViagem, setFormViagem] = useState({
     placa: '',
-    operador: '',
-    km_inicial: '',
-    local_carregamento: '',
-    cliente_destino: '',
+    operador: 'Lucas Santos',
+    kmInicial: '',
+    localCarregamento: '',
+    clienteDestino: '',
     produto: '',
-    peso_carregado: ''
+    pesoCarregado: ''
   });
 
   // Modais
-  const [modalNovoAbastecimento, setModalNovoAbastecimento] = useState(false);
-  const [modalNovaDespesa, setModalNovaDespesa] = useState(false);
-  const [modalFinalizar, setModalFinalizar] = useState(false);
-  const [modalListaAbastecimentos, setModalListaAbastecimentos] = useState(false);
-  const [modalListaDespesas, setModalListaDespesas] = useState(false);
-  const [viagemDetalhada, setViagemDetalhada] = useState(null);
+  const [modalAbastecimentoAberto, setModalAbastecimentoAberto] = useState(false);
+  const [modalDespesaAberto, setModalDespesaAberto] = useState(false);
+  const [modalListaDespesasAberto, setModalListaDespesasAberto] = useState(false);
+  const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
+  const [modalDetalhesAberto, setModalDetalhesAberto] = useState(false);
+  const [viagemSelecionada, setViagemSelecionada] = useState(null);
 
-  // Dados operacionais da viagem ativa
-  const [listaAbastecimentos, setListaAbastecimentos] = useState([]);
-  const [listaDespesas, setListaDespesas] = useState([]);
+  // Formulários auxiliares
+  const [formAbast, setFormAbast] = useState({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
+  const [formDesp, setFormDesp] = useState({ tipo: 'Pedágio', valor: '', descricao: '' });
+  const [formFim, setFormFim] = useState({ kmFinal: '', pesoDescarga: '', localDescarga: '' });
 
-  // Histórico de Viagens (Carrega do localStorage ou dados mockados iniciais)
-  const [historicoViagens, setHistoricoViagens] = useState(() => {
-    const salvo = localStorage.getItem('@grasel_historico_viagens');
-    if (salvo) {
-      try { return JSON.parse(salvo); } catch (e) { console.error(e); }
-    }
-    // Dados de exemplo para o dashboard não nascer vazio
-    return [
-      {
-        id: 101,
-        placa: 'ABC-1234',
-        operador: 'Carlos Silva',
-        produto: 'Soja',
-        local_carregamento: 'Fazenda Santa Maria',
-        cliente_destino: 'Porto Paranaguá',
-        peso_carregado: 38500,
-        peso_descarga: 38350,
-        km_inicial: 145000,
-        km_final: 15080, // Exemplo de KM final
-        abastecimentos: [
-          { id: 1, posto: 'Posto Gaúcho', nota_fiscal: '4587', valor_total: 1200, litros: 200, km_atual: 145300, preco_por_litro: 6.00 }
-        ],
-        despesas_viagem: [
-          { id: 1, tipo: 'Pedágio', valor: 180, descricao: 'Pedágio BR-277' },
-          { id: 2, tipo: 'Alimentação', valor: 75, descricao: 'Almoço em estrada' }
-        ]
-      }
-    ];
-  });
-
-  // Salvar no localStorage sempre que o histórico mudar
+  // Buscar dados do Supabase ao carregar
   useEffect(() => {
-    localStorage.setItem('@grasel_historico_viagens', JSON.stringify(historicoViagens));
-  }, [historicoViagens]);
+    carregarDadosSupabase();
+  }, []);
 
-  // Estados de inputs para modais
-  const [abastecimento, setAbastecimento] = useState({
-    posto: '',
-    nota_fiscal: '',
-    valor_total: '',
-    litros: '',
-    km_atual: '',
-    foto: null
-  });
+  const carregarDadosSupabase = async () => {
+    setCarregando(true);
+    try {
+      const { data: viagensData, error: errViagens } = await supabase
+        .from('diario_bordo')
+        .select(`
+          *,
+          despesas_viagem (*)
+        `)
+        .order('created_at', { ascending: false });
 
-  const [despesa, setDespesa] = useState({
-    tipo: 'Alimentação',
-    valor: '',
-    descricao: '',
-    foto: null
-  });
+      if (errViagens) throw errViagens;
 
-  const [encerramento, setEncerramento] = useState({
-    km_final: '',
-    local_descarga: '',
-    peso_descarga: '',
-    foto: null
-  });
+      if (viagensData) {
+        // Viagem ativa é aquela com status 'EM_TRANSITO' (ou nulo)
+        const ativa = viagensData.find(v => v.status === 'EM_TRANSITO' || !v.status);
+        const finalizadas = viagensData.filter(v => v.status === 'FINALIZADA');
 
-  // Estados de Edição
-  const [itemEdicaoAbastecimento, setItemEdicaoAbastecimento] = useState(null);
-  const [itemEdicaoDespesa, setItemEdicaoDespesa] = useState(null);
-
-  // Detalhes da viagem selecionada no histórico
-  const [detalhesAbastecimentos, setDetalhesAbastecimentos] = useState([]);
-  const [detalhesDespesas, setDetalhesDespesas] = useState([]);
-
-  // Estilos reutilizáveis
-  const labelStyle = { display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#94a3b8' };
-  const inputStyle = { width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '14px', boxSizing: 'border-box' };
-
-  // Ações de Viagem
-  const handleIniciarViagem = (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      const nova = { id: Date.now(), ...novaViagem, status: 'ativa' };
-      setViagemAtiva(nova);
-      setLoading(false);
-      setNovaViagem({ placa: '', operador: '', km_inicial: '', local_carregamento: '', cliente_destino: '', produto: '', peso_carregado: '' });
-    }, 400);
+        setViagemAtiva(ativa || null);
+        setViagensFinalizadas(finalizadas);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados do Supabase:', error.message);
+    } finally {
+      setCarregando(false);
+    }
   };
 
-  const handleRegistrarAbastecimento = (e) => {
+  // Ações do Motorista: Iniciar Viagem
+  const handleIniciarViagem = async (e) => {
     e.preventDefault();
-    const novoItem = { 
-      id: Date.now(), 
-      ...abastecimento, 
-      preco_por_litro: Number(abastecimento.litros) > 0 ? Number(abastecimento.valor_total) / Number(abastecimento.litros) : 0 
+    if (!formViagem.placa || !formViagem.kmInicial || !formViagem.localCarregamento) {
+      alert('Preencha os campos obrigatórios da viagem.');
+      return;
+    }
+
+    const novaViagemPayload = {
+      placa: formViagem.placa,
+      operador: formViagem.operador,
+      km_inicial: Number(formViagem.kmInicial),
+      local_carregamento: formViagem.localCarregamento,
+      cliente_destino: formViagem.clienteDestino,
+      produto: formViagem.produto,
+      peso_carregado: Number(formViagem.pesoCarregado),
+      status: 'EM_TRANSITO'
     };
-    setListaAbastecimentos([...listaAbastecimentos, novoItem]);
-    setAbastecimento({ posto: '', nota_fiscal: '', valor_total: '', litros: '', km_atual: '', foto: null });
-    setModalNovoAbastecimento(false);
+
+    const { data, error } = await supabase
+      .from('diario_bordo')
+      .insert([novaViagemPayload])
+      .select(`*, despesas_viagem (*)`);
+
+    if (error) {
+      alert('Erro ao iniciar viagem: ' + error.message);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      setViagemAtiva(data[0]);
+      setFormViagem({ placa: '', operador: 'Lucas Santos', kmInicial: '', localCarregamento: '', clienteDestino: '', produto: '', pesoCarregado: '' });
+    }
   };
 
-  const handleRegistrarDespesa = (e) => {
+  // Registrar Abastecimento (Atualiza a própria linha do diario_bordo)
+  const handleSalvarAbastecimento = async (e) => {
     e.preventDefault();
-    const novoItem = { id: Date.now(), ...despesa };
-    setListaDespesas([...listaDespesas, novoItem]);
-    setDespesa({ tipo: 'Alimentação', valor: '', descricao: '', foto: null });
-    setModalNovaDespesa(false);
-  };
+    if (!viagemAtiva) return;
 
-  const handleFinalizarViagem = (e) => {
-    e.preventDefault();
-    const viagemEncerrada = { 
-      ...viagemAtiva, 
-      ...encerramento, 
-      abastecimentos: listaAbastecimentos, 
-      despesas_viagem: listaDespesas 
+    const payload = {
+      km_abastecimento: Number(formAbast.kmAbastecimento),
+      litros_combustivel: Number(formAbast.litrosCombustivel),
+      valor_combustivel: Number(formAbast.valorCombustivel),
+      posto_combustivel: formAbast.postoCombustivel,
+      numero_nota_combustivel: formAbast.numeroNotaCombustivel
     };
-    setHistoricoViagens([viagemEncerrada, ...historicoViagens]);
+
+    const { data, error } = await supabase
+      .from('diario_bordo')
+      .update(payload)
+      .eq('id', viagemAtiva.id)
+      .select(`*, despesas_viagem (*)`);
+
+    if (error) {
+      alert('Erro ao salvar abastecimento: ' + error.message);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      setViagemAtiva(data[0]);
+      setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
+      setModalAbastecimentoAberto(false);
+    }
+  };
+
+  // Registrar Despesa (Insere na tabela despesas_viagem)
+  const handleSalvarDespesa = async (e) => {
+    e.preventDefault();
+    if (!viagemAtiva) return;
+
+    const payload = {
+      viagem_id: viagemAtiva.id,
+      tipo: formDesp.tipo,
+      valor: Number(formDesp.valor),
+      descricao: formDesp.descricao
+    };
+
+    const { data, error } = await supabase
+      .from('despesas_viagem')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      alert('Erro ao salvar despesa: ' + error.message);
+      return;
+    }
+
+    if (data) {
+      setViagemAtiva(prev => ({
+        ...prev,
+        despesas_viagem: [...(prev.despesas_viagem || []), data[0]]
+      }));
+      setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' });
+      setModalDespesaAberto(false);
+    }
+  };
+
+  // Concluir Viagem
+  const handleConcluirViagem = async (e) => {
+    e.preventDefault();
+    const kmFinalNum = Number(formFim.kmFinal);
+    const pesoDescNum = Number(formFim.pesoDescarga);
+
+    if (kmFinalNum < viagemAtiva.km_inicial) {
+      alert('O KM Final não pode ser menor que o KM Inicial.');
+      return;
+    }
+
+    const dadosAtualizados = {
+      km_final: kmFinalNum,
+      peso_descarga: pesoDescNum,
+      local_descarga: formFim.localDescarga,
+      status: 'FINALIZADA'
+    };
+
+    const { error } = await supabase
+      .from('diario_bordo')
+      .update(dadosAtualizados)
+      .eq('id', viagemAtiva.id);
+
+    if (error) {
+      alert('Erro ao finalizar viagem: ' + error.message);
+      return;
+    }
+
+    const viagemConcluida = { ...viagemAtiva, ...dadosAtualizados };
+    setViagensFinalizadas(prev => [viagemConcluida, ...prev]);
     setViagemAtiva(null);
-    setListaAbastecimentos([]);
-    setListaDespesas([]);
-    setEncerramento({ km_final: '', local_descarga: '', peso_descarga: '', foto: null });
-    setModalFinalizar(false);
+    setModalFinalizarAberto(false);
+    setFormFim({ kmFinal: '', pesoDescarga: '', localDescarga: '' });
   };
 
-  const handleAbrirDetalhes = (viagem) => {
-    setViagemDetalhada(viagem);
-    setDetalhesAbastecimentos(viagem.abastecimentos || []);
-    setDetalhesDespesas(viagem.despesas_viagem || []);
-  };
-
-  // Cálculos do Dashboard Logístico
-  const totalViagensRealizadas = historicoViagens.length;
-  const totalKmRodados = historicoViagens.reduce((acc, v) => {
-    const ini = Number(v.km_inicial) || 0;
-    const fim = Number(v.km_final) || 0;
-    return acc + (fim > ini ? fim - ini : 0);
+  // Cálculos do Dashboard Geral
+  const totalViagens = viagensFinalizadas.length;
+  const kmTotalRodados = viagensFinalizadas.reduce((acc, v) => {
+    const rodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
+    return acc + rodados;
   }, 0);
 
-  const custoTotalGeral = historicoViagens.reduce((acc, v) => {
-    const cComb = (v.abastecimentos || []).reduce((sub, ab) => sub + (Number(ab.valor_total) || 0), 0);
-    const cDesp = (v.despesas_viagem || []).reduce((sub, dp) => sub + (Number(dp.valor) || 0), 0);
-    return acc + cComb + cDesp;
+  const custoOperacionalTotal = viagensFinalizadas.reduce((acc, v) => {
+    const combustivel = v.valor_combustivel || 0;
+    const outrasDespesas = (v.despesas_viagem || []).reduce((sum, d) => sum + (d.valor || 0), 0);
+    return acc + combustivel + outrasDespesas;
   }, 0);
+
+  // ---- KPIS POR PLACA (GESTÃO) ----
+  const kpisPorPlaca = React.useMemo(() => {
+    const mapa = {};
+    viagensFinalizadas.forEach(v => {
+      const placa = v.placa || 'N/D';
+      if (!mapa[placa]) {
+        mapa[placa] = {
+          placa,
+          qtdViagens: 0,
+          kmTotal: 0,
+          litrosTotal: 0,
+          gastoCombustivelTotal: 0,
+          gastoOutrasDespesas: 0,
+          gastoTotal: 0
+        };
+      }
+      mapa[placa].qtdViagens += 1;
+      const kmRodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
+      mapa[placa].kmTotal += kmRodados;
+      
+      const valComb = v.valor_combustivel || 0;
+      const litComb = v.litros_combustivel || 0;
+      const valDesp = (v.despesas_viagem || []).reduce((sum, d) => sum + (d.valor || 0), 0);
+
+      mapa[placa].gastoCombustivelTotal += valComb;
+      mapa[placa].litrosTotal += litComb;
+      mapa[placa].gastoOutrasDespesas += valDesp;
+      mapa[placa].gastoTotal += (valComb + valDesp);
+    });
+
+    return Object.values(mapa).map(item => {
+      const mediaKmPorLitro = item.litrosTotal > 0 ? (item.kmTotal / item.litrosTotal).toFixed(2) : '0.00';
+      const custoMedioPorViagem = item.qtdViagens > 0 ? (item.gastoTotal / item.qtdViagens).toFixed(2) : '0.00';
+      const combustivelMedioPorViagem = item.qtdViagens > 0 ? (item.gastoCombustivelTotal / item.qtdViagens).toFixed(2) : '0.00';
+      const despesaMediaPorViagem = item.qtdViagens > 0 ? (item.gastoOutrasDespesas / item.qtdViagens).toFixed(2) : '0.00';
+
+      return {
+        ...item,
+        mediaKmPorLitro,
+        custoMedioPorViagem,
+        combustivelMedioPorViagem,
+        despesaMediaPorViagem
+      };
+    });
+  }, [viagensFinalizadas]);
+
+  if (carregando) {
+    return <div style={{ padding: '40px', color: '#fff', textAlign: 'center' }}>Carregando dados do Supabase...</div>;
+  }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1250px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h2 style={{ color: '#ffffff', marginBottom: '20px' }}>🚛 Gestão de Logística e Viagens</h2>
-
-      {/* DASHBOARD LOGÍSTICO */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-        <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '20px', borderRadius: '10px' }}>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>Viagens Finalizadas</p>
-          <h3 style={{ margin: '8px 0 0 0', color: '#60a5fa', fontSize: '24px' }}>{totalViagensRealizadas}</h3>
+    <div style={{ padding: '24px', color: '#fff', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0b132b' }}>
+      
+      {/* Barra superior de controle de perfil */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#1c2541', padding: '12px 20px', borderRadius: '8px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '20px' }}>🚚 Diário de Bordo & Logística</h2>
+          <span style={{ fontSize: '13px', color: '#94a3b8' }}>Integrado com tabelas diario_bordo e despesas_viagem</span>
         </div>
-        <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '20px', borderRadius: '10px' }}>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>KM Total Rodados</p>
-          <h3 style={{ margin: '8px 0 0 0', color: '#4ade80', fontSize: '24px' }}>{totalKmRodados.toLocaleString('pt-BR')} km</h3>
-        </div>
-        <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '20px', borderRadius: '10px' }}>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>Custo Operacional Total</p>
-          <h3 style={{ margin: '8px 0 0 0', color: '#f59e0b', fontSize: '24px' }}>R$ {custoTotalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <span style={{ fontSize: '14px', color: '#cbd5e1' }}>Perfil:</span>
+          <button 
+            onClick={() => setTipoUsuario('GESTOR')}
+            style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: tipoUsuario === 'GESTOR' ? '#3b82f6' : '#334155', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+            Gestor
+          </button>
+          <button 
+            onClick={() => setTipoUsuario('MOTORISTA')}
+            style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: tipoUsuario === 'MOTORISTA' ? '#3b82f6' : '#334155', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+            Motorista
+          </button>
         </div>
       </div>
 
-      {viagemAtiva ? (
-        <div style={{ background: '#1e293b', padding: '25px', borderRadius: '10px', border: '1px solid #334155', marginBottom: '30px', color: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-            <div>
-              <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>Viagem em Andamento</span>
-              <h3 style={{ margin: '8px 0 0 0', color: '#60a5fa' }}>{viagemAtiva.placa} - {viagemAtiva.operador || 'Motorista não informado'}</h3>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Produto: {viagemAtiva.produto || 'N/A'} | Destino: {viagemAtiva.cliente_destino || 'N/A'}</p>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setModalListaAbastecimentos(true)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                ⛽ Abastecimentos ({listaAbastecimentos.length})
-              </button>
-              <button onClick={() => setModalListaDespesas(true)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                💸 Despesas ({listaDespesas.length})
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
-            <button onClick={() => setModalNovoAbastecimento(true)} style={{ flex: '1 1 180px', padding: '12px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-              ⛽ + Novo Abastecimento
-            </button>
-            <button onClick={() => setModalNovaDespesa(true)} style={{ flex: '1 1 180px', padding: '12px', background: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-              💸 + Nova Despesa
-            </button>
-            <button onClick={() => setModalFinalizar(true)} style={{ flex: '1 1 180px', padding: '12px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-              🏁 Finalizar Viagem
-            </button>
-          </div>
+      {/* CARDS DE RESUMO GERAL */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
+        <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Viagens Finalizadas</p>
+          <h3 style={{ margin: 0, fontSize: '28px', color: '#60a5fa' }}>{totalViagens}</h3>
         </div>
-      ) : (
-        /* Form Nova Viagem */
-        <div style={{ background: '#1e293b', padding: '25px', borderRadius: '10px', border: '1px solid #334155', marginBottom: '30px' }}>
-          <h3 style={{ color: '#ffffff', marginTop: 0, marginBottom: '20px' }}>🚀 Iniciar Nova Viagem</h3>
-          <form onSubmit={handleIniciarViagem} style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <div>
-              <label style={labelStyle}>Veículo / Placa</label>
-              <input type="text" placeholder="Ex: ABC-1234" required value={novaViagem.placa} onChange={e => setNovaViagem({...novaViagem, placa: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Operador / Motorista</label>
-              <input type="text" placeholder="Nome do Motorista" value={novaViagem.operador} onChange={e => setNovaViagem({...novaViagem, operador: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>KM Inicial</label>
-              <input type="number" step="0.1" placeholder="Ex: 150000" required value={novaViagem.km_inicial} onChange={e => setNovaViagem({...novaViagem, km_inicial: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Local do Embarque</label>
-              <input type="text" placeholder="Origem / Fazenda" value={novaViagem.local_carregamento} onChange={e => setNovaViagem({...novaViagem, local_carregamento: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Cliente Destino</label>
-              <input type="text" placeholder="Cidade / Cliente" value={novaViagem.cliente_destino} onChange={e => setNovaViagem({...novaViagem, cliente_destino: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Produto</label>
-              <input type="text" placeholder="Ex: Soja, Milho" value={novaViagem.produto} onChange={e => setNovaViagem({...novaViagem, produto: e.target.value})} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Peso Carregado (Kg)</label>
-              <input type="number" step="0.01" placeholder="Ex: 50000" value={novaViagem.peso_carregado} onChange={e => setNovaViagem({...novaViagem, peso_carregado: e.target.value})} style={inputStyle} />
-            </div>
+        <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>KM Total Rodados</p>
+          <h3 style={{ margin: 0, fontSize: '28px', color: '#4ade80' }}>{kmTotalRodados.toLocaleString()} km</h3>
+        </div>
+        <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Custo Operacional Total</p>
+          <h3 style={{ margin: 0, fontSize: '28px', color: '#f87171' }}>R$ {custoOperacionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+        </div>
+      </div>
 
-            <button type="submit" disabled={loading} style={{ gridColumn: '1 / -1', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
-              {loading ? 'Salvando...' : 'Iniciar Viagem'}
-            </button>
-          </form>
+      {/* KPIS POR PLACA (EXCLUSIVO GESTOR) */}
+      {tipoUsuario === 'GESTOR' && (
+        <div style={{ marginBottom: '40px', background: '#131b2e', padding: '24px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📊 Indicadores de Desempenho e Custos por Placa</h3>
+          {kpisPorPlaca.length === 0 ? (
+            <p style={{ color: '#64748b', fontSize: '14px' }}>Nenhum dado de viagem finalizada registrado.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                    <th style={{ padding: '10px' }}>Placa</th>
+                    <th style={{ padding: '10px' }}>Viagens</th>
+                    <th style={{ padding: '10px' }}>KM Total</th>
+                    <th style={{ padding: '10px' }}>Média Km/L</th>
+                    <th style={{ padding: '10px' }}>Gasto Comb. / Viagem</th>
+                    <th style={{ padding: '10px' }}>Despesas / Viagem</th>
+                    <th style={{ padding: '10px' }}>Custo Médio Total / Viagem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpisPorPlaca.map((kpi, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{kpi.placa}</td>
+                      <td style={{ padding: '12px' }}>{kpi.qtdViagens}</td>
+                      <td style={{ padding: '12px' }}>{kpi.kmTotal.toLocaleString()} km</td>
+                      <td style={{ padding: '12px', color: Number(kpi.mediaKmPorLitro) > 0 ? '#4ade80' : '#cbd5e1' }}>{kpi.mediaKmPorLitro} km/L</td>
+                      <td style={{ padding: '12px', color: '#f87171' }}>R$ {Number(kpi.combustivelMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '12px', color: '#fbbf24' }}>R$ {Number(kpi.despesaMediaPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {Number(kpi.custoMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {/* MODAL NOVO ABASTECIMENTO */}
-      {modalNovoAbastecimento && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '450px', color: '#fff' }}>
-            <h3 style={{ marginTop: 0, color: '#f59e0b' }}>⛽ Adicionar Abastecimento</h3>
-            <form onSubmit={handleRegistrarAbastecimento} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={labelStyle}>Posto de Combustível</label>
-                <input type="text" placeholder="Nome do Posto" value={abastecimento.posto} onChange={e => setAbastecimento({...abastecimento, posto: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Número da Nota Fiscal</label>
-                <input type="text" placeholder="Nº NF" required value={abastecimento.nota_fiscal} onChange={e => setAbastecimento({...abastecimento, nota_fiscal: e.target.value})} style={inputStyle} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      {/* SEÇÃO DO MOTORISTA */}
+      {tipoUsuario === 'MOTORISTA' && (
+        <>
+          {!viagemAtiva ? (
+            <div style={{ background: '#1c2541', padding: '24px', borderRadius: '12px', border: '1px solid #334155', marginBottom: '30px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>🚀 Iniciar Novo Diário de Bordo</h3>
+              <form onSubmit={handleIniciarViagem} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                 <div>
-                  <label style={labelStyle}>Valor Total (R$)</label>
-                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.valor_total} onChange={e => setAbastecimento({...abastecimento, valor_total: e.target.value})} style={inputStyle} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Placa</label>
+                  <input type="text" placeholder="Ex: ABC-1234" value={formViagem.placa} onChange={e => setFormViagem({...formViagem, placa: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required />
                 </div>
                 <div>
-                  <label style={labelStyle}>Litros</label>
-                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.litros} onChange={e => setAbastecimento({...abastecimento, litros: e.target.value})} style={inputStyle} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Operador / Motorista</label>
+                  <input type="text" value={formViagem.operador} onChange={e => setFormViagem({...formViagem, operador: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>KM Inicial</label>
+                  <input type="number" placeholder="Ex: 150000" value={formViagem.kmInicial} onChange={e => setFormViagem({...formViagem, kmInicial: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Local de Carregamento</label>
+                  <input type="text" placeholder="Origem / Fazenda" value={formViagem.localCarregamento} onChange={e => setFormViagem({...formViagem, localCarregamento: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Cliente Destino</label>
+                  <input type="text" placeholder="Cidade / Cliente" value={formViagem.clienteDestino} onChange={e => setFormViagem({...formViagem, clienteDestino: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Produto</label>
+                  <input type="text" placeholder="Ex: Soja, Milho" value={formViagem.produto} onChange={e => setFormViagem({...formViagem, produto: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Peso Carregado (Kg)</label>
+                  <input type="number" step="0.01" placeholder="Ex: 50000" value={formViagem.pesoCarregado} onChange={e => setFormViagem({...formViagem, pesoCarregado: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button type="submit" style={{ width: '100%', padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Iniciar Diário</button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div style={{ background: '#1c2541', padding: '24px', borderRadius: '12px', border: '1px solid #3b82f6', marginBottom: '30px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <span style={{ background: '#22c55e', color: '#000', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>EM TRÂNSITO</span>
+                  <h3 style={{ margin: '8px 0 0 0', fontSize: '18px' }}>Veículo: {viagemAtiva.placa} ({viagemAtiva.produto || 'Carga Geral'})</h3>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => setModalAbastecimentoAberto(true)} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>⛽ {viagemAtiva.valor_combustivel ? 'Atualizar Abastec.' : '+ Abastecimento'}</button>
+                  <button onClick={() => setModalDespesaAberto(true)} style={{ background: '#f59e0b', color: '#000', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>💰 + Despesa</button>
+                  <button onClick={() => setModalListaDespesasAberto(true)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Ver Despesas ({viagemAtiva.despesas_viagem?.length || 0})</button>
+                  <button onClick={() => setModalFinalizarAberto(true)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🏁 Finalizar Viagem</button>
                 </div>
               </div>
-              <div>
-                <label style={labelStyle}>KM do Abastecimento</label>
-                <input type="number" step="0.1" placeholder="Ex: 150250" value={abastecimento.km_atual} onChange={e => setAbastecimento({...abastecimento, km_atual: e.target.value})} style={inputStyle} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '15px', background: '#0b132b', padding: '15px', borderRadius: '8px', fontSize: '14px' }}>
+                <div><span style={{ color: '#94a3b8' }}>Operador:</span> <br/><b>{viagemAtiva.operador || 'N/D'}</b></div>
+                <div><span style={{ color: '#94a3b8' }}>KM Inicial:</span> <br/><b>{viagemAtiva.km_inicial} km</b></div>
+                <div><span style={{ color: '#94a3b8' }}>Carregamento:</span> <br/><b>{viagemAtiva.local_carregamento}</b></div>
+                <div><span style={{ color: '#94a3b8' }}>Destino:</span> <br/><b>{viagemAtiva.cliente_destino || 'Não informado'}</b></div>
+                <div><span style={{ color: '#94a3b8' }}>Peso Inicial:</span> <br/><b>{viagemAtiva.peso_carregado ? `${viagemAtiva.peso_carregado} kg` : 'N/D'}</b></div>
               </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                <button type="submit" style={{ flex: 1, padding: '10px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Salvar</button>
-                <button type="button" onClick={() => setModalNovoAbastecimento(false)} style={{ flex: 1, padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL LISTA DE ABASTECIMENTOS DA VIAGEM ATIVA */}
-      {modalListaAbastecimentos && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '600px', color: '#fff', maxHeight: '85vh', overflowY: 'auto' }}>
-            <h3 style={{ marginTop: 0, color: '#f59e0b' }}>⛽ Abastecimentos da Viagem Atual</h3>
-            {listaAbastecimentos.length === 0 ? (
-              <p style={{ color: '#94a3b8' }}>Nenhum abastecimento registrado.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {listaAbastecimentos.map((item) => (
-                  <div key={item.id} style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
-                    <p style={{ margin: '0 0 4px 0', fontWeight: 'bold', color: '#f59e0b' }}>{item.posto || 'Posto'}</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1' }}>NF: {item.nota_fiscal} | Valor: R$ {Number(item.valor_total).toFixed(2)} | Litros: {item.litros}L</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={() => setModalListaAbastecimentos(false)} style={{ width: '100%', marginTop: '20px', padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL NOVA DESPESA */}
-      {modalNovaDespesa && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '450px', color: '#fff' }}>
-            <h3 style={{ marginTop: 0, color: '#c084fc' }}>💸 Adicionar Despesa</h3>
-            <form onSubmit={handleRegistrarDespesa} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={labelStyle}>Tipo de Despesa</label>
-                <select value={despesa.tipo} onChange={e => setDespesa({...despesa, tipo: e.target.value})} style={inputStyle}>
-                  <option value="Alimentação">Alimentação</option>
-                  <option value="Pedágio">Pedágio</option>
-                  <option value="Manutenção / Borracharia">Manutenção / Borracharia</option>
-                  <option value="Hospedagem">Hospedagem</option>
-                  <option value="Outros">Outros</option>
-                </select>
-              </div>
-              <div>
-                <label style={labelStyle}>Valor (R$)</label>
-                <input type="number" step="0.01" required value={despesa.valor} onChange={e => setDespesa({...despesa, valor: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Descrição</label>
-                <input type="text" placeholder="Detalhes do gasto" value={despesa.descricao} onChange={e => setDespesa({...despesa, descricao: e.target.value})} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                <button type="submit" style={{ flex: 1, padding: '10px', background: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Salvar</button>
-                <button type="button" onClick={() => setModalNovaDespesa(false)} style={{ flex: 1, padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL LISTA DE DESPESAS DA VIAGEM ATIVA */}
-      {modalListaDespesas && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '600px', color: '#fff', maxHeight: '85vh', overflowY: 'auto' }}>
-            <h3 style={{ marginTop: 0, color: '#c084fc' }}>💸 Despesas da Viagem Atual</h3>
-            {listaDespesas.length === 0 ? (
-              <p style={{ color: '#94a3b8' }}>Nenhuma despesa registrada.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {listaDespesas.map((item) => (
-                  <div key={item.id} style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
-                    <p style={{ margin: '0 0 4px 0', fontWeight: 'bold', color: '#c084fc' }}>{item.tipo}</p>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1' }}>Valor: R$ {Number(item.valor).toFixed(2)} | Descrição: {item.descricao || '-'}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={() => setModalListaDespesas(false)} style={{ width: '100%', marginTop: '20px', padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL FINALIZAR VIAGEM */}
-      {modalFinalizar && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '450px', color: '#fff' }}>
-            <h3 style={{ marginTop: 0, color: '#16a34a' }}>🏁 Finalizar Viagem</h3>
-            <form onSubmit={handleFinalizarViagem} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={labelStyle}>KM Final</label>
-                <input type="number" step="0.1" required value={encerramento.km_final} onChange={e => setEncerramento({...encerramento, km_final: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Local de Descarga</label>
-                <input type="text" value={encerramento.local_descarga} onChange={e => setEncerramento({...encerramento, local_descarga: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Peso Descarregado (Kg)</label>
-                <input type="number" step="0.01" value={encerramento.peso_descarga} onChange={e => setEncerramento({...encerramento, peso_descarga: e.target.value})} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                <button type="submit" style={{ flex: 1, padding: '10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Finalizar</button>
-                <button type="button" onClick={() => setModalFinalizar(false)} style={{ flex: 1, padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* HISTÓRICO DE VIAGENS FINALIZADAS */}
-      <div style={{ marginTop: '40px' }}>
-        <h3 style={{ color: '#ffffff', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>
-          📜 Histórico de Viagens Finalizadas
-        </h3>
-        
-        {historicoViagens.length === 0 ? (
-          <p style={{ color: '#94a3b8' }}>Nenhuma viagem finalizada encontrada no sistema.</p>
+      <div style={{ background: '#1c2541', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📖 Histórico de Diários Finalizados</h3>
+        {viagensFinalizadas.length === 0 ? (
+          <p style={{ color: '#94a3b8', fontSize: '14px' }}>Nenhuma viagem finalizada registrada.</p>
         ) : (
-          <div style={{ overflowX: 'auto', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', color: '#cbd5e1' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
               <thead>
-                <tr style={{ background: '#1e293b', borderBottom: '1px solid #334155', color: '#93c5fd' }}>
+                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
                   <th style={{ padding: '12px' }}>Placa</th>
-                  <th style={{ padding: '12px' }}>Motorista</th>
+                  <th style={{ padding: '12px' }}>Operador</th>
                   <th style={{ padding: '12px' }}>Produto / Origem</th>
                   <th style={{ padding: '12px' }}>KM Rodados</th>
-                  <th style={{ padding: '12px' }}>Origem / Destino (kg)</th>
+                  <th style={{ padding: '12px' }}>Pesos (Carregado / Descarga)</th>
                   <th style={{ padding: '12px' }}>Dif. Peso</th>
-                  <th style={{ padding: '12px' }}>Total Gastos</th>
                   <th style={{ padding: '12px', textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {historicoViagens.map(v => {
-                  const totalComb = (v.abastecimentos || []).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
-                  const totalDesp = (v.despesas_viagem || []).reduce((a, b) => a + (Number(b.valor) || 0), 0);
-                  const totalGasto = totalComb + totalDesp;
-
-                  const kmInicial = Number(v.km_inicial || 0);
-                  const kmFinal = Number(v.km_final || 0);
-                  const kmRodados = (kmFinal > 0 && kmFinal >= kmInicial) ? (kmFinal - kmInicial) : 0;
-
-                  const pOrigem = Number(v.peso_carregado || 0);
-                  const pDestino = Number(v.peso_descarga || 0);
-                  const difPeso = pDestino > 0 ? pDestino - pOrigem : 0;
-
+                {viagensFinalizadas.map(v => {
+                  const kmRodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
+                  const difPeso = (v.peso_descarga && v.peso_carregado) ? (v.peso_descarga - v.peso_carregado) : 0;
                   return (
-                    <tr key={v.id} style={{ borderBottom: '1px solid #334155' }}>
+                    <tr key={v.id} style={{ borderBottom: '1px solid #1e293b' }}>
                       <td style={{ padding: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{v.placa}</td>
-                      <td style={{ padding: '12px' }}>{v.operador || '-'}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{ color: '#fff' }}>{v.produto || '-'}</span>
-                        <br/>
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>📍 {v.local_carregamento || 'N/A'}</span>
-                      </td>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#f8fafc' }}>
-                        {kmRodados.toLocaleString('pt-BR')} km
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {pOrigem.toLocaleString('pt-BR')} / {pDestino > 0 ? pDestino.toLocaleString('pt-BR') : '-'} kg
-                      </td>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: difPeso < 0 ? '#ef4444' : difPeso > 0 ? '#22c55e' : '#cbd5e1' }}>
-                        {pDestino > 0 ? (difPeso > 0 ? `+${difPeso.toLocaleString('pt-BR')}` : difPeso.toLocaleString('pt-BR')) + ' kg' : '-'}
-                      </td>
-                      <td style={{ padding: '12px', color: '#f59e0b', fontWeight: 'bold' }}>
-                        R$ {totalGasto.toFixed(2)}
-                      </td>
+                      <td style={{ padding: '12px' }}>{v.operador || 'N/D'}</td>
+                      <td style={{ padding: '12px' }}>{v.produto || 'Geral'}<br/><span style={{ fontSize: '11px', color: '#94a3b8' }}>📍 {v.local_carregamento}</span></td>
+                      <td style={{ padding: '12px' }}>{kmRodados} km</td>
+                      <td style={{ padding: '12px' }}>{v.peso_carregado?.toLocaleString()} / {v.peso_descarga?.toLocaleString()} kg</td>
+                      <td style={{ padding: '12px', color: difPeso < 0 ? '#f87171' : '#4ade80' }}>{difPeso} kg</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <button onClick={() => handleAbrirDetalhes(v)} style={{ background: '#2563eb', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                          👁️ Detalhes
-                        </button>
+                        <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Detalhes</button>
                       </td>
                     </tr>
                   );
@@ -470,68 +449,116 @@ function AbaLogistica() {
         )}
       </div>
 
-      {/* MODAL DETALHES DE VIAGEM (HISTÓRICO) */}
-      {viagemDetalhada && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
-          <div style={{ background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '10px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', color: '#fff', padding: '25px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '15px', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, color: '#3b82f6' }}>Detalhes da Viagem #{viagemDetalhada.id}</h3>
-              <button onClick={() => setViagemDetalhada(null)} style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '20px', cursor: 'pointer' }}>✖</button>
+      {/* ================= MODAIS ================= */}
+      {/* Modal Abastecimento */}
+      {modalAbastecimentoAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '400px', border: '1px solid #334155' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#fff' }}>⛽ Dados de Combustível</h3>
+            <form onSubmit={handleSalvarAbastecimento}>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>KM Abastecimento</label><input type="number" step="0.1" value={formAbast.kmAbastecimento} onChange={e => setFormAbast({...formAbast, kmAbastecimento: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required /></div>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Litros</label><input type="number" step="0.01" value={formAbast.litrosCombustivel} onChange={e => setFormAbast({...formAbast, litrosCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required /></div>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Valor Total (R$)</label><input type="number" step="0.01" value={formAbast.valorCombustivel} onChange={e => setFormAbast({...formAbast, valorCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required /></div>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Posto de Combustível</label><input type="text" value={formAbast.postoCombustivel} onChange={e => setFormAbast({...formAbast, postoCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} /></div>
+              <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Número da Nota</label><input type="text" value={formAbast.numeroNotaCombustivel} onChange={e => setFormAbast({...formAbast, numeroNotaCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} /></div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}><button type="button" onClick={() => setModalAbastecimentoAberto(false)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button><button type="submit" style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Salvar</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Despesa */}
+      {modalDespesaAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '400px', border: '1px solid #334155' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#fff' }}>💰 Nova Despesa de Viagem</h3>
+            <form onSubmit={handleSalvarDespesa}>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Tipo</label><input type="text" placeholder="Ex: Pedágio, Borracharia" value={formDesp.tipo} onChange={e => setFormDesp({...formDesp, tipo: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required /></div>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Valor (R$)</label><input type="number" step="0.01" value={formDesp.valor} onChange={e => setFormDesp({...formDesp, valor: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required /></div>
+              <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Descrição</label><input type="text" value={formDesp.descricao} onChange={e => setFormDesp({...formDesp, descricao: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} /></div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}><button type="button" onClick={() => setModalDespesaAberto(false)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button><button type="submit" style={{ background: '#f59e0b', color: '#000', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Salvar</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Lista Despesas */}
+      {modalListaDespesasAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '500px', border: '1px solid #334155', maxHeight: '80vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#fff' }}>💰 Despesas Vinculadas</h3>
+            {(!viagemAtiva?.despesas_viagem || viagemAtiva.despesas_viagem.length === 0) ? (
+              <p style={{ color: '#94a3b8' }}>Nenhuma despesa registrada.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead><tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}><th style={{ padding: '8px' }}>Tipo</th><th style={{ padding: '8px' }}>Descrição</th><th style={{ padding: '8px' }}>Valor</th></tr></thead>
+                <tbody>
+                  {viagemAtiva.despesas_viagem.map(d => (
+                    <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}><td style={{ padding: '8px' }}>{d.tipo}</td><td style={{ padding: '8px' }}>{d.descricao || '-'}</td><td style={{ padding: '8px', color: '#f87171' }}>R$ {Number(d.valor).toFixed(2)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div style={{ marginTop: '20px', textAlign: 'right' }}><button onClick={() => setModalListaDespesasAberto(false)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Finalizar Viagem */}
+      {modalFinalizarAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '400px', border: '1px solid #334155' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#fff' }}>🏁 Finalizar Diário de Bordo</h3>
+            <form onSubmit={handleConcluirViagem}>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>KM Final (Inicial: {viagemAtiva?.km_inicial})</label><input type="number" value={formFim.kmFinal} onChange={e => setFormFim({...formFim, kmFinal: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} required /></div>
+              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Local de Descarga</label><input type="text" value={formFim.localDescarga} onChange={e => setFormFim({...formFim, localDescarga: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} /></div>
+              <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Peso de Descarga (Kg)</label><input type="number" step="0.01" value={formFim.pesoDescarga} onChange={e => setFormFim({...formFim, pesoDescarga: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} /></div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}><button type="button" onClick={() => setModalFinalizarAberto(false)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button><button type="submit" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Concluir</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Detalhes */}
+      {modalDetalhesAberto && viagemSelecionada && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '600px', border: '1px solid #334155', maxHeight: '85vh', overflowY: 'auto', color: '#fff' }}>
+            <h3 style={{ margin: '0 0 16px 0', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>Detalhes do Diário - {viagemSelecionada.placa}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '14px', marginBottom: '20px' }}>
+              <div><b>Operador:</b> {viagemSelecionada.operador || 'N/D'}</div>
+              <div><b>KM Rodados:</b> {(viagemSelecionada.km_final && viagemSelecionada.km_inicial) ? (viagemSelecionada.km_final - viagenSelecionada.km_inicial) : 'N/D'} km</div>
+              <div><b>Carregamento:</b> {viagemSelecionada.local_carregamento}</div>
+              <div><b>Descarga:</b> {viagemSelecionada.local_descarga || 'N/D'}</div>
+              <div><b>Produto:</b> {viagemSelecionada.produto || 'N/D'}</div>
+              <div><b>Destino:</b> {viagemSelecionada.cliente_destino || 'N/D'}</div>
+              <div><b>Peso Carregado:</b> {viagemSelecionada.peso_carregado?.toLocaleString()} kg</div>
+              <div><b>Peso Descarga:</b> {viagemSelecionada.peso_descarga?.toLocaleString()} kg</div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '20px', fontSize: '14px' }}>
-              <div style={{ background: '#0f172a', padding: '15px', borderRadius: '8px' }}>
-                <p><strong>Placa:</strong> {viagemDetalhada.placa}</p>
-                <p><strong>Motorista:</strong> {viagemDetalhada.operador}</p>
-                <p><strong>Produto:</strong> {viagemDetalhada.produto}</p>
-                <p><strong>Peso Carga Inicial:</strong> {viagemDetalhada.peso_carregado} kg</p>
-              </div>
-
-              <div style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>ROTA & QUILOMETRAGEM</p>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
-                  📍 {viagemDetalhada.local_carregamento || '-'} ➔ 🎯 {viagemDetalhada.local_descarga || '-'}
-                </p>
-                <p style={{ margin: '2px 0 0 0', fontWeight: 'bold', color: '#4ade80' }}>
-                  {((Number(viagemDetalhada.km_final || 0) - Number(viagemDetalhada.km_inicial || 0))).toLocaleString('pt-BR')} km rodados
-                </p>
-              </div>
+            <h4 style={{ color: '#0ea5e9', marginBottom: '8px' }}>Combustível</h4>
+            <div style={{ background: '#0b132b', padding: '12px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
+              <div><b>Posto:</b> {viagemSelecionada.posto_combustivel || 'Não informado'}</div>
+              <div><b>Litros:</b> {viagemSelecionada.litros_combustivel || 0} L</div>
+              <div><b>Valor Total:</b> R$ {(viagemSelecionada.valor_combustivel || 0).toFixed(2)}</div>
             </div>
 
-            <h4 style={{ color: '#f59e0b', borderBottom: '1px solid #334155', paddingBottom: '5px' }}>⛽ Resumo de Abastecimentos</h4>
-            {detalhesAbastecimentos.length === 0 ? <p style={{ fontSize: '13px', color: '#94a3b8' }}>Nenhum abastecimento.</p> : (
-              <div style={{ display: 'grid', gap: '10px', marginBottom: '20px' }}>
-                {detalhesAbastecimentos.map(abast => (
-                   <div key={abast.id} style={{ background: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '13px', borderLeft: '4px solid #f59e0b' }}>
-                     <p style={{ margin: '0 0 5px 0' }}><strong>{abast.posto}</strong> - NF: {abast.nota_fiscal}</p>
-                     <p style={{ margin: 0, color: '#94a3b8' }}>Valor: R$ {abast.valor_total} | Litros: {abast.litros} L</p>
-                   </div>
+            <h4 style={{ color: '#fbbf24', marginBottom: '8px' }}>Despesas Adicionais</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '16px' }}>
+              <thead><tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}><th style={{ padding: '6px' }}>Tipo</th><th style={{ padding: '6px' }}>Descrição</th><th style={{ padding: '6px' }}>Valor</th></tr></thead>
+              <tbody>
+                {(viagemSelecionada.despesas_viagem || []).map(d => (
+                  <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}><td style={{ padding: '6px' }}>{d.tipo}</td><td style={{ padding: '6px' }}>{d.descricao || '-'}</td><td style={{ padding: '6px', color: '#f87171' }}>R$ {Number(d.valor).toFixed(2)}</td></tr>
                 ))}
-              </div>
-            )}
+              </tbody>
+            </table>
 
-            <h4 style={{ color: '#c084fc', borderBottom: '1px solid #334155', paddingBottom: '5px' }}>💸 Resumo de Despesas</h4>
-            {detalhesDespesas.length === 0 ? <p style={{ fontSize: '13px', color: '#94a3b8' }}>Nenhuma despesa.</p> : (
-              <div style={{ display: 'grid', gap: '10px' }}>
-                {detalhesDespesas.map(desp => (
-                   <div key={desp.id} style={{ background: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '13px', borderLeft: '4px solid #c084fc' }}>
-                     <p style={{ margin: '0 0 5px 0' }}><strong>{desp.tipo}</strong> - R$ {desp.valor}</p>
-                     <p style={{ margin: 0, color: '#94a3b8' }}>Descrição: {desp.descricao || '-'}</p>
-                   </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ marginTop: '25px', textAlign: 'right' }}>
-              <button onClick={() => setViagemDetalhada(null)} style={{ padding: '10px 20px', background: '#334155', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                Fechar Detalhes
-              </button>
+            <div style={{ textAlign: 'right', marginTop: '20px' }}>
+              <button onClick={() => setModalDetalhesAberto(false)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Fechar</button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }
-
-export default AbaLogistica;
