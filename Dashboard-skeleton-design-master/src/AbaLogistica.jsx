@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient'; // <-- Usando o cliente global do seu projeto
+import { supabase } from './lib/supabaseClient'; // <-- Usando o cliente global do seu projeto
 
 export default function AbaLogistica() {
   const [tipoUsuario, setTipoUsuario] = useState('GESTOR'); // 'GESTOR' ou 'MOTORISTA'
