@@ -19,30 +19,32 @@ export default function AbaLogistica() {
     peso_carregado: ''
   });
 
-  // Modais de Criação / Finalização
+  // Modais
   const [modalNovoAbastecimento, setModalNovoAbastecimento] = useState(false);
   const [modalNovaDespesa, setModalNovaDespesa] = useState(false);
   const [modalListaAbastecimentos, setModalListaAbastecimentos] = useState(false);
   const [modalListaDespesas, setModalListaDespesas] = useState(false);
   const [modalFinalizar, setModalFinalizar] = useState(false);
 
-  // Estados para Edição
+  // Estados de Edição
   const [itemEdicaoAbastecimento, setItemEdicaoAbastecimento] = useState(null);
   const [itemEdicaoDespesa, setItemEdicaoDespesa] = useState(null);
 
-  // Forms de Inclusão
+  // Forms
   const [abastecimento, setAbastecimento] = useState({
-    posto_combustivel: '',
-    numero_nota_combustivel: '',
-    valor_combustivel: '',
-    litros_combustivel: '',
-    km_abastecimento: '',
+    posto: '',
+    nota_fiscal: '',
+    valor_total: '',
+    litros: '',
+    km_atual: '',
     foto: null
   });
 
   const [despesa, setDespesa] = useState({
-    outros_gastos: '',
-    descricao_outros_gastos: ''
+    tipo: 'Alimentação',
+    valor: '',
+    descricao: '',
+    foto: null
   });
 
   const [encerramento, setEncerramento] = useState({
@@ -73,13 +75,14 @@ export default function AbaLogistica() {
         const { data: abast } = await supabase
           .from('abastecimentos')
           .select('*')
-          .eq('diario_bordo_id', ativa.id)
+          .eq('viagem_id', ativa.id)
           .order('created_at', { ascending: false });
 
+        // Busca na tabela 'despesas_viagem' relacionando por 'viagem_id'
         const { data: desp } = await supabase
           .from('despesas_viagem')
           .select('*')
-          .eq('diario_bordo_id', ativa.id)
+          .eq('viagem_id', ativa.id)
           .order('created_at', { ascending: false });
 
         setListaAbastecimentos(abast || []);
@@ -138,7 +141,7 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
-  // --- ABASTECIMENTO (CRIAR E EDITAR) ---
+  // --- ABASTECIMENTO ---
   async function handleRegistrarAbastecimento(e) {
     e.preventDefault();
     setLoading(true);
@@ -148,16 +151,21 @@ export default function AbaLogistica() {
       fotoUrl = await uploadImagem(abastecimento.foto, 'abastecimentos');
     }
 
+    const valTotal = Number(abastecimento.valor_total);
+    const lit = Number(abastecimento.litros);
+    const precoLitro = lit > 0 ? valTotal / lit : null;
+
     const { error } = await supabase
       .from('abastecimentos')
       .insert([{
-        diario_bordo_id: viagemAtiva.id,
-        posto_combustivel: abastecimento.posto_combustivel,
-        numero_nota_combustivel: abastecimento.numero_nota_combustivel,
-        valor_combustivel: Number(abastecimento.valor_combustivel),
-        litros_combustivel: Number(abastecimento.litros_combustivel),
-        km_abastecimento: abastecimento.km_abastecimento ? Number(abastecimento.km_abastecimento) : null,
-        foto_nota_combustivel_url: fotoUrl
+        viagem_id: viagemAtiva.id,
+        posto: abastecimento.posto,
+        nota_fiscal: abastecimento.nota_fiscal,
+        valor_total: valTotal,
+        litros: lit,
+        preco_por_litro: precoLitro,
+        km_atual: abastecimento.km_atual ? Number(abastecimento.km_atual) : null,
+        foto_nota_url: fotoUrl
       }]);
 
     if (error) {
@@ -165,7 +173,7 @@ export default function AbaLogistica() {
     } else {
       alert('Novo abastecimento registrado!');
       setModalNovoAbastecimento(false);
-      setAbastecimento({ posto_combustivel: '', numero_nota_combustivel: '', valor_combustivel: '', litros_combustivel: '', km_abastecimento: '', foto: null });
+      setAbastecimento({ posto: '', nota_fiscal: '', valor_total: '', litros: '', km_atual: '', foto: null });
       carregarDados();
     }
     setLoading(false);
@@ -175,21 +183,26 @@ export default function AbaLogistica() {
     e.preventDefault();
     setLoading(true);
 
-    let fotoUrl = itemEdicaoAbastecimento.foto_nota_combustivel_url;
+    let fotoUrl = itemEdicaoAbastecimento.foto_nota_url;
     if (itemEdicaoAbastecimento.novaFoto) {
       const url = await uploadImagem(itemEdicaoAbastecimento.novaFoto, 'abastecimentos');
       if (url) fotoUrl = url;
     }
 
+    const valTotal = Number(itemEdicaoAbastecimento.valor_total);
+    const lit = Number(itemEdicaoAbastecimento.litros);
+    const precoLitro = lit > 0 ? valTotal / lit : null;
+
     const { error } = await supabase
       .from('abastecimentos')
       .update({
-        posto_combustivel: itemEdicaoAbastecimento.posto_combustivel,
-        numero_nota_combustivel: itemEdicaoAbastecimento.numero_nota_combustivel,
-        valor_combustivel: Number(itemEdicaoAbastecimento.valor_combustivel),
-        litros_combustivel: Number(itemEdicaoAbastecimento.litros_combustivel),
-        km_abastecimento: itemEdicaoAbastecimento.km_abastecimento ? Number(itemEdicaoAbastecimento.km_abastecimento) : null,
-        foto_nota_combustivel_url: fotoUrl
+        posto: itemEdicaoAbastecimento.posto,
+        nota_fiscal: itemEdicaoAbastecimento.nota_fiscal,
+        valor_total: valTotal,
+        litros: lit,
+        preco_por_litro: precoLitro,
+        km_atual: itemEdicaoAbastecimento.km_atual ? Number(itemEdicaoAbastecimento.km_atual) : null,
+        foto_nota_url: fotoUrl
       })
       .eq('id', itemEdicaoAbastecimento.id);
 
@@ -220,17 +233,24 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
-  // --- DESPESAS (CRIAR E EDITAR) ---
+  // --- DESPESAS (CAMPOS ATUALIZADOS) ---
   async function handleRegistrarDespesa(e) {
     e.preventDefault();
     setLoading(true);
 
+    let fotoUrl = null;
+    if (despesa.foto) {
+      fotoUrl = await uploadImagem(despesa.foto, 'despesas');
+    }
+
     const { error } = await supabase
       .from('despesas_viagem')
       .insert([{
-        diario_bordo_id: viagemAtiva.id,
-        outros_gastos: Number(despesa.outros_gastos),
-        descricao_outros_gastos: despesa.descricao_outros_gastos
+        viagem_id: viagemAtiva.id,
+        tipo: despesa.tipo,
+        valor: Number(despesa.valor),
+        descricao: despesa.descricao,
+        foto_comprovante_url: fotoUrl
       }]);
 
     if (error) {
@@ -238,7 +258,7 @@ export default function AbaLogistica() {
     } else {
       alert('Nova despesa registrada!');
       setModalNovaDespesa(false);
-      setDespesa({ outros_gastos: '', descricao_outros_gastos: '' });
+      setDespesa({ tipo: 'Alimentação', valor: '', descricao: '', foto: null });
       carregarDados();
     }
     setLoading(false);
@@ -248,11 +268,19 @@ export default function AbaLogistica() {
     e.preventDefault();
     setLoading(true);
 
+    let fotoUrl = itemEdicaoDespesa.foto_comprovante_url;
+    if (itemEdicaoDespesa.novaFoto) {
+      const url = await uploadImagem(itemEdicaoDespesa.novaFoto, 'despesas');
+      if (url) fotoUrl = url;
+    }
+
     const { error } = await supabase
       .from('despesas_viagem')
       .update({
-        outros_gastos: Number(itemEdicaoDespesa.outros_gastos),
-        descricao_outros_gastos: itemEdicaoDespesa.descricao_outros_gastos
+        tipo: itemEdicaoDespesa.tipo,
+        valor: Number(itemEdicaoDespesa.valor),
+        descricao: itemEdicaoDespesa.descricao,
+        foto_comprovante_url: fotoUrl
       })
       .eq('id', itemEdicaoDespesa.id);
 
@@ -315,9 +343,9 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
-  const totalGastoCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.valor_combustivel) || 0), 0);
-  const totalLitrosCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.litros_combustivel) || 0), 0);
-  const totalOutrosGastos = listaDespesas.reduce((acc, curr) => acc + (Number(curr.outros_gastos) || 0), 0);
+  const totalGastoCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.valor_total) || 0), 0);
+  const totalLitrosCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.litros) || 0), 0);
+  const totalOutrosGastos = listaDespesas.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0);
 
   const inputStyle = {
     width: '100%',
@@ -465,25 +493,25 @@ export default function AbaLogistica() {
             <form onSubmit={handleRegistrarAbastecimento} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Posto de Combustível</label>
-                <input type="text" placeholder="Nome do Posto" value={abastecimento.posto_combustivel} onChange={e => setAbastecimento({...abastecimento, posto_combustivel: e.target.value})} style={inputStyle} />
+                <input type="text" placeholder="Nome do Posto" value={abastecimento.posto} onChange={e => setAbastecimento({...abastecimento, posto: e.target.value})} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Número da Nota Fiscal</label>
-                <input type="text" placeholder="Nº NF" required value={abastecimento.numero_nota_combustivel} onChange={e => setAbastecimento({...abastecimento, numero_nota_combustivel: e.target.value})} style={inputStyle} />
+                <input type="text" placeholder="Nº NF" required value={abastecimento.nota_fiscal} onChange={e => setAbastecimento({...abastecimento, nota_fiscal: e.target.value})} style={inputStyle} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={labelStyle}>Valor Total (R$)</label>
-                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.valor_combustivel} onChange={e => setAbastecimento({...abastecimento, valor_combustivel: e.target.value})} style={inputStyle} />
+                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.valor_total} onChange={e => setAbastecimento({...abastecimento, valor_total: e.target.value})} style={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Litros</label>
-                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.litros_combustivel} onChange={e => setAbastecimento({...abastecimento, litros_combustivel: e.target.value})} style={inputStyle} />
+                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.litros} onChange={e => setAbastecimento({...abastecimento, litros: e.target.value})} style={inputStyle} />
                 </div>
               </div>
               <div>
                 <label style={labelStyle}>KM do Abastecimento</label>
-                <input type="number" step="0.1" placeholder="Ex: 150250" value={abastecimento.km_abastecimento} onChange={e => setAbastecimento({...abastecimento, km_abastecimento: e.target.value})} style={inputStyle} />
+                <input type="number" step="0.1" placeholder="Ex: 150250" value={abastecimento.km_atual} onChange={e => setAbastecimento({...abastecimento, km_atual: e.target.value})} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Foto da Nota Fiscal</label>
@@ -513,24 +541,23 @@ export default function AbaLogistica() {
                   <div key={item.id} style={{ background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #334155' }}>
                     
                     {itemEdicaoAbastecimento?.id === item.id ? (
-                      /* FORM DE EDIÇÃO DO ABASTECIMENTO */
                       <form onSubmit={handleSalvarEdicaoAbastecimento} style={{ display: 'grid', gap: '10px' }}>
                         <div>
                           <label style={labelStyle}>Posto</label>
-                          <input type="text" value={itemEdicaoAbastecimento.posto_combustivel} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, posto_combustivel: e.target.value})} style={inputStyle} />
+                          <input type="text" value={itemEdicaoAbastecimento.posto} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, posto: e.target.value})} style={inputStyle} />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                           <div>
                             <label style={labelStyle}>Nº NF</label>
-                            <input type="text" value={itemEdicaoAbastecimento.numero_nota_combustivel} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, numero_nota_combustivel: e.target.value})} style={inputStyle} />
+                            <input type="text" value={itemEdicaoAbastecimento.nota_fiscal} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, nota_fiscal: e.target.value})} style={inputStyle} />
                           </div>
                           <div>
                             <label style={labelStyle}>Valor (R$)</label>
-                            <input type="number" step="0.01" value={itemEdicaoAbastecimento.valor_combustivel} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, valor_combustivel: e.target.value})} style={inputStyle} />
+                            <input type="number" step="0.01" value={itemEdicaoAbastecimento.valor_total} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, valor_total: e.target.value})} style={inputStyle} />
                           </div>
                           <div>
                             <label style={labelStyle}>Litros</label>
-                            <input type="number" step="0.01" value={itemEdicaoAbastecimento.litros_combustivel} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, litros_combustivel: e.target.value})} style={inputStyle} />
+                            <input type="number" step="0.01" value={itemEdicaoAbastecimento.litros} onChange={e => setItemEdicaoAbastecimento({...itemEdicaoAbastecimento, litros: e.target.value})} style={inputStyle} />
                           </div>
                         </div>
                         <div>
@@ -543,19 +570,18 @@ export default function AbaLogistica() {
                         </div>
                       </form>
                     ) : (
-                      /* EXIBIÇÃO NORMAL */
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <h4 style={{ margin: 0, color: '#f59e0b' }}>{item.posto_combustivel || 'Posto não informado'}</h4>
+                          <h4 style={{ margin: 0, color: '#f59e0b' }}>{item.posto || 'Posto não informado'}</h4>
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <button onClick={() => setItemEdicaoAbastecimento(item)} style={{ background: '#2563eb', border: 'none', color: '#fff', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏️ Editar</button>
                             <button onClick={() => handleExcluirAbastecimento(item.id)} style={{ background: '#dc2626', border: 'none', color: '#fff', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>🗑️ Excluir</button>
                           </div>
                         </div>
-                        <p style={{ margin: '4px 0', fontSize: '13px' }}><strong>NF:</strong> {item.numero_nota_combustivel || '-'} | <strong>Valor:</strong> R$ {Number(item.valor_combustivel || 0).toFixed(2)} | <strong>Litros:</strong> {item.litros_combustivel} L</p>
-                        <p style={{ margin: '4px 0', fontSize: '13px', color: '#94a3b8' }}><strong>KM:</strong> {item.km_abastecimento || '-'} km</p>
-                        {item.foto_nota_combustivel_url && (
-                          <a href={item.foto_nota_combustivel_url} target="_blank" rel="noopener noreferrer" style={{ color: '#f59e0b', fontSize: '12px', display: 'inline-block', marginTop: '6px' }}>📷 Ver Comprovante Anexado</a>
+                        <p style={{ margin: '4px 0', fontSize: '13px' }}><strong>NF:</strong> {item.nota_fiscal || '-'} | <strong>Valor:</strong> R$ {Number(item.valor_total || 0).toFixed(2)} | <strong>Litros:</strong> {item.litros} L</p>
+                        <p style={{ margin: '4px 0', fontSize: '13px', color: '#94a3b8' }}><strong>KM:</strong> {item.km_atual || '-'} km | <strong>Preço/L:</strong> R$ {Number(item.preco_por_litro || 0).toFixed(3)}</p>
+                        {item.foto_nota_url && (
+                          <a href={item.foto_nota_url} target="_blank" rel="noopener noreferrer" style={{ color: '#f59e0b', fontSize: '12px', display: 'inline-block', marginTop: '6px' }}>📷 Ver Comprovante Anexado</a>
                         )}
                       </div>
                     )}
@@ -577,12 +603,26 @@ export default function AbaLogistica() {
             <h3 style={{ marginTop: 0, color: '#c084fc' }}>💸 Adicionar Outros Gastos</h3>
             <form onSubmit={handleRegistrarDespesa} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={labelStyle}>Valor do Gasto (R$)</label>
-                <input type="number" step="0.01" placeholder="0.00" required value={despesa.outros_gastos} onChange={e => setDespesa({...despesa, outros_gastos: e.target.value})} style={inputStyle} />
+                <label style={labelStyle}>Tipo de Despesa</label>
+                <select value={despesa.tipo} onChange={e => setDespesa({...despesa, tipo: e.target.value})} style={inputStyle}>
+                  <option value="Alimentação">Alimentação</option>
+                  <option value="Pedágio">Pedágio</option>
+                  <option value="Manutenção / Borracharia">Manutenção / Borracharia</option>
+                  <option value="Hospedagem">Hospedagem</option>
+                  <option value="Outros">Outros</option>
+                </select>
               </div>
               <div>
-                <label style={labelStyle}>Descrição</label>
-                <input type="text" placeholder="Ex: Alimentação, Pedágio" value={despesa.descricao_outros_gastos} onChange={e => setDespesa({...despesa, descricao_outros_gastos: e.target.value})} style={inputStyle} />
+                <label style={labelStyle}>Valor do Gasto (R$)</label>
+                <input type="number" step="0.01" placeholder="0.00" required value={despesa.valor} onChange={e => setDespesa({...despesa, valor: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Descrição / Detalhes</label>
+                <input type="text" placeholder="Ex: Almoço no Posto Graal" value={despesa.descricao} onChange={e => setDespesa({...despesa, descricao: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Foto do Comprovante</label>
+                <input type="file" accept="image/*" onChange={e => setDespesa({...despesa, foto: e.target.files[0]})} style={{ color: '#fff' }} />
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
@@ -608,15 +648,28 @@ export default function AbaLogistica() {
                   <div key={item.id} style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
                     
                     {itemEdicaoDespesa?.id === item.id ? (
-                      /* FORM DE EDIÇÃO DE DESPESA */
                       <form onSubmit={handleSalvarEdicaoDespesa} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div>
+                          <label style={labelStyle}>Tipo</label>
+                          <select value={itemEdicaoDespesa.tipo} onChange={e => setItemEdicaoDespesa({...itemEdicaoDespesa, tipo: e.target.value})} style={inputStyle}>
+                            <option value="Alimentação">Alimentação</option>
+                            <option value="Pedágio">Pedágio</option>
+                            <option value="Manutenção / Borracharia">Manutenção / Borracharia</option>
+                            <option value="Hospedagem">Hospedagem</option>
+                            <option value="Outros">Outros</option>
+                          </select>
+                        </div>
+                        <div>
                           <label style={labelStyle}>Valor (R$)</label>
-                          <input type="number" step="0.01" value={itemEdicaoDespesa.outros_gastos} onChange={e => setItemEdicaoDespesa({...itemEdicaoDespesa, outros_gastos: e.target.value})} style={inputStyle} />
+                          <input type="number" step="0.01" value={itemEdicaoDespesa.valor} onChange={e => setItemEdicaoDespesa({...itemEdicaoDespesa, valor: e.target.value})} style={inputStyle} />
                         </div>
                         <div>
                           <label style={labelStyle}>Descrição</label>
-                          <input type="text" value={itemEdicaoDespesa.descricao_outros_gastos} onChange={e => setItemEdicaoDespesa({...itemEdicaoDespesa, descricao_outros_gastos: e.target.value})} style={inputStyle} />
+                          <input type="text" value={itemEdicaoDespesa.descricao} onChange={e => setItemEdicaoDespesa({...itemEdicaoDespesa, descricao: e.target.value})} style={inputStyle} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Trocar Foto</label>
+                          <input type="file" accept="image/*" onChange={e => setItemEdicaoDespesa({...itemEdicaoDespesa, novaFoto: e.target.files[0]})} style={{ color: '#fff' }} />
                         </div>
                         <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                           <button type="submit" style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Salvar</button>
@@ -624,16 +677,21 @@ export default function AbaLogistica() {
                         </div>
                       </form>
                     ) : (
-                      /* EXIBIÇÃO NORMAL */
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <p style={{ margin: 0, color: '#c084fc', fontWeight: 'bold', fontSize: '15px' }}>R$ {Number(item.outros_gastos || 0).toFixed(2)}</p>
+                          <div>
+                            <span style={{ fontSize: '11px', background: '#9333ea', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{item.tipo || 'Geral'}</span>
+                            <span style={{ color: '#c084fc', fontWeight: 'bold', fontSize: '15px', marginLeft: '8px' }}>R$ {Number(item.valor || 0).toFixed(2)}</span>
+                          </div>
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <button onClick={() => setItemEdicaoDespesa(item)} style={{ background: '#2563eb', border: 'none', color: '#fff', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏️ Editar</button>
                             <button onClick={() => handleExcluirDespesa(item.id)} style={{ background: '#dc2626', border: 'none', color: '#fff', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>🗑️ Excluir</button>
                           </div>
                         </div>
-                        <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#e2e8f0' }}>{item.descricao_outros_gastos || 'Sem descrição'}</p>
+                        <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#e2e8f0' }}>{item.descricao || 'Sem descrição'}</p>
+                        {item.foto_comprovante_url && (
+                          <a href={item.foto_comprovante_url} target="_blank" rel="noopener noreferrer" style={{ color: '#c084fc', fontSize: '12px', display: 'inline-block', marginTop: '6px' }}>📷 Ver Comprovante Anexado</a>
+                        )}
                       </div>
                     )}
 
