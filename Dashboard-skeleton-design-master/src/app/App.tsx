@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Wallet, Filter, Search } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
@@ -165,6 +165,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("Operador");
+  const [userRole, setUserRole] = useState("gestor");
   const [aba, setAba] = useState("dashboard");
   const [pesagens, setPesagens] = useState([]);
   const [movimentacoes, setMovimentacoes] = useState([]);
@@ -176,7 +177,6 @@ export default function App() {
   const [valorSangria, setValorSangria] = useState("");
   const [motivoSangria, setMotivoSangria] = useState("");
 
-  // ESTADOS DOS FILTROS DO CONTROLE DE CAIXA
   const [fCaixaTipo, setFCaixaTipo] = useState("");
   const [fCaixaDataI, setFCaixaDataI] = useState("");
   const [fCaixaDataF, setFCaixaDataF] = useState("");
@@ -201,12 +201,21 @@ export default function App() {
     const { data: pesagensData } = await supabase.from('fat_pesagens').select('*').neq('status_pagamento', 'EXCLUÍDO');
     const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).maybeSingle();
     const { data: movData } = await supabase.from('movimentacoes_caixa').select('*').order('created_at', { ascending: false });
-    const { data: profile } = await supabase.from('profiles').select('nome').eq('id', userId).maybeSingle();
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     
     setPesagens(pesagensData || []);
     setMovimentacoes(movData || []);
     setSaldoCaixa(Number(caixaData?.saldo_atual || 0));
-    if (profile?.nome) setUserName(profile.nome);
+    
+    if (profile) {
+      if (profile.nome) setUserName(profile.nome);
+      const roleDetectado = profile.role || profile.perfil || 'gestor';
+      setUserRole(roleDetectado.toLowerCase());
+      
+      if (roleDetectado.toLowerCase() === 'motorista') {
+        setAba('logistica');
+      }
+    }
     setLoading(false);
   }, []);
 
@@ -332,36 +341,24 @@ export default function App() {
   const movimentacoesFiltradas = useMemo(() => {
     return movimentacoes.filter(m => {
       const dataMov = m.created_at ? m.created_at.split('T')[0] : '';
-      
       const matchTipo = fCaixaTipo === "" || m.tipo === fCaixaTipo;
       const matchDataI = !fCaixaDataI || dataMov >= fCaixaDataI;
       const matchDataF = !fCaixaDataF || dataMov <= fCaixaDataF;
       const matchOperador = fCaixaOperador === "" || m.operador === fCaixaOperador;
       const matchBusca = fCaixaBusca === "" || (m.motivo || "").toLowerCase().includes(fCaixaBusca.toLowerCase());
-
       return matchTipo && matchDataI && matchDataF && matchOperador && matchBusca;
     });
   }, [movimentacoes, fCaixaTipo, fCaixaDataI, fCaixaDataF, fCaixaOperador, fCaixaBusca]);
 
-  const resumoCaixaFiltro = useMemo(() => {
-    const totalAportes = movimentacoesFiltradas
-      .filter(m => m.tipo === 'ENTRADA_TROCO')
-      .reduce((acc, m) => acc + (Number(m.valor) || 0), 0);
-
-    const totalSaidas = movimentacoesFiltradas
-      .filter(m => m.tipo === 'SAIDA_TROCO' || m.tipo === 'SANGRIA_GASTO')
-      .reduce((acc, m) => acc + (Number(m.valor) || 0), 0);
-
-    return {
-      totalAportes,
-      totalSaidas,
-      saldoPeriodo: totalAportes - totalSaidas
-    };
-  }, [movimentacoesFiltradas]);
-
   const operadoresCaixa = useMemo(() => {
     return [...new Set(movimentacoes.map(m => m.operador))].filter(Boolean);
   }, [movimentacoes]);
+
+  const resumoCaixaFiltro = useMemo(() => {
+    const totalAportes = movimentacoesFiltradas.filter(m => m.tipo === 'ENTRADA_TROCO').reduce((acc, m) => acc + (Number(m.valor) || 0), 0);
+    const totalSaidas = movimentacoesFiltradas.filter(m => m.tipo === 'SAIDA_TROCO' || m.tipo === 'SANGRIA_GASTO').reduce((acc, m) => acc + (Number(m.valor) || 0), 0);
+    return { totalAportes, totalSaidas };
+  }, [movimentacoesFiltradas]);
 
   const dataForCharts = useMemo(() => {
     let base = filt;
@@ -403,301 +400,318 @@ export default function App() {
         </div>
         
         <nav className="flex flex-col gap-1">
-          <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>DASHBOARD</button>
-          <button onClick={() => setAba("entrada")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'entrada' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>NOVA ENTRADA</button>
-          <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA DE VEÍCULOS</button>
-          <button onClick={() => setAba("caixa")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'caixa' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>CONTROLE DE CAIXA</button>
-          <button onClick={() => setAba("logistica")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'logistica' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>LOGÍSTICA / DIÁRIO</button>
+          {userRole !== 'motorista' && (
+            <>
+              <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>DASHBOARD</button>
+              <button onClick={() => setAba("entrada")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'entrada' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>NOVA ENTRADA</button>
+              <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA DE VEÍCULOS</button>
+              <button onClick={() => setAba("caixa")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'caixa' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>CONTROLE DE CAIXA</button>
+            </>
+          )}
+          <button onClick={() => setAba("logistica")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'logistica' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+            {userRole === 'motorista' ? 'MEU DIÁRIO / LOGÍSTICA' : 'LOGÍSTICA / DIÁRIO'}
+          </button>
         </nav>
         
         <div className="mt-auto pt-4 border-t border-white/5">
-            <p className="text-[10px] text-gray-400 mb-1 font-semibold">{userName}</p>
-            <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 font-medium transition-colors"><LogOut size={12}/> SAIR</button>
+            <p className="text-[10px] text-gray-400 mb-0.5 font-semibold">{userName}</p>
+            <p className="text-[9px] text-blue-400 mb-2 uppercase font-bold tracking-wider">{userRole}</p>
+            <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"><LogOut size={12}/> SAIR</button>
         </div>
 
-        <hr className="border-white/5 my-1" />
-        <p className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase mb-1">Filtros Vendas</p>
-        <div className="flex flex-col gap-1.5">
-          <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataI: e.target.value})}/>
-          <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataF: e.target.value})}/>
-          <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, mes: e.target.value})}><option value="">Mês</option>{Array.from({length: 12}, (_, i) => <option key={i+1} value={(i+1).toString().padStart(2, '0')}>{i+1}</option>)}</select>
-          <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, ano: e.target.value})}><option value="">Ano</option>{[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
-          <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, prod: e.target.value})}><option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}</select>
-          <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-        </div>
+        {userRole !== 'motorista' && (
+          <>
+            <hr className="border-white/5 my-1" />
+            <p className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase mb-1">Filtros Vendas</p>
+            <div className="flex flex-col gap-1.5">
+              <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataI: e.target.value})}/>
+              <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataF: e.target.value})}/>
+              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, mes: e.target.value})}><option value="">Mês</option>{Array.from({length: 12}, (_, i) => <option key={i+1} value={(i+1).toString().padStart(2, '0')}>{i+1}</option>)}</select>
+              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, ano: e.target.value})}><option value="">Ano</option>{[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, prod: e.target.value})}><option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}</select>
+              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
+            </div>
+          </>
+        )}
       </aside>
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
-        {aba === "dashboard" && (
-          <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-6 gap-3">
-              {[ 
-                {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Calendar, color: "from-blue-500/10 to-transparent", text: "text-blue-400"}, 
-                {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg`, icon: Package, color: "from-purple-500/10 to-transparent", text: "text-purple-400"}, 
-                {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: DollarSign, color: "from-emerald-500/10 to-transparent", text: "text-emerald-400"}, 
-                {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Activity, color: "from-indigo-500/10 to-transparent", text: "text-indigo-400"}, 
-                {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: RefreshCw, color: "from-amber-500/10 to-transparent", text: "text-amber-400"}, 
-                {l: "TODOS", v: filt.length.toFixed(0), icon: DollarSign, color: "from-gray-500/10 to-transparent", text: "text-gray-300"} 
-              ].map((k, i) => {
-                const IconComponent = k.icon;
-                const isActive = activeKpi === k.l;
-                return (
-                  <button 
-                    key={i} 
-                    onClick={() => setActiveKpi(k.l)} 
-                    className={`relative p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 overflow-hidden bg-gradient-to-b ${k.color} ${
-                      isActive 
-                        ? 'bg-[#1A2030] border-blue-500 shadow-lg shadow-blue-500/10 scale-[1.02]' 
-                        : 'bg-[#161B23] border-white/5 hover:border-white/10 hover:bg-[#1A2030]/50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <p className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">{k.l}</p>
-                      <IconComponent size={14} className={k.text} />
+        {userRole === 'motorista' ? (
+          <AbaLogistica session={session} userName={userName} />
+        ) : (
+          <>
+            {aba === "dashboard" && (
+              <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-6 gap-3">
+                  {[ 
+                    {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Calendar, color: "from-blue-500/10 to-transparent", text: "text-blue-400"}, 
+                    {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg`, icon: Package, color: "from-purple-500/10 to-transparent", text: "text-purple-400"}, 
+                    {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: DollarSign, color: "from-emerald-500/10 to-transparent", text: "text-emerald-400"}, 
+                    {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Activity, color: "from-indigo-500/10 to-transparent", text: "text-indigo-400"}, 
+                    {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: RefreshCw, color: "from-amber-500/10 to-transparent", text: "text-amber-400"}, 
+                    {l: "TODOS", v: filt.length.toFixed(0), icon: DollarSign, color: "from-gray-500/10 to-transparent", text: "text-gray-300"} 
+                  ].map((k, i) => {
+                    const IconComponent = k.icon;
+                    const isActive = activeKpi === k.l;
+                    return (
+                      <button 
+                        key={i} 
+                        onClick={() => setActiveKpi(k.l)} 
+                        className={`relative p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 overflow-hidden bg-gradient-to-b ${k.color} ${
+                          isActive 
+                            ? 'bg-[#1A2030] border-blue-500 shadow-lg shadow-blue-500/10 scale-[1.02]' 
+                            : 'bg-[#161B23] border-white/5 hover:border-white/10 hover:bg-[#1A2030]/50'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">{k.l}</p>
+                          <IconComponent size={14} className={k.text} />
+                        </div>
+                        <p className="font-extrabold text-sm tracking-tight">{k.v}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 h-[240px]">
+                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+                    <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                      PAGAMENTOS ({activeKpi})
+                    </p>
+                    <div className="h-[170px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie 
+                            data={[
+                              {name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, 
+                              {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}
+                            ]} 
+                            innerRadius={40} 
+                            outerRadius={60} 
+                            paddingAngle={4}
+                            labelLine={false} 
+                            label={renderCustomizedLabel} 
+                            dataKey="value"
+                          >
+                            {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                            formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+                          />
+                          <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                    <p className="font-extrabold text-sm tracking-tight">{k.v}</p>
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
 
-            <div className="grid grid-cols-2 gap-4 h-[240px]">
-              <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
-                <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
-                  PAGAMENTOS ({activeKpi})
-                </p>
-                <div className="h-[170px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie 
-                        data={[
-                          {name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, 
-                          {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}
-                        ]} 
-                        innerRadius={40} 
-                        outerRadius={60} 
-                        paddingAngle={4}
-                        labelLine={false} 
-                        label={renderCustomizedLabel} 
-                        dataKey="value"
-                      >
-                        {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
-                        formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
-                      />
-                      <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+                    <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-400 inline-block"></span>
+                      PRODUTOS ({activeKpi})
+                    </p>
+                    <div className="h-[170px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie 
+                            data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} 
+                            innerRadius={40} 
+                            outerRadius={60} 
+                            paddingAngle={4}
+                            labelLine={false} 
+                            label={renderCustomizedLabel} 
+                            dataKey="value"
+                          >
+                            {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                            formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+                          />
+                          <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
-                <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-purple-400 inline-block"></span>
-                  PRODUTOS ({activeKpi})
-                </p>
-                <div className="h-[170px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie 
-                        data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} 
-                        innerRadius={40} 
-                        outerRadius={60} 
-                        paddingAngle={4}
-                        labelLine={false} 
-                        label={renderCustomizedLabel} 
-                        dataKey="value"
-                      >
-                        {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
-                        formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
-                      />
-                      <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl">
-              <table className="w-full text-left text-[11px]">
-                <thead>
-                  <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
-                    {["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag.", "Ação"].map(h => <th key={h} className="p-2.5">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {[...filt].sort((a,b) => (b.comprovante || '').localeCompare(a.comprovante || '')).slice(0, 10).map((p, i) => (
-                    <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="p-2.5 text-gray-300">{p.data}</td>
-                      <td className="p-2.5 font-medium text-gray-200">{p.comprovante}</td>
-                      <td className="p-2.5 text-gray-300">{p.produto}</td>
-                      <td className="p-2.5 font-medium text-gray-200">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
-                      <td className="p-2.5 font-bold text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                      <td className="p-2.5 font-medium text-amber-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                      <td className="p-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.forma_pagamento === 'PIX' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                          {p.forma_pagamento}
-                        </span>
-                      </td>
-                      <td className="p-2.5">
-                         <button onClick={() => gerarPDF(p, p.operador_saida)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium cursor-pointer transition-colors">
-                           <Printer size={13}/> Imprimir
-                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {aba === "entrada" && (
-          <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-2xl border border-white/5 shadow-2xl">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-blue-400">
-              <Truck size={20} /> Registrar Nova Entrada de Veículo
-            </h2>
-            <form onSubmit={registrarEntrada} className="flex flex-col gap-4">
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">Placa do Veículo</label>
-                <input name="placa" placeholder="Ex: ABC-1234" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 uppercase transition-all" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">Produto</label>
-                <input name="prod" placeholder="Ex: Milho, Soja, Trigo" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">Peso de Entrada (kg)</label>
-                <input name="peso" type="number" step="0.01" placeholder="Ex: 15400" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
-              </div>
-              <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-3 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 mt-2 cursor-pointer">
-                REGISTRAR ENTRADA
-              </button>
-            </form>
-          </div>
-        )}
-
-        {aba === "saida" && (
-          <div className="flex flex-col gap-4 max-w-4xl mx-auto">
-            <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400 mb-2">
-              <Truck size={20} /> Pesagens em Aberto ({pesagensAbertas.length})
-            </h2>
-            {pesagensAbertas.length === 0 ? (
-              <div className="bg-[#161B23] p-8 rounded-xl text-center text-gray-500 border border-white/5">
-                Nenhum veículo aguardando saída no momento.
-              </div>
-            ) : (
-              pesagensAbertas.map(p => (
-                <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
-              ))
-            )}
-          </div>
-        )}
-
-        {aba === "caixa" && (
-          <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between">
-                <div>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Saldo Atual de Troco</p>
-                  <p className="text-2xl font-black text-emerald-400">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-white/5 flex justify-between text-[11px] text-gray-400">
-                  <span>Aportes: <b className="text-emerald-400">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-                  <span>Saídas: <b className="text-red-400">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-                </div>
-              </div>
-
-              <form onSubmit={handleAdicionarTroco} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between gap-2">
-                <p className="text-xs font-bold text-blue-400 flex items-center gap-1.5"><PlusCircle size={16}/> ADICIONAR TROCO (APORTE)</p>
-                <input type="number" step="0.01" placeholder="Valor R$" value={valorAporte} onChange={e => setValorAporte(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500" required />
-                <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">INSERIR TROCO</button>
-              </form>
-
-              <form onSubmit={handleSangriaGasto} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-2">
-                <p className="text-xs font-bold text-red-400 flex items-center gap-1.5"><MinusCircle size={16}/> RETIRADA / SANGRIA / GASTO</p>
-                <input type="number" step="0.01" placeholder="Valor R$" value={valorSangria} onChange={e => setValorSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-red-500" required />
-                <input type="text" placeholder="Motivo da retirada" value={motivoSangria} onChange={e => setMotivoSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-red-500" required />
-                <button className="bg-red-600 hover:bg-red-500 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">REGISTRAR SAÍDA</button>
-              </form>
-            </div>
-
-            <div className="bg-[#161B23] p-4 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <h3 className="text-sm font-bold flex items-center gap-2 text-gray-200">
-                  <History size={16}/> Histórico de Movimentações de Caixa
-                </h3>
-                <div className="flex items-center gap-2">
-                  <Filter size={14} className="text-gray-400"/>
-                  <span className="text-xs text-gray-400 font-semibold">Filtros Avançados</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-5 gap-2">
-                <div className="relative">
-                  <Search size={14} className="absolute left-2.5 top-3 text-gray-500"/>
-                  <input type="text" placeholder="Buscar motivo..." value={fCaixaBusca} onChange={e => setFCaixaBusca(e.target.value)} className="w-full bg-[#1A2030] pl-8 pr-2 py-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"/>
-                </div>
-                <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500">
-                  <option value="">Todos os Tipos</option>
-                  <option value="ENTRADA_TROCO">Entrada (Aporte)</option>
-                  <option value="SAIDA_TROCO">Saída (Troco Pago)</option>
-                  <option value="SANGRIA_GASTO">Sangria / Gasto</option>
-                </select>
-                <input type="date" value={fCaixaDataI} onChange={e => setFCaixaDataI(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs text-gray-300 outline-none border border-transparent focus:border-blue-500"/>
-                <input type="date" value={fCaixaDataF} onChange={e => setFCaixaDataF(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs text-gray-300 outline-none border border-transparent focus:border-blue-500"/>
-                <select value={fCaixaOperador} onChange={e => setFCaixaOperador(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500">
-                  <option value="">Todos Operadores</option>
-                  {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
-                </select>
-              </div>
-
-              <table className="w-full text-left text-[11px] mt-2">
-                <thead>
-                  <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
-                    {["Data/Hora", "Tipo", "Motivo / Descrição", "Valor", "Saldo Resultante", "Operador"].map(h => <th key={h} className="p-2.5">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {movimentacoesFiltradas.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center p-6 text-gray-500">Nenhuma movimentação encontrada com os filtros selecionados.</td>
-                    </tr>
-                  ) : (
-                    movimentacoesFiltradas.map((m, i) => (
-                      <tr key={m.id || i} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="p-2.5 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
-                        <td className="p-2.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                            m.tipo === 'ENTRADA_TROCO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
-                            m.tipo === 'SAIDA_TROCO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 
-                            'bg-red-500/10 text-red-400 border border-red-500/20'
-                          }`}>
-                            {m.tipo === 'ENTRADA_TROCO' ? 'ENTRADA TROCO' : m.tipo === 'SAIDA_TROCO' ? 'TROCO PAGO' : 'SANGRIA / GASTO'}
-                          </span>
-                        </td>
-                        <td className="p-2.5 text-gray-200 font-medium">{m.motivo}</td>
-                        <td className={`p-2.5 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                        </td>
-                        <td className="p-2.5 font-medium text-gray-300">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                        <td className="p-2.5 text-gray-400">{m.operador}</td>
+                <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl">
+                  <table className="w-full text-left text-[11px]">
+                    <thead>
+                      <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
+                        {["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag.", "Ação"].map(h => <th key={h} className="p-2.5">{h}</th>)}
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {[...filt].sort((a,b) => (b.comprovante || '').localeCompare(a.comprovante || '')).slice(0, 10).map((p, i) => (
+                        <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="p-2.5 text-gray-300">{p.data}</td>
+                          <td className="p-2.5 font-medium text-gray-200">{p.comprovante}</td>
+                          <td className="p-2.5 text-gray-300">{p.produto}</td>
+                          <td className="p-2.5 font-medium text-gray-200">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
+                          <td className="p-2.5 font-bold text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td className="p-2.5 font-medium text-amber-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td className="p-2.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.forma_pagamento === 'PIX' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                              {p.forma_pagamento}
+                            </span>
+                          </td>
+                          <td className="p-2.5">
+                             <button onClick={() => gerarPDF(p, p.operador_saida)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium cursor-pointer transition-colors">
+                               <Printer size={13}/> Imprimir
+                             </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
-        {aba === "logistica" && <AbaLogistica userName={userName} />}
+            {aba === "entrada" && (
+              <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-2xl border border-white/5 shadow-2xl">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-blue-400">
+                  <Truck size={20} /> Registrar Entrada de Veículo
+                </h2>
+                <form onSubmit={registrarEntrada} className="flex flex-col gap-4">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Placa do Veículo</label>
+                    <input name="placa" placeholder="Ex: ABC-1234" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 uppercase transition-all" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Produto</label>
+                    <input name="prod" placeholder="Ex: Milho, Soja, Trigo" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Peso de Entrada (kg)</label>
+                    <input name="peso" type="number" step="0.01" placeholder="Ex: 15400" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
+                  </div>
+                  <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-3 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 mt-2 cursor-pointer">
+                    REGISTRAR ENTRADA
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {aba === "saida" && (
+              <div className="flex flex-col gap-4 max-w-4xl mx-auto">
+                <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400 mb-2">
+                  <Truck size={20} /> Pesagens em Aberto ({pesagensAbertas.length})
+                </h2>
+                {pesagensAbertas.length === 0 ? (
+                  <div className="bg-[#161B23] p-8 rounded-xl text-center text-gray-500 border border-white/5">
+                    Nenhum veículo aguardando saída no momento.
+                  </div>
+                ) : (
+                  pesagensAbertas.map(p => (
+                    <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
+                  ))
+                )}
+              </div>
+            )}
+
+            {aba === "caixa" && (
+              <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Saldo Atual de Troco</p>
+                      <p className="text-2xl font-black text-emerald-400">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-white/5 flex justify-between text-[11px] text-gray-400">
+                      <span>Aportes: <b className="text-emerald-400">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+                      <span>Saídas: <b className="text-red-400">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleAdicionarTroco} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between gap-2">
+                    <p className="text-xs font-bold text-blue-400 flex items-center gap-1.5"><PlusCircle size={16}/> ADICIONAR TROCO (APORTE)</p>
+                    <input type="number" step="0.01" placeholder="Valor R$" value={valorAporte} onChange={e => setValorAporte(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500" required />
+                    <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">INSERIR TROCO</button>
+                  </form>
+
+                  <form onSubmit={handleSangriaGasto} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-2">
+                    <p className="text-xs font-bold text-red-400 flex items-center gap-1.5"><MinusCircle size={16}/> RETIRADA / SANGRIA / GASTO</p>
+                    <input type="number" step="0.01" placeholder="Valor R$" value={valorSangria} onChange={e => setValorSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-red-500" required />
+                    <input type="text" placeholder="Motivo da retirada" value={motivoSangria} onChange={e => setMotivoSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-red-500" required />
+                    <button className="bg-red-600 hover:bg-red-500 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">REGISTRAR SAÍDA</button>
+                  </form>
+                </div>
+
+                <div className="bg-[#161B23] p-4 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-gray-200">
+                      <History size={16}/> Histórico de Movimentações de Caixa
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <Filter size={14} className="text-gray-400"/>
+                      <span className="text-xs text-gray-400 font-semibold">Filtros Avançados</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-2">
+                    <div className="relative">
+                      <Search size={14} className="absolute left-2.5 top-3 text-gray-500"/>
+                      <input type="text" placeholder="Buscar motivo..." value={fCaixaBusca} onChange={e => setFCaixaBusca(e.target.value)} className="w-full bg-[#1A2030] pl-8 pr-2 py-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"/>
+                    </div>
+                    <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500">
+                      <option value="">Todos os Tipos</option>
+                      <option value="ENTRADA_TROCO">Entrada (Aporte)</option>
+                      <option value="SAIDA_TROCO">Saída (Troco Pago)</option>
+                      <option value="SANGRIA_GASTO">Sangria / Gasto</option>
+                    </select>
+                    <input type="date" value={fCaixaDataI} onChange={e => setFCaixaDataI(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs text-gray-300 outline-none border border-transparent focus:border-blue-500"/>
+                    <input type="date" value={fCaixaDataF} onChange={e => setFCaixaDataF(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs text-gray-300 outline-none border border-transparent focus:border-blue-500"/>
+                    <select value={fCaixaOperador} onChange={e => setFCaixaOperador(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500">
+                      <option value="">Todos Operadores</option>
+                      {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
+                    </select>
+                  </div>
+
+                  <table className="w-full text-left text-[11px] mt-2">
+                    <thead>
+                      <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
+                        {["Data/Hora", "Tipo", "Motivo / Descrição", "Valor", "Saldo Resultante", "Operador"].map(h => <th key={h} className="p-2.5">{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {movimentacoesFiltradas.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center p-6 text-gray-500">Nenhuma movimentação encontrada com os filtros selecionados.</td>
+                        </tr>
+                      ) : (
+                        movimentacoesFiltradas.map((m, i) => (
+                          <tr key={m.id || i} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="p-2.5 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                            <td className="p-2.5">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                m.tipo === 'ENTRADA_TROCO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+                                m.tipo === 'SAIDA_TROCO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 
+                                'bg-red-500/10 text-red-400 border border-red-500/20'
+                              }`}>
+                                {m.tipo === 'ENTRADA_TROCO' ? 'ENTRADA TROCO' : m.tipo === 'SAIDA_TROCO' ? 'TROCO PAGO' : 'SANGRIA / GASTO'}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-gray-200 font-medium">{m.motivo}</td>
+                            <td className={`p-2.5 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            </td>
+                            <td className="p-2.5 font-medium text-gray-300">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td className="p-2.5 text-gray-400">{m.operador}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {aba === "logistica" && <AbaLogistica session={session} userName={userName} />}
+          </>
+        )}
       </main>
     </div>
   );
