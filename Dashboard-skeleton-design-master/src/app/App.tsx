@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
-import AbaLogistica from "./AbaLogistica";
+import AbaLogistica from "../AbaLogistica";
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
