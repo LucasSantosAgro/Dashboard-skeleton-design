@@ -1,10 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, Eye, EyeOff, Lock, Mail, ArrowRight } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from "../lib/supabaseClient";
 import jsPDF from "jspdf";
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
 import AbaLogistica from "../AbaLogistica";
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
@@ -173,6 +171,13 @@ export default function App() {
   const [activeKpi, setActiveKpi] = useState("TODOS");
   const [saldoCaixa, setSaldoCaixa] = useState(0);
 
+  // Estados personalizados para a tela de login
+  const [emailLogin, setEmailLogin] = useState("");
+  const [senhaLogin, setSenhaLogin] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [erroLogin, setErroLogin] = useState("");
+  const [carregandoLogin, setCarregandoLogin] = useState(false);
+
   const [valorAporte, setValorAporte] = useState("");
   const [valorSangria, setValorSangria] = useState("");
   const [motivoSangria, setMotivoSangria] = useState("");
@@ -230,6 +235,22 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, [load]);
+
+  const handleLoginCustomizado = async (e) => {
+    e.preventDefault();
+    setErroLogin("");
+    setCarregandoLogin(true);
+    
+    const { error } = await supabase.auth.signInWithPassword({
+      email: emailLogin,
+      password: senhaLogin,
+    });
+
+    if (error) {
+      setErroLogin("E-mail ou senha inválidos. Verifique suas credenciais.");
+      setCarregandoLogin(false);
+    }
+  };
 
   const registrarMovimentacao = async (tipo, valor, motivo, novoSaldo) => {
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
@@ -382,12 +403,78 @@ export default function App() {
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
 
   if (!session) return (
-    <div className="flex h-screen items-center justify-center bg-[#0B0F15]">
-      <div className="w-96 p-8 bg-[#161B23] rounded-2xl border border-white/5 shadow-2xl flex flex-col items-center">
+    <div className="flex h-screen items-center justify-center bg-[#0B0F15] p-4">
+      <div className="w-full max-w-md p-8 bg-[#161B23] rounded-2xl border border-white/5 shadow-2xl flex flex-col items-center">
         <GraselLogo />
-        <div className="w-full mt-6">
-          <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} providers={[]} />
-        </div>
+        <p className="text-xs text-gray-400 mt-2 text-center">Acesse sua conta para gerenciar o sistema</p>
+
+        {erroLogin && (
+          <div className="w-full mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <AlertTriangle size={16} className="shrink-0" />
+            <span>{erroLogin}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleLoginCustomizado} className="w-full mt-6 flex flex-col gap-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-400 mb-1.5 block">E-mail</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                <Mail size={16} />
+              </div>
+              <input 
+                type="email" 
+                value={emailLogin} 
+                onChange={(e) => setEmailLogin(e.target.value)} 
+                placeholder="seu.email@grasel.com" 
+                required 
+                className="w-full bg-[#1A2030] pl-10 pr-3 py-3 rounded-xl text-sm outline-none border border-transparent focus:border-blue-500 text-white placeholder-gray-500 transition-all"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-400 mb-1.5 block">Senha</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                <Lock size={16} />
+              </div>
+              <input 
+                type={mostrarSenha ? "text" : "password"} 
+                value={senhaLogin} 
+                onChange={(e) => setSenhaLogin(e.target.value)} 
+                placeholder="••••••••" 
+                required 
+                className="w-full bg-[#1A2030] pl-10 pr-10 py-3 rounded-xl text-sm outline-none border border-transparent focus:border-blue-500 text-white placeholder-gray-500 transition-all"
+              />
+              <button 
+                type="button" 
+                onClick={() => setMostrarSenha(!mostrarSenha)} 
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={carregandoLogin} 
+            className="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {carregandoLogin ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                <span>Entrando...</span>
+              </>
+            ) : (
+              <>
+                <span>ENTRAR NO SISTEMA</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -562,13 +649,13 @@ export default function App() {
                                <Printer size={13}/> Imprimir
                              </button>
                           </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
+          )}
 
             {aba === "entrada" && (
               <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-2xl border border-white/5 shadow-2xl">
