@@ -8,6 +8,11 @@ export default function AbaLogistica() {
   const [listaDespesas, setListaDespesas] = useState([]);
   const [historicoViagens, setHistoricoViagens] = useState([]);
 
+  // Estado para Visualizar Detalhes da Viagem Finalizada
+  const [viagemDetalhada, setViagemDetalhada] = useState(null);
+  const [detalhesAbastecimentos, setDetalhesAbastecimentos] = useState([]);
+  const [detalhesDespesas, setDetalhesDespesas] = useState([]);
+
   // Form Nova Viagem
   const [novaViagem, setNovaViagem] = useState({
     placa: '',
@@ -78,7 +83,6 @@ export default function AbaLogistica() {
           .eq('viagem_id', ativa.id)
           .order('created_at', { ascending: false });
 
-        // Busca na tabela 'despesas_viagem' relacionando por 'viagem_id'
         const { data: desp } = await supabase
           .from('despesas_viagem')
           .select('*')
@@ -89,9 +93,14 @@ export default function AbaLogistica() {
         setListaDespesas(desp || []);
       }
 
+      // Busca histórico de viagens com seus respectivos abastecimentos e despesas
       const { data: historico } = await supabase
         .from('diario_bordo')
-        .select('*')
+        .select(`
+          *,
+          abastecimentos(*),
+          despesas_viagem(*)
+        `)
         .eq('status', 'FINALIZADA')
         .order('created_at', { ascending: false });
 
@@ -233,7 +242,7 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
-  // --- DESPESAS (CAMPOS ATUALIZADOS) ---
+  // --- DESPESAS ---
   async function handleRegistrarDespesa(e) {
     e.preventDefault();
     setLoading(true);
@@ -343,6 +352,13 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
+  // --- ABRIR DETALHES DE UMA VIAGEM ENCERRADA ---
+  function handleAbrirDetalhes(viagem) {
+    setViagemDetalhada(viagem);
+    setDetalhesAbastecimentos(viagem.abastecimentos || []);
+    setDetalhesDespesas(viagem.despesas_viagem || []);
+  }
+
   const totalGastoCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.valor_total) || 0), 0);
   const totalLitrosCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.litros) || 0), 0);
   const totalOutrosGastos = listaDespesas.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0);
@@ -367,7 +383,7 @@ export default function AbaLogistica() {
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: '0 auto', color: '#f8fafc' }}>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1100px', margin: '0 auto', color: '#f8fafc' }}>
       <h2 style={{ color: '#ffffff', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>
         🚛 Gestão de Logística & Diário de Bordo
       </h2>
@@ -389,14 +405,13 @@ export default function AbaLogistica() {
             <p style={{ margin: 0 }}>📍 <strong>Embarque:</strong> {viagemAtiva.local_carregamento || '-'}</p>
             <p style={{ margin: 0 }}>🎯 <strong>Destino:</strong> {viagemAtiva.cliente_destino || '-'}</p>
             <p style={{ margin: 0 }}>📦 <strong>Produto:</strong> {viagemAtiva.produto || '-'}</p>
-            <p style={{ margin: 0 }}>⚖️ <strong>Peso Carga:</strong> {viagemAtiva.peso_carregado || '-'}</p>
+            <p style={{ margin: 0 }}>⚖️ <strong>Peso Carga:</strong> {viagemAtiva.peso_carregado || '-'} kg</p>
             <p style={{ margin: 0 }}>🏎️ <strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km</p>
           </div>
 
           {/* CARDS CLICÁVEIS */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '20px' }}>
             
-            {/* Card Abastecimento */}
             <div 
               onClick={() => setModalListaAbastecimentos(true)}
               style={{ background: '#0f172a', border: '1px solid #d97706', borderRadius: '8px', padding: '15px', cursor: 'pointer' }}>
@@ -410,7 +425,6 @@ export default function AbaLogistica() {
               </div>
             </div>
 
-            {/* Card Despesas */}
             <div 
               onClick={() => setModalListaDespesas(true)}
               style={{ background: '#0f172a', border: '1px solid #9333ea', borderRadius: '8px', padding: '15px', cursor: 'pointer' }}>
@@ -425,7 +439,6 @@ export default function AbaLogistica() {
 
           </div>
 
-          {/* Botões de Ação */}
           <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
             <button 
               onClick={() => setModalNovoAbastecimento(true)}
@@ -474,8 +487,8 @@ export default function AbaLogistica() {
               <input type="text" placeholder="Ex: Soja, Milho" value={novaViagem.produto} onChange={e => setNovaViagem({...novaViagem, produto: e.target.value})} style={inputStyle} />
             </div>
             <div>
-              <label style={labelStyle}>Peso Carregado</label>
-              <input type="number" step="0.01" placeholder="Kg ou Toneladas" value={novaViagem.peso_carregado} onChange={e => setNovaViagem({...novaViagem, peso_carregado: e.target.value})} style={inputStyle} />
+              <label style={labelStyle}>Peso Carregado (Kg)</label>
+              <input type="number" step="0.01" placeholder="Ex: 50000" value={novaViagem.peso_carregado} onChange={e => setNovaViagem({...novaViagem, peso_carregado: e.target.value})} style={inputStyle} />
             </div>
 
             <button type="submit" disabled={loading} style={{ gridColumn: '1 / -1', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
@@ -720,8 +733,8 @@ export default function AbaLogistica() {
                 <input type="text" placeholder="Local de destino / Descarga" required value={encerramento.local_descarga} onChange={e => setEncerramento({...encerramento, local_descarga: e.target.value})} style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>Peso Descarga</label>
-                <input type="number" step="0.01" placeholder="Ex: 25000" required value={encerramento.peso_descarga} onChange={e => setEncerramento({...encerramento, peso_descarga: e.target.value})} style={inputStyle} />
+                <label style={labelStyle}>Peso Descarga (Kg)</label>
+                <input type="number" step="0.01" placeholder="Ex: 50200" required value={encerramento.peso_descarga} onChange={e => setEncerramento({...encerramento, peso_descarga: e.target.value})} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Comprovante de Descarga (Foto)</label>
@@ -737,36 +750,175 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* HISTÓRICO DE VIAGENS FINALIZADAS */}
+      {/* HISTÓRICO DE VIAGENS FINALIZADAS EXPANDIDO */}
       <h3 style={{ color: '#ffffff', marginTop: '40px' }}>📜 Histórico de Viagens Encerradas</h3>
       {historicoViagens.length === 0 ? (
         <p style={{ color: '#94a3b8' }}>Nenhuma viagem encerrada ainda.</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', background: '#1e293b', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', color: '#cbd5e1', fontSize: '13px' }}>
             <thead>
-              <tr style={{ background: '#334155', color: '#f8fafc', textAlign: 'left' }}>
+              <tr style={{ background: '#0f172a', color: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #334155' }}>
                 <th style={{ padding: '12px' }}>Placa</th>
                 <th style={{ padding: '12px' }}>Operador</th>
-                <th style={{ padding: '12px' }}>Produto</th>
+                <th style={{ padding: '12px' }}>Produto / Origem</th>
                 <th style={{ padding: '12px' }}>KM Rodados</th>
-                <th style={{ padding: '12px' }}>Peso Descarga</th>
+                <th style={{ padding: '12px' }}>Peso Emb. / Desc.</th>
+                <th style={{ padding: '12px' }}>Dif. Peso (Quebra)</th>
+                <th style={{ padding: '12px' }}>Gastos Totais</th>
+                <th style={{ padding: '12px', textAlign: 'center' }}>Ação</th>
               </tr>
             </thead>
             <tbody>
-              {historicoViagens.map(v => (
-                <tr key={v.id} style={{ borderBottom: '1px solid #334155', color: '#cbd5e1' }}>
-                  <td style={{ padding: '12px' }}>{v.placa}</td>
-                  <td style={{ padding: '12px' }}>{v.operador || '-'}</td>
-                  <td style={{ padding: '12px' }}>{v.produto || '-'}</td>
-                  <td style={{ padding: '12px' }}>{(v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0} km</td>
-                  <td style={{ padding: '12px' }}>{v.peso_descarga || '-'}</td>
-                </tr>
-              ))}
+              {historicoViagens.map(v => {
+                const totalComb = (v.abastecimentos || []).reduce((a, b) => a + (Number(b.valor_total) || 0), 0);
+                const totalDesp = (v.despesas_viagem || []).reduce((a, b) => a + (Number(b.valor) || 0), 0);
+                const totalGasto = totalComb + totalDesp;
+
+                const kmRodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
+                const pOrigem = Number(v.peso_carregado || 0);
+                const pDestino = Number(v.peso_descarga || 0);
+                const difPeso = pDestino - pOrigem;
+
+                return (
+                  <tr key={v.id} style={{ borderBottom: '1px solid #334155' }}>
+                    <td style={{ padding: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{v.placa}</td>
+                    <td style={{ padding: '12px' }}>{v.operador || '-'}</td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ color: '#fff' }}>{v.produto || '-'}</span>
+                      <br/>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>📍 {v.local_carregamento || 'N/A'}</span>
+                    </td>
+                    <td style={{ padding: '12px' }}>{kmRodados} km</td>
+                    <td style={{ padding: '12px' }}>
+                      {pOrigem} / {pDestino} kg
+                    </td>
+                    <td style={{ padding: '12px', fontWeight: 'bold', color: difPeso < 0 ? '#ef4444' : difPeso > 0 ? '#22c55e' : '#cbd5e1' }}>
+                      {difPeso > 0 ? `+${difPeso}` : difPeso} kg
+                    </td>
+                    <td style={{ padding: '12px', color: '#f59e0b', fontWeight: 'bold' }}>
+                      R$ {totalGasto.toFixed(2)}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button 
+                        onClick={() => handleAbrirDetalhes(v)}
+                        style={{ background: '#2563eb', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                        👁️ Detalhes
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* MODAL RELATÓRIO / DETALHES COMPLETO DA VIAGEM SELECIONADA */}
+      {viagemDetalhada && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '750px', color: '#fff', maxHeight: '90vh', overflowY: 'auto' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '10px', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#60a5fa' }}>📊 Relatório da Viagem #{viagemDetalhada.id} ({viagemDetalhada.placa})</h3>
+              <button onClick={() => setViagemDetalhada(null)} style={{ background: '#dc2626', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>✕ Fechar</button>
+            </div>
+
+            {/* CARDS DE RESUMO DA VIAGEM */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+              <div style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>MOTORISTA & PRODUTO</p>
+                <p style={{ margin: '4px 0 0 0', fontWeight: 'bold' }}>{viagemDetalhada.operador || 'N/A'}</p>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#60a5fa' }}>{viagemDetalhada.produto || 'N/A'}</p>
+              </div>
+
+              <div style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>ROTA & QUILOMETRAGEM</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>📍 {viagemDetalhada.local_carregamento || '-'} ➔ 🎯 {viagemDetalhada.local_descarga || '-'}</p>
+                <p style={{ margin: '2px 0 0 0', fontWeight: 'bold', color: '#4ade80' }}>
+                  {(viagemDetalhada.km_final && viagemDetalhada.km_inicial) ? (viagemDetalhada.km_final - viagemDetalhada.km_inicial) : 0} km rodados
+                </p>
+              </div>
+
+              <div style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>BALANÇA / PESOS</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>Emb: {viagemDetalhada.peso_carregado || 0} kg | Desc: {viagemDetalhada.peso_descarga || 0} kg</p>
+                <p style={{ margin: '2px 0 0 0', fontWeight: 'bold', color: (Number(viagemDetalhada.peso_descarga || 0) - Number(viagemDetalhada.peso_carregado || 0)) < 0 ? '#ef4444' : '#22c55e' }}>
+                  Diferença: {(Number(viagemDetalhada.peso_descarga || 0) - Number(viagemDetalhada.peso_carregado || 0))} kg
+                </p>
+              </div>
+
+              <div style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>GASTOS TOTAIS DA VIAGEM</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '16px', fontWeight: 'bold', color: '#f59e0b' }}>
+                  R$ {(
+                    detalhesAbastecimentos.reduce((a, b) => a + (Number(b.valor_total) || 0), 0) +
+                    detalhesDespesas.reduce((a, b) => a + (Number(b.valor) || 0), 0)
+                  ).toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            {/* COMPROVANTE DESCARGA */}
+            {viagemDetalhada.foto_descarga_url && (
+              <div style={{ marginBottom: '20px', background: '#0f172a', padding: '10px', borderRadius: '6px' }}>
+                <a href={viagemDetalhada.foto_descarga_url} target="_blank" rel="noopener noreferrer" style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold' }}>
+                  🖼️ Clique para visualizar o Comprovante de Descarga
+                </a>
+              </div>
+            )}
+
+            {/* ABASTECIMENTOS DA VIAGEM */}
+            <h4 style={{ color: '#f59e0b', marginBottom: '8px' }}>⛽ Abastecimentos Realizados ({detalhesAbastecimentos.length})</h4>
+            {detalhesAbastecimentos.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#94a3b8' }}>Nenhum abastecimento registrado.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                {detalhesAbastecimentos.map(a => (
+                  <div key={a.id} style={{ background: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>{a.posto || 'Posto não informado'}</strong> (NF: {a.nota_fiscal || '-'})
+                      <br/>
+                      <span style={{ color: '#94a3b8', fontSize: '12px' }}>{a.litros} L | R$ {a.preco_por_litro ? Number(a.preco_por_litro).toFixed(3) : 0}/L | KM: {a.km_atual || '-'}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>R$ {Number(a.valor_total || 0).toFixed(2)}</span>
+                      {a.foto_nota_url && (
+                        <div><a href={a.foto_nota_url} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '11px' }}>📷 Nota</a></div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* DESPESAS DA VIAGEM */}
+            <h4 style={{ color: '#c084fc', marginBottom: '8px' }}>💸 Outros Gastos / Despesas ({detalhesDespesas.length})</h4>
+            {detalhesDespesas.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#94a3b8' }}>Nenhuma despesa registrada.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {detalhesDespesas.map(d => (
+                  <div key={d.id} style={{ background: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ background: '#9333ea', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', marginRight: '6px' }}>{d.tipo}</span>
+                      <span>{d.descricao || 'Sem descrição'}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ color: '#c084fc', fontWeight: 'bold' }}>R$ {Number(d.valor || 0).toFixed(2)}</span>
+                      {d.foto_comprovante_url && (
+                        <div><a href={d.foto_comprovante_url} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '11px' }}>📷 Comprovante</a></div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
