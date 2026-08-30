@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Truck, Fuel, DollarSign, MapPin, CheckCircle, Clock, PlusCircle, Filter, Search } from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "./lib/supabaseClient";
 
 export default function AbaLogistica({ userName }) {
   const [viagens, setViagens] = useState([]);
