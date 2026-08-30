@@ -52,7 +52,6 @@ export default function AbaLogistica() {
   async function carregarDados() {
     setLoading(true);
     try {
-      // Buscar viagem ativa
       const { data: ativa } = await supabase
         .from('diario_bordo')
         .select('*')
@@ -63,7 +62,6 @@ export default function AbaLogistica() {
 
       setViagemAtiva(ativa || null);
 
-      // Buscar histórico de viagens finalizadas
       const { data: historico } = await supabase
         .from('diario_bordo')
         .select('*')
@@ -78,7 +76,6 @@ export default function AbaLogistica() {
     }
   }
 
-  // Função para Upload no Supabase Storage
   async function uploadImagem(file, pasta) {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
@@ -100,7 +97,6 @@ export default function AbaLogistica() {
     return data.publicUrl;
   }
 
-  // Iniciar Nova Viagem
   async function handleIniciarViagem(e) {
     e.preventDefault();
     setLoading(true);
@@ -119,7 +115,6 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
-  // Registrar Abastecimento
   async function handleRegistrarAbastecimento(e) {
     e.preventDefault();
     setLoading(true);
@@ -128,7 +123,6 @@ export default function AbaLogistica() {
     const litros = Number(abastecimento.litros);
     const kmAtual = Number(abastecimento.km_atual);
 
-    // Buscar último abastecimento para calcular média
     const { data: ultimosAbastecimentos } = await supabase
       .from('abastecimentos')
       .select('km_atual')
@@ -171,7 +165,6 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
-  // Registrar Despesa
   async function handleRegistrarDespesa(e) {
     e.preventDefault();
     setLoading(true);
@@ -199,7 +192,6 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
-  // Finalizar Viagem
   async function handleFinalizarViagem(e) {
     e.preventDefault();
     setLoading(true);
@@ -230,64 +222,98 @@ export default function AbaLogistica() {
     setLoading(false);
   }
 
+  // Estilos reutilizáveis para Dark Mode
+  const inputStyle = {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: '6px',
+    border: '1px solid #3b82f6',
+    backgroundColor: '#1e293b',
+    color: '#ffffff',
+    fontSize: '14px',
+    boxSizing: 'border-box'
+  };
+
+  const labelStyle = {
+    display: 'block',
+    marginBottom: '4px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    color: '#93c5fd'
+  };
+
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: '0 auto' }}>
-      <h2>🚛 Gestão de Logística & Diário de Bordo</h2>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: '0 auto', color: '#f8fafc' }}>
+      <h2 style={{ color: '#ffffff', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>
+        🚛 Gestão de Logística & Diário de Bordo
+      </h2>
 
       {/* PAINEL DE VIAGEM ATIVA */}
       {viagemAtiva ? (
-        <div style={{ background: '#e3f2fd', border: '2px solid #2196f3', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
-          <span style={{ background: '#2196f3', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+        <div style={{ background: '#1e293b', border: '2px solid #3b82f6', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
+          <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
             VIAGEM EM ANDAMENTO
           </span>
-          <h3 style={{ margin: '10px 0' }}>{viagemAtiva.veiculo} - {viagemAtiva.motorista}</h3>
-          <p style={{ margin: '5px 0' }}><strong>Destino:</strong> {viagemAtiva.destino || 'Não informado'}</p>
-          <p style={{ margin: '5px 0' }}><strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km</p>
+          <h3 style={{ color: '#ffffff', margin: '15px 0 5px 0' }}>{viagemAtiva.veiculo} - {viagemAtiva.motorista}</h3>
+          <p style={{ margin: '5px 0', color: '#cbd5e1' }}><strong>Destino:</strong> {viagemAtiva.destino || 'Não informado'}</p>
+          <p style={{ margin: '5px 0', color: '#cbd5e1' }}><strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km</p>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '15px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
             <button 
               onClick={() => setModalAbastecimento(true)}
-              style={{ padding: '10px 15px', background: '#ff9800', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+              style={{ padding: '12px 18px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
               ⛽ Registrar Abastecimento
             </button>
             <button 
               onClick={() => setModalDespesa(true)}
-              style={{ padding: '10px 15px', background: '#9c27b0', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+              style={{ padding: '12px 18px', background: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
               💸 Registrar Despesa / Gasto
             </button>
             <button 
               onClick={() => setModalFinalizar(true)}
-              style={{ padding: '10px 15px', background: '#4caf50', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+              style={{ padding: '12px 18px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
               🏁 Finalizar Viagem
             </button>
           </div>
         </div>
       ) : (
         /* FORMULÁRIO DE NOVA VIAGEM */
-        <div style={{ background: '#f5f5f5', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
-          <h3>🚀 Iniciar Nova Viagem</h3>
-          <form onSubmit={handleIniciarViagem} style={{ display: 'grid', gap: '10px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-            <input 
-              type="text" placeholder="Veículo (ex: Placa/Modelo)" required
-              value={novaViagem.veiculo} onChange={e => setNovaViagem({...novaViagem, veiculo: e.target.value})}
-              style={{ padding: '8px' }}
-            />
-            <input 
-              type="text" placeholder="Motorista" required
-              value={novaViagem.motorista} onChange={e => setNovaViagem({...novaViagem, motorista: e.target.value})}
-              style={{ padding: '8px' }}
-            />
-            <input 
-              type="number" placeholder="KM Inicial" required
-              value={novaViagem.km_inicial} onChange={e => setNovaViagem({...novaViagem, km_inicial: e.target.value})}
-              style={{ padding: '8px' }}
-            />
-            <input 
-              type="text" placeholder="Destino"
-              value={novaViagem.destino} onChange={e => setNovaViagem({...novaViagem, destino: e.target.value})}
-              style={{ padding: '8px' }}
-            />
-            <button type="submit" disabled={loading} style={{ gridColumn: '1 / -1', padding: '10px', background: '#2196f3', color: '#fff', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>
+        <div style={{ background: '#1e293b', padding: '25px', borderRadius: '10px', border: '1px solid #334155', marginBottom: '30px' }}>
+          <h3 style={{ color: '#ffffff', marginTop: 0, marginBottom: '20px' }}>🚀 Iniciar Nova Viagem</h3>
+          <form onSubmit={handleIniciarViagem} style={{ display: 'grid', gap: '15px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div>
+              <label style={labelStyle}>Veículo</label>
+              <input 
+                type="text" placeholder="Ex: Scania ABC-1234" required
+                value={novaViagem.veiculo} onChange={e => setNovaViagem({...novaViagem, veiculo: e.target.value})}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Motorista</label>
+              <input 
+                type="text" placeholder="Nome do Motorista" required
+                value={novaViagem.motorista} onChange={e => setNovaViagem({...novaViagem, motorista: e.target.value})}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>KM Inicial</label>
+              <input 
+                type="number" placeholder="Ex: 150000" required
+                value={novaViagem.km_inicial} onChange={e => setNovaViagem({...novaViagem, km_inicial: e.target.value})}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Destino</label>
+              <input 
+                type="text" placeholder="Cidade / Filial"
+                value={novaViagem.destino} onChange={e => setNovaViagem({...novaViagem, destino: e.target.value})}
+                style={inputStyle}
+              />
+            </div>
+            <button type="submit" disabled={loading} style={{ gridColumn: '1 / -1', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px', fontSize: '15px' }}>
               {loading ? 'Salvando...' : 'Iniciar Viagem'}
             </button>
           </form>
@@ -296,22 +322,40 @@ export default function AbaLogistica() {
 
       {/* MODAL ABASTECIMENTO */}
       {modalAbastecimento && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: '25px', borderRadius: '8px', width: '100%', maxWidth: '400px' }}>
-            <h3>⛽ Registrar Abastecimento</h3>
-            <form onSubmit={handleRegistrarAbastecimento} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <input type="text" placeholder="Posto" required value={abastecimento.posto} onChange={e => setAbastecimento({...abastecimento, posto: e.target.value})} style={{ padding: '8px' }} />
-              <input type="text" placeholder="Número Nota Fiscal" required value={abastecimento.nota_fiscal} onChange={e => setAbastecimento({...abastecimento, nota_fiscal: e.target.value})} style={{ padding: '8px' }} />
-              <input type="number" step="0.01" placeholder="Valor Total (R$)" required value={abastecimento.valor_total} onChange={e => setAbastecimento({...abastecimento, valor_total: e.target.value})} style={{ padding: '8px' }} />
-              <input type="number" step="0.01" placeholder="Quantidade Litros" required value={abastecimento.litros} onChange={e => setAbastecimento({...abastecimento, litros: e.target.value})} style={{ padding: '8px' }} />
-              <input type="number" placeholder="KM Atual" required value={abastecimento.km_atual} onChange={e => setAbastecimento({...abastecimento, km_atual: e.target.value})} style={{ padding: '8px' }} />
-              
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Foto da Nota Fiscal:</label>
-              <input type="file" accept="image/*" onChange={e => setAbastecimento({...abastecimento, foto: e.target.files[0]})} />
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '450px', color: '#fff' }}>
+            <h3 style={{ marginTop: 0, color: '#f59e0b' }}>⛽ Registrar Abastecimento</h3>
+            <form onSubmit={handleRegistrarAbastecimento} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={labelStyle}>Posto de Combustível</label>
+                <input type="text" placeholder="Nome/Local do Posto" required value={abastecimento.posto} onChange={e => setAbastecimento({...abastecimento, posto: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Número da Nota Fiscal</label>
+                <input type="text" placeholder="Nº NF" required value={abastecimento.nota_fiscal} onChange={e => setAbastecimento({...abastecimento, nota_fiscal: e.target.value})} style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={labelStyle}>Valor Total (R$)</label>
+                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.valor_total} onChange={e => setAbastecimento({...abastecimento, valor_total: e.target.value})} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Quantidade (Litros)</label>
+                  <input type="number" step="0.01" placeholder="0.00" required value={abastecimento.litros} onChange={e => setAbastecimento({...abastecimento, litros: e.target.value})} style={inputStyle} />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>KM Atual do Veículo</label>
+                <input type="number" placeholder="KM Atual" required value={abastecimento.km_atual} onChange={e => setAbastecimento({...abastecimento, km_atual: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Foto da Nota Fiscal</label>
+                <input type="file" accept="image/*" onChange={e => setAbastecimento({...abastecimento, foto: e.target.files[0]})} style={{ color: '#fff' }} />
+              </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" disabled={loading} style={{ flex: 1, padding: '10px', background: '#ff9800', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Salvar</button>
-                <button type="button" onClick={() => setModalAbastecimento(false)} style={{ flex: 1, padding: '10px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                <button type="submit" disabled={loading} style={{ flex: 1, padding: '10px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Salvar</button>
+                <button type="button" onClick={() => setModalAbastecimento(false)} style={{ flex: 1, padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
               </div>
             </form>
           </div>
@@ -320,26 +364,36 @@ export default function AbaLogistica() {
 
       {/* MODAL DESPESA */}
       {modalDespesa && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: '25px', borderRadius: '8px', width: '100%', maxWidth: '400px' }}>
-            <h3>💸 Registrar Despesa / Gasto</h3>
-            <form onSubmit={handleRegistrarDespesa} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <select value={despesa.tipo} onChange={e => setDespesa({...despesa, tipo: e.target.value})} style={{ padding: '8px' }}>
-                <option value="Pedágio">Pedágio</option>
-                <option value="Alimentação">Alimentação</option>
-                <option value="Pernoite">Pernoite</option>
-                <option value="Manutenção Rápida">Manutenção Rápida</option>
-                <option value="Outros">Outros</option>
-              </select>
-              <input type="number" step="0.01" placeholder="Valor (R$)" required value={despesa.valor} onChange={e => setDespesa({...despesa, valor: e.target.value})} style={{ padding: '8px' }} />
-              <input type="text" placeholder="Descrição / Observação" value={despesa.descricao} onChange={e => setDespesa({...despesa, descricao: e.target.value})} style={{ padding: '8px' }} />
-              
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Comprovante (Opcional):</label>
-              <input type="file" accept="image/*" onChange={e => setDespesa({...despesa, foto: e.target.files[0]})} />
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '450px', color: '#fff' }}>
+            <h3 style={{ marginTop: 0, color: '#c084fc' }}>💸 Registrar Despesa / Gasto</h3>
+            <form onSubmit={handleRegistrarDespesa} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={labelStyle}>Tipo de Despesa</label>
+                <select value={despesa.tipo} onChange={e => setDespesa({...despesa, tipo: e.target.value})} style={inputStyle}>
+                  <option value="Pedágio">Pedágio</option>
+                  <option value="Alimentação">Alimentação</option>
+                  <option value="Pernoite">Pernoite</option>
+                  <option value="Manutenção Rápida">Manutenção Rápida</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Valor (R$)</label>
+                <input type="number" step="0.01" placeholder="0.00" required value={despesa.valor} onChange={e => setDespesa({...despesa, valor: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Descrição / Observação</label>
+                <input type="text" placeholder="Detalhes do gasto" value={despesa.descricao} onChange={e => setDespesa({...despesa, descricao: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Comprovante (Opcional)</label>
+                <input type="file" accept="image/*" onChange={e => setDespesa({...despesa, foto: e.target.files[0]})} style={{ color: '#fff' }} />
+              </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" disabled={loading} style={{ flex: 1, padding: '10px', background: '#9c27b0', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Salvar</button>
-                <button type="button" onClick={() => setModalDespesa(false)} style={{ flex: 1, padding: '10px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                <button type="submit" disabled={loading} style={{ flex: 1, padding: '10px', background: '#9333ea', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Salvar</button>
+                <button type="button" onClick={() => setModalDespesa(false)} style={{ flex: 1, padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
               </div>
             </form>
           </div>
@@ -348,19 +402,26 @@ export default function AbaLogistica() {
 
       {/* MODAL FINALIZAR VIAGEM */}
       {modalFinalizar && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: '25px', borderRadius: '8px', width: '100%', maxWidth: '400px' }}>
-            <h3>🏁 Finalizar Viagem</h3>
-            <form onSubmit={handleFinalizarViagem} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <input type="number" placeholder="KM Final de Chegada" required value={encerramento.km_final} onChange={e => setEncerramento({...encerramento, km_final: e.target.value})} style={{ padding: '8px' }} />
-              <input type="number" step="0.01" placeholder="Peso Descarregado (kg ou ton)" required value={encerramento.peso_descarga} onChange={e => setEncerramento({...encerramento, peso_descarga: e.target.value})} style={{ padding: '8px' }} />
-              
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Comprovante de Descarga:</label>
-              <input type="file" accept="image/*" onChange={e => setEncerramento({...encerramento, foto: e.target.files[0]})} />
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '25px', borderRadius: '10px', width: '90%', maxWidth: '450px', color: '#fff' }}>
+            <h3 style={{ marginTop: 0, color: '#4ade80' }}>🏁 Finalizar Viagem</h3>
+            <form onSubmit={handleFinalizarViagem} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={labelStyle}>KM Final de Chegada</label>
+                <input type="number" placeholder="KM Chegada" required value={encerramento.km_final} onChange={e => setEncerramento({...encerramento, km_final: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Peso Descarregado (kg ou ton)</label>
+                <input type="number" step="0.01" placeholder="Ex: 25000" required value={encerramento.peso_descarga} onChange={e => setEncerramento({...encerramento, peso_descarga: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Comprovante de Descarga</label>
+                <input type="file" accept="image/*" onChange={e => setEncerramento({...encerramento, foto: e.target.files[0]})} style={{ color: '#fff' }} />
+              </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" disabled={loading} style={{ flex: 1, padding: '10px', background: '#4caf50', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Finalizar</button>
-                <button type="button" onClick={() => setModalFinalizar(false)} style={{ flex: 1, padding: '10px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                <button type="submit" disabled={loading} style={{ flex: 1, padding: '10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Finalizar</button>
+                <button type="button" onClick={() => setModalFinalizar(false)} style={{ flex: 1, padding: '10px', background: '#475569', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
               </div>
             </form>
           </div>
@@ -368,36 +429,38 @@ export default function AbaLogistica() {
       )}
 
       {/* HISTÓRICO DE VIAGENS FINALIZADAS */}
-      <h3>📜 Histórico de Viagens Encerradas</h3>
+      <h3 style={{ color: '#ffffff', marginTop: '40px' }}>📜 Histórico de Viagens Encerradas</h3>
       {historicoViagens.length === 0 ? (
-        <p style={{ color: '#666' }}>Nenhuma viagem encerrada ainda.</p>
+        <p style={{ color: '#94a3b8' }}>Nenhuma viagem encerrada ainda.</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-          <thead>
-            <tr style={{ background: '#eee', textAlign: 'left' }}>
-              <th style={{ padding: '8px' }}>Veículo</th>
-              <th style={{ padding: '8px' }}>Motorista</th>
-              <th style={{ padding: '8px' }}>KM Rodados</th>
-              <th style={{ padding: '8px' }}>Peso Descarga</th>
-              <th style={{ padding: '8px' }}>Comprovante</th>
-            </tr>
-          </thead>
-          <tbody>
-            {historicoViagens.map(v => (
-              <tr key={v.id} style={{ borderBottom: '1px solid #ddd' }}>
-                <td style={{ padding: '8px' }}>{v.veiculo}</td>
-                <td style={{ padding: '8px' }}>{v.motorista}</td>
-                <td style={{ padding: '8px' }}>{(v.km_final - v.km_inicial) || 0} km</td>
-                <td style={{ padding: '8px' }}>{v.peso_descarga || '-'}</td>
-                <td style={{ padding: '8px' }}>
-                  {v.foto_descarga_url ? (
-                    <a href={v.foto_descarga_url} target="_blank" rel="noopener noreferrer">Ver Foto</a>
-                  ) : '-'}
-                </td>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', background: '#1e293b', borderRadius: '8px', overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ background: '#334155', color: '#f8fafc', textAlign: 'left' }}>
+                <th style={{ padding: '12px' }}>Veículo</th>
+                <th style={{ padding: '12px' }}>Motorista</th>
+                <th style={{ padding: '12px' }}>KM Rodados</th>
+                <th style={{ padding: '12px' }}>Peso Descarga</th>
+                <th style={{ padding: '12px' }}>Comprovante</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {historicoViagens.map(v => (
+                <tr key={v.id} style={{ borderBottom: '1px solid #334155', color: '#cbd5e1' }}>
+                  <td style={{ padding: '12px' }}>{v.veiculo}</td>
+                  <td style={{ padding: '12px' }}>{v.motorista}</td>
+                  <td style={{ padding: '12px' }}>{(v.km_final - v.km_inicial) || 0} km</td>
+                  <td style={{ padding: '12px' }}>{v.peso_descarga || '-'}</td>
+                  <td style={{ padding: '12px' }}>
+                    {v.foto_descarga_url ? (
+                      <a href={v.foto_descarga_url} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontWeight: 'bold' }}>Ver Foto</a>
+                    ) : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
