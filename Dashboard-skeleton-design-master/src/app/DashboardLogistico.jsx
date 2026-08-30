@@ -68,6 +68,11 @@ export default function DashboardLogistico({
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
+            onClick={() => setModalListaDespesas(true)} 
+            style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+            📋 Gerenciar Despesas
+          </button>
+          <button 
             onClick={() => setModalFinalizar(true)} 
             style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
             🏁 Finalizar Viagem Ativa

@@ -1,19 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './lib/supabaseClient';
+// Ajuste os imports conforme a estrutura do seu projeto (ex: supabase, api, etc.)
+// import { supabase } from '../services/supabaseClient';
 
-export default function AbaLogistica() {
-  const [loading, setLoading] = useState(false);
+function AbaLogistica() {
   const [viagemAtiva, setViagemAtiva] = useState(null);
-  const [listaAbastecimentos, setListaAbastecimentos] = useState([]);
-  const [listaDespesas, setListaDespesas] = useState([]);
-  const [historicoViagens, setHistoricoViagens] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Estado para Visualizar Detalhes da Viagem Finalizada
-  const [viagemDetalhada, setViagemDetalhada] = useState(null);
-  const [detalhesAbastecimentos, setDetalhesAbastecimentos] = useState([]);
-  const [detalhesDespesas, setDetalhesDespesas] = useState([]);
-
-  // Form Nova Viagem
+  // Estados para formulário de nova viagem
   const [novaViagem, setNovaViagem] = useState({
     placa: '',
     operador: '',
@@ -27,15 +20,17 @@ export default function AbaLogistica() {
   // Modais
   const [modalNovoAbastecimento, setModalNovoAbastecimento] = useState(false);
   const [modalNovaDespesa, setModalNovaDespesa] = useState(false);
+  const [modalFinalizar, setModalFinalizar] = useState(false);
   const [modalListaAbastecimentos, setModalListaAbastecimentos] = useState(false);
   const [modalListaDespesas, setModalListaDespesas] = useState(false);
-  const [modalFinalizar, setModalFinalizar] = useState(false);
+  const [viagemDetalhada, setViagemDetalhada] = useState(null);
 
-  // Estados de Edição
-  const [itemEdicaoAbastecimento, setItemEdicaoAbastecimento] = useState(null);
-  const [itemEdicaoDespesa, setItemEdicaoDespesa] = useState(null);
+  // Dados operacionais da viagem ativa
+  const [listaAbastecimentos, setListaAbastecimentos] = useState([]);
+  const [listaDespesas, setListaDespesas] = useState([]);
+  const [historicoViagens, setHistoricoViagens] = useState([]);
 
-  // Forms
+  // Estados de inputs para modais
   const [abastecimento, setAbastecimento] = useState({
     posto: '',
     nota_fiscal: '',
@@ -59,387 +54,123 @@ export default function AbaLogistica() {
     foto: null
   });
 
-  useEffect(() => {
-    carregarDados();
-  }, []);
+  // Estados de Edição
+  const [itemEdicaoAbastecimento, setItemEdicaoAbastecimento] = useState(null);
+  const [itemEdicaoDespesa, setItemEdicaoDespesa] = useState(null);
 
-  async function carregarDados() {
+  // Detalhes da viagem selecionada no histórico
+  const [detalhesAbastecimentos, setDetalhesAbastecimentos] = useState([]);
+  const [detalhesDespesas, setDetalhesDespesas] = useState([]);
+
+  // Estilos reutilizáveis
+  const labelStyle = { display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#94a3b8' };
+  const inputStyle = { width: '100%', padding: '10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '14px', boxSizing: 'border-box' };
+
+  // Funções Mock / placeholders de ações (conecte à sua API ou Supabase)
+  const handleIniciarViagem = (e) => {
+    e.preventDefault();
     setLoading(true);
-    try {
-      const { data: ativa } = await supabase
-        .from('diario_bordo')
-        .select('*')
-        .eq('status', 'EM_TRANSITO')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      setViagemAtiva(ativa || null);
-
-      if (ativa) {
-        const { data: abast } = await supabase
-          .from('abastecimentos')
-          .select('*')
-          .eq('viagem_id', ativa.id)
-          .order('created_at', { ascending: false });
-
-        const { data: desp } = await supabase
-          .from('despesas_viagem')
-          .select('*')
-          .eq('viagem_id', ativa.id)
-          .order('created_at', { ascending: false });
-
-        setListaAbastecimentos(abast || []);
-        setListaDespesas(desp || []);
-      }
-
-      // Busca histórico de viagens com seus respectivos abastecimentos e despesas
-      const { data: historico } = await supabase
-        .from('diario_bordo')
-        .select(`
-          *,
-          abastecimentos(*),
-          despesas_viagem(*)
-        `)
-        .eq('status', 'FINALIZADA')
-        .order('created_at', { ascending: false });
-
-      setHistoricoViagens(historico || []);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-    } finally {
+    setTimeout(() => {
+      setViagemAtiva({ id: 1, ...novaViagem, status: 'ativa' });
       setLoading(false);
-    }
-  }
+    }, 500);
+  };
 
-  async function uploadImagem(file, pasta) {
-    if (!file) return null;
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${pasta}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('comprovantes-logistica')
-      .upload(fileName, file);
-
-    if (uploadError) return null;
-
-    const { data } = supabase.storage
-      .from('comprovantes-logistica')
-      .getPublicUrl(fileName);
-
-    return data.publicUrl;
-  }
-
-  // --- VIAGEM ---
-  async function handleIniciarViagem(e) {
+  const handleRegistrarAbastecimento = (e) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.from('diario_bordo').insert([{
-      ...novaViagem,
-      km_inicial: Number(novaViagem.km_inicial),
-      peso_carregado: novaViagem.peso_carregado ? Number(novaViagem.peso_carregado) : null,
-      status: 'EM_TRANSITO'
-    }]);
-
-    if (error) {
-      alert('Erro ao iniciar viagem: ' + error.message);
-    } else {
-      setNovaViagem({ placa: '', operador: '', km_inicial: '', local_carregamento: '', cliente_destino: '', produto: '', peso_carregado: '' });
-      carregarDados();
-    }
-    setLoading(false);
-  }
-
-  // --- ABASTECIMENTO ---
-  async function handleRegistrarAbastecimento(e) {
-    e.preventDefault();
-    setLoading(true);
-
-    let fotoUrl = null;
-    if (abastecimento.foto) {
-      fotoUrl = await uploadImagem(abastecimento.foto, 'abastecimentos');
-    }
-
-    const valTotal = Number(abastecimento.valor_total);
-    const lit = Number(abastecimento.litros);
-    const precoLitro = lit > 0 ? valTotal / lit : null;
-
-    const { error } = await supabase
-      .from('abastecimentos')
-      .insert([{
-        viagem_id: viagemAtiva.id,
-        posto: abastecimento.posto,
-        nota_fiscal: abastecimento.nota_fiscal,
-        valor_total: valTotal,
-        litros: lit,
-        preco_por_litro: precoLitro,
-        km_atual: abastecimento.km_atual ? Number(abastecimento.km_atual) : null,
-        foto_nota_url: fotoUrl
-      }]);
-
-    if (error) {
-      alert('Erro ao registrar abastecimento: ' + error.message);
-    } else {
-      alert('Novo abastecimento registrado!');
-      setModalNovoAbastecimento(false);
+    setTimeout(() => {
+      const novoId = Date.now();
+      const novoItem = { id: novoId, ...abastecimento, preco_por_litro: Number(abastecimento.litros) > 0 ? Number(abastecimento.valor_total) / Number(abastecimento.litros) : 0 };
+      setListaAbastecimentos([...listaAbastecimentos, novoItem]);
       setAbastecimento({ posto: '', nota_fiscal: '', valor_total: '', litros: '', km_atual: '', foto: null });
-      carregarDados();
-    }
-    setLoading(false);
-  }
+      setModalNovoAbastecimento(false);
+      setLoading(false);
+    }, 500);
+  };
 
-  async function handleSalvarEdicaoAbastecimento(e) {
+  const handleRegistrarDespesa = (e) => {
     e.preventDefault();
     setLoading(true);
-
-    let fotoUrl = itemEdicaoAbastecimento.foto_nota_url;
-    if (itemEdicaoAbastecimento.novaFoto) {
-      const url = await uploadImagem(itemEdicaoAbastecimento.novaFoto, 'abastecimentos');
-      if (url) fotoUrl = url;
-    }
-
-    const valTotal = Number(itemEdicaoAbastecimento.valor_total);
-    const lit = Number(itemEdicaoAbastecimento.litros);
-    const precoLitro = lit > 0 ? valTotal / lit : null;
-
-    const { error } = await supabase
-      .from('abastecimentos')
-      .update({
-        posto: itemEdicaoAbastecimento.posto,
-        nota_fiscal: itemEdicaoAbastecimento.nota_fiscal,
-        valor_total: valTotal,
-        litros: lit,
-        preco_por_litro: precoLitro,
-        km_atual: itemEdicaoAbastecimento.km_atual ? Number(itemEdicaoAbastecimento.km_atual) : null,
-        foto_nota_url: fotoUrl
-      })
-      .eq('id', itemEdicaoAbastecimento.id);
-
-    if (error) {
-      alert('Erro ao atualizar abastecimento: ' + error.message);
-    } else {
-      alert('Abastecimento atualizado!');
-      setItemEdicaoAbastecimento(null);
-      carregarDados();
-    }
-    setLoading(false);
-  }
-
-  async function handleExcluirAbastecimento(id) {
-    if (!confirm('Deseja realmente excluir este abastecimento?')) return;
-    setLoading(true);
-
-    const { error } = await supabase
-      .from('abastecimentos')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      alert('Erro ao excluir: ' + error.message);
-    } else {
-      carregarDados();
-    }
-    setLoading(false);
-  }
-
-  // --- DESPESAS ---
-  async function handleRegistrarDespesa(e) {
-    e.preventDefault();
-    setLoading(true);
-
-    let fotoUrl = null;
-    if (despesa.foto) {
-      fotoUrl = await uploadImagem(despesa.foto, 'despesas');
-    }
-
-    const { error } = await supabase
-      .from('despesas_viagem')
-      .insert([{
-        viagem_id: viagemAtiva.id,
-        tipo: despesa.tipo,
-        valor: Number(despesa.valor),
-        descricao: despesa.descricao,
-        foto_comprovante_url: fotoUrl
-      }]);
-
-    if (error) {
-      alert('Erro ao registrar despesa: ' + error.message);
-    } else {
-      alert('Nova despesa registrada!');
-      setModalNovaDespesa(false);
+    setTimeout(() => {
+      const novoId = Date.now();
+      const novoItem = { id: novoId, ...despesa };
+      setListaDespesas([...listaDespesas, novoItem]);
       setDespesa({ tipo: 'Alimentação', valor: '', descricao: '', foto: null });
-      carregarDados();
-    }
-    setLoading(false);
-  }
+      setModalNovaDespesa(false);
+      setLoading(false);
+    }, 500);
+  };
 
-  async function handleSalvarEdicaoDespesa(e) {
+  const handleFinalizarViagem = (e) => {
     e.preventDefault();
     setLoading(true);
-
-    let fotoUrl = itemEdicaoDespesa.foto_comprovante_url;
-    if (itemEdicaoDespesa.novaFoto) {
-      const url = await uploadImagem(itemEdicaoDespesa.novaFoto, 'despesas');
-      if (url) fotoUrl = url;
-    }
-
-    const { error } = await supabase
-      .from('despesas_viagem')
-      .update({
-        tipo: itemEdicaoDespesa.tipo,
-        valor: Number(itemEdicaoDespesa.valor),
-        descricao: itemEdicaoDespesa.descricao,
-        foto_comprovante_url: fotoUrl
-      })
-      .eq('id', itemEdicaoDespesa.id);
-
-    if (error) {
-      alert('Erro ao atualizar despesa: ' + error.message);
-    } else {
-      alert('Despesa atualizada!');
-      setItemEdicaoDespesa(null);
-      carregarDados();
-    }
-    setLoading(false);
-  }
-
-  async function handleExcluirDespesa(id) {
-    if (!confirm('Deseja realmente excluir esta despesa?')) return;
-    setLoading(true);
-
-    const { error } = await supabase
-      .from('despesas_viagem')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      alert('Erro ao excluir despesa: ' + error.message);
-    } else {
-      carregarDados();
-    }
-    setLoading(false);
-  }
-
-  // --- FINALIZAR VIAGEM ---
-  async function handleFinalizarViagem(e) {
-    e.preventDefault();
-    setLoading(true);
-
-    let fotoUrl = null;
-    if (encerramento.foto) {
-      fotoUrl = await uploadImagem(encerramento.foto, 'descargas');
-    }
-
-    const { error } = await supabase
-      .from('diario_bordo')
-      .update({
-        km_final: Number(encerramento.km_final), // Garante tipo numérico
-        local_descarga: encerramento.local_descarga,
-        peso_descarga: Number(encerramento.peso_descarga),
-        foto_descarga_url: fotoUrl,
-        status: 'FINALIZADA'
-      })
-      .eq('id', viagemAtiva.id);
-
-    if (error) {
-      alert('Erro ao finalizar viagem: ' + error.message);
-    } else {
-      alert('Viagem finalizada!');
-      setModalFinalizar(false);
+    setTimeout(() => {
+      const viagemEncerrada = { 
+        ...viagemAtiva, 
+        ...encerramento, 
+        abastecimentos: listaAbastecimentos, 
+        despesas_viagem: listaDespesas 
+      };
+      setHistoricoViagens([viagemEncerrada, ...historicoViagens]);
+      setViagemAtiva(null);
+      setListaAbastecimentos([]);
+      setListaDespesas([]);
       setEncerramento({ km_final: '', local_descarga: '', peso_descarga: '', foto: null });
-      carregarDados();
-    }
-    setLoading(false);
-  }
+      setModalFinalizar(false);
+      setLoading(false);
+    }, 500);
+  };
 
-  // --- ABRIR DETALHES DE UMA VIAGEM ENCERRADA ---
-  function handleAbrirDetalhes(viagem) {
+  const handleSalvarEdicaoAbastecimento = (e) => {
+    e.preventDefault();
+    setListaAbastecimentos(listaAbastecimentos.map(i => i.id === itemEdicaoAbastecimento.id ? itemEdicaoAbastecimento : i));
+    setItemEdicaoAbastecimento(null);
+  };
+
+  const handleExcluirAbastecimento = (id) => {
+    setListaAbastecimentos(listaAbastecimentos.filter(i => i.id !== id));
+  };
+
+  const handleSalvarEdicaoDespesa = (e) => {
+    e.preventDefault();
+    setListaDespesas(listaDespesas.map(i => i.id === itemEdicaoDespesa.id ? itemEdicaoDespesa : i));
+    setItemEdicaoDespesa(null);
+  };
+
+  const handleExcluirDespesa = (id) => {
+    setListaDespesas(listaDespesas.filter(i => i.id !== id));
+  };
+
+  const handleAbrirDetalhes = (viagem) => {
     setViagemDetalhada(viagem);
     setDetalhesAbastecimentos(viagem.abastecimentos || []);
     setDetalhesDespesas(viagem.despesas_viagem || []);
-  }
-
-  const totalGastoCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.valor_total) || 0), 0);
-  const totalLitrosCombustivel = listaAbastecimentos.reduce((acc, curr) => acc + (Number(curr.litros) || 0), 0);
-  const totalOutrosGastos = listaDespesas.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0);
-
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: '6px',
-    border: '1px solid #3b82f6',
-    backgroundColor: '#1e293b',
-    color: '#ffffff',
-    fontSize: '14px',
-    boxSizing: 'border-box'
-  };
-
-  const labelStyle = {
-    display: 'block',
-    marginBottom: '4px',
-    fontSize: '12px',
-    fontWeight: 'bold',
-    color: '#93c5fd'
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1100px', margin: '0 auto', color: '#f8fafc' }}>
-      <h2 style={{ color: '#ffffff', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>
-        🚛 Gestão de Logística & Diário de Bordo
-      </h2>
+    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+      <h2 style={{ color: '#ffffff', marginBottom: '25px' }}>🚛 Gestão de Logística e Viagens</h2>
 
       {viagemAtiva ? (
-        <div style={{ background: '#1e293b', border: '2px solid #3b82f6', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-              VIAGEM EM TRÂNSITO
-            </span>
-            <span style={{ color: '#94a3b8', fontSize: '12px' }}>ID #{viagemAtiva.id}</span>
-          </div>
-
-          <h3 style={{ color: '#ffffff', margin: '10px 0' }}>
-            Placa: <span style={{ color: '#60a5fa' }}>{viagemAtiva.placa}</span> | Motorista: <span style={{ color: '#60a5fa' }}>{viagemAtiva.operador || 'Não informado'}</span>
-          </h3>
-
-          <div style={{ background: '#0f172a', padding: '12px', borderRadius: '8px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '15px', color: '#cbd5e1', border: '1px solid #334155' }}>
-            <p style={{ margin: 0 }}>📍 <strong>Embarque:</strong> {viagemAtiva.local_carregamento || '-'}</p>
-            <p style={{ margin: 0 }}>🎯 <strong>Destino:</strong> {viagemAtiva.cliente_destino || '-'}</p>
-            <p style={{ margin: 0 }}>📦 <strong>Produto:</strong> {viagemAtiva.produto || '-'}</p>
-            <p style={{ margin: 0 }}>⚖️ <strong>Peso Carga:</strong> {viagemAtiva.peso_carregado || '-'} kg</p>
-            <p style={{ margin: 0 }}>🏎️ <strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km</p>
-          </div>
-
-          {/* CARDS CLICÁVEIS */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-            
-            <div 
-              onClick={() => setModalListaAbastecimentos(true)}
-              style={{ background: '#0f172a', border: '1px solid #d97706', borderRadius: '8px', padding: '15px', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ color: '#f59e0b', margin: 0 }}>⛽ Abastecimentos ({listaAbastecimentos.length})</h4>
-                <span style={{ fontSize: '11px', background: '#d97706', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Ver / Editar</span>
-              </div>
-              <div style={{ marginTop: '10px', fontSize: '13px', color: '#e2e8f0' }}>
-                <p style={{ margin: '4px 0' }}><strong>Total Gasto:</strong> R$ {totalGastoCombustivel.toFixed(2)}</p>
-                <p style={{ margin: '4px 0' }}><strong>Total Litros:</strong> {totalLitrosCombustivel.toFixed(2)} L</p>
-              </div>
+        <div style={{ background: '#1e293b', padding: '25px', borderRadius: '10px', border: '1px solid #334155', marginBottom: '30px', color: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+            <div>
+              <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>Viagem em Andamento</span>
+              <h3 style={{ margin: '8px 0 0 0', color: '#60a5fa' }}>{viagemAtiva.placa} - {viagemAtiva.operador || 'Motorista não informado'}</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Produto: {viagemAtiva.produto || 'N/A'} | Destino: {viagemAtiva.cliente_destino || 'N/A'}</p>
             </div>
-
-            <div 
-              onClick={() => setModalListaDespesas(true)}
-              style={{ background: '#0f172a', border: '1px solid #9333ea', borderRadius: '8px', padding: '15px', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ color: '#c084fc', margin: 0 }}>💸 Outros Gastos ({listaDespesas.length})</h4>
-                <span style={{ fontSize: '11px', background: '#9333ea', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Ver / Editar</span>
-              </div>
-              <div style={{ marginTop: '10px', fontSize: '13px', color: '#e2e8f0' }}>
-                <p style={{ margin: '4px 0' }}><strong>Total Gastos:</strong> R$ {totalOutrosGastos.toFixed(2)}</p>
-              </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setModalListaAbastecimentos(true)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                ⛽ Abastecimentos ({listaAbastecimentos.length})
+              </button>
+              <button onClick={() => setModalListaDespesas(true)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                💸 Despesas ({listaDespesas.length})
+              </button>
             </div>
-
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
             <button 
               onClick={() => setModalNovoAbastecimento(true)}
               style={{ flex: '1 1 180px', padding: '12px 18px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -773,7 +504,6 @@ export default function AbaLogistica() {
                   const totalDesp = (v.despesas_viagem || []).reduce((a, b) => a + (Number(b.valor) || 0), 0);
                   const totalGasto = totalComb + totalDesp;
 
-                  // Conversão garantida de KM para número
                   const kmInicial = Number(v.km_inicial || 0);
                   const kmFinal = Number(v.km_final || 0);
                   const kmRodados = (kmFinal > 0 && kmFinal >= kmInicial) ? (kmFinal - kmInicial) : 0;
@@ -791,7 +521,6 @@ export default function AbaLogistica() {
                         <br/>
                         <span style={{ fontSize: '11px', color: '#94a3b8' }}>📍 {v.local_carregamento || 'N/A'}</span>
                       </td>
-                      {/* Exibição corrigida do KM Rodados */}
                       <td style={{ padding: '12px', fontWeight: 'bold', color: '#f8fafc' }}>
                         {kmRodados.toLocaleString('pt-BR')} km
                       </td>
@@ -837,7 +566,6 @@ export default function AbaLogistica() {
                 <p><strong>Peso Carga Inicial:</strong> {viagemDetalhada.peso_carregado} kg</p>
               </div>
 
-              {/* CARD DE ROTA & QUILOMETRAGEM ATUALIZADO */}
               <div style={{ background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid #334155' }}>
                 <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8' }}>ROTA & QUILOMETRAGEM</p>
                 <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>
@@ -870,15 +598,24 @@ export default function AbaLogistica() {
                 {detalhesDespesas.map(desp => (
                    <div key={desp.id} style={{ background: '#0f172a', padding: '10px', borderRadius: '6px', fontSize: '13px', borderLeft: '4px solid #c084fc' }}>
                      <p style={{ margin: '0 0 5px 0' }}><strong>{desp.tipo}</strong> - R$ {desp.valor}</p>
-                     <p style={{ margin: 0, color: '#94a3b8' }}>{desp.descricao}</p>
+                     <p style={{ margin: 0, color: '#94a3b8' }}>Descrição: {desp.descricao || '-'}</p>
                    </div>
                 ))}
               </div>
             )}
+
+            <div style={{ marginTop: '25px', textAlign: 'right' }}>
+              <button 
+                onClick={() => setViagemDetalhada(null)} 
+                style={{ padding: '10px 20px', background: '#334155', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                Fechar Detalhes
+              </button>
+            </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
+
+export default AbaLogistica;
