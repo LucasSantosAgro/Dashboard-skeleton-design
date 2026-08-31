@@ -196,6 +196,40 @@ export default function AbaLogistica() {
     setFormFim({ kmFinal: '', pesoDescarga: '', localDescarga: '' });
   };
 
+  // Excluir Viagem
+  const handleExcluirViagem = async (id) => {
+    if (!window.confirm('Tem certeza de que deseja excluir este registro do histórico?')) {
+      return;
+    }
+
+    try {
+      // Exclui primeiro as despesas associadas à viagem
+      const { error: errDespesas } = await supabase
+        .from('despesas_viagem')
+        .delete()
+        .eq('viagem_id', id);
+
+      if (errDespesas) throw errDespesas;
+
+      // Exclui a viagem da tabela principal
+      const { error: errViagem } = await supabase
+        .from('diario_bordo')
+        .delete()
+        .eq('id', id);
+
+      if (errViagem) throw errViagem;
+
+      // Atualiza o estado local removendo a viagem excluída
+      setViagensFinalizadas(prev => prev.filter(v => v.id !== id));
+      if (modalDetalhesAberto) {
+        setModalDetalhesAberto(false);
+        setViagemSelecionada(null);
+      }
+    } catch (error) {
+      alert('Erro ao excluir registro: ' + error.message);
+    }
+  };
+
   // Cálculos do Dashboard Geral
   const totalViagens = viagensFinalizadas.length;
   const viagensEmTransitoCount = viagemAtiva ? 1 : 0;
@@ -273,6 +307,38 @@ export default function AbaLogistica() {
           <span style={{ fontSize: '13px', color: '#94a3b8' }}>
             {tipoUsuario === 'GESTOR' ? 'Visão Geral e KPIs da Frota' : 'Lançamento de Viagens e Operação'}
           </span>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', background: '#0b132b', padding: '4px', borderRadius: '6px', border: '1px solid #334155' }}>
+          <button
+            onClick={() => setTipoUsuario('GESTOR')}
+            style={{
+              background: tipoUsuario === 'GESTOR' ? '#2563eb' : 'transparent',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 14px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}
+          >
+            📊 Visão Gestor
+          </button>
+          <button
+            onClick={() => setTipoUsuario('MOTORISTA')}
+            style={{
+              background: tipoUsuario === 'MOTORISTA' ? '#2563eb' : 'transparent',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 14px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}
+          >
+            🚚 Modo Motorista
+          </button>
         </div>
       </div>
 
@@ -434,7 +500,10 @@ export default function AbaLogistica() {
                       <td style={{ padding: '12px' }}>{v.peso_carregado?.toLocaleString()} / {v.peso_descarga?.toLocaleString()} kg</td>
                       <td style={{ padding: '12px', color: difPeso < 0 ? '#f87171' : '#4ade80' }}>{difPeso} kg</td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Detalhes</button>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Detalhes</button>
+                          <button onClick={() => handleExcluirViagem(v.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Excluir</button>
+                        </div>
                       </td>
                     </tr>
                   );
