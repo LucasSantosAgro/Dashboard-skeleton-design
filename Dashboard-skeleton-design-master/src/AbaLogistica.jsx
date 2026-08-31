@@ -198,6 +198,8 @@ export default function AbaLogistica() {
 
   // Cálculos do Dashboard Geral
   const totalViagens = viagensFinalizadas.length;
+  const viagensEmTransitoCount = viagemAtiva ? 1 : 0;
+  
   const kmTotalRodados = viagensFinalizadas.reduce((acc, v) => {
     const rodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
     return acc + rodados;
@@ -262,7 +264,7 @@ export default function AbaLogistica() {
   return (
     <div style={{ padding: '24px', color: '#fff', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0b132b' }}>
       
-      {/* Selector de Perfil */}
+      {/* Cabeçalho */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#1c2541', padding: '12px 20px', borderRadius: '8px' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '20px' }}>
@@ -272,25 +274,16 @@ export default function AbaLogistica() {
             {tipoUsuario === 'GESTOR' ? 'Visão Geral e KPIs da Frota' : 'Lançamento de Viagens e Operação'}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <span style={{ fontSize: '14px', color: '#cbd5e1' }}>Perfil Ativo:</span>
-          <button 
-            onClick={() => setTipoUsuario('GESTOR')}
-            style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: tipoUsuario === 'GESTOR' ? '#3b82f6' : '#334155', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
-            Gestor
-          </button>
-          <button 
-            onClick={() => setTipoUsuario('MOTORISTA')}
-            style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: tipoUsuario === 'MOTORISTA' ? '#3b82f6' : '#334155', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
-            Motorista
-          </button>
-        </div>
       </div>
 
       {/* VISÃO EXCLUSIVA DO GESTOR */}
       {tipoUsuario === 'GESTOR' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' }}>
+            <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Viagens em Trânsito</p>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#eab308' }}>{viagensEmTransitoCount}</h3>
+            </div>
             <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
               <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Viagens Finalizadas</p>
               <h3 style={{ margin: 0, fontSize: '28px', color: '#60a5fa' }}>{totalViagens}</h3>
