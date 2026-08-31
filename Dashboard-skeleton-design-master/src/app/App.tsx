@@ -506,7 +506,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
-        {userRole === 'motorista' ? (
+        {userRole === 'motorista' || aba === 'logistica' ? (
           <AbaLogistica session={session} userName={userName} />
         ) : (
           <>
@@ -578,14 +578,17 @@ export default function App() {
 
                   <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
                     <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-purple-400 inline-block"></span>
-                      PRODUTOS ({activeKpi})
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                      VOLUME POR PRODUTO ({activeKpi})
                     </p>
                     <div className="h-[170px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie 
-                            data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} 
+                            data={Object.entries(dataForCharts.reduce((acc, p) => {
+                              acc[p.produto] = (acc[p.produto] || 0) + (Number(p.peso_liquido) || 0);
+                              return acc;
+                            }, {})).map(([name, value]) => ({ name, value }))} 
                             innerRadius={40} 
                             outerRadius={60} 
                             paddingAngle={4}
@@ -597,7 +600,7 @@ export default function App() {
                           </Pie>
                           <Tooltip 
                             contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
-                            formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+                            formatter={(v) => `${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} kg`} 
                           />
                           <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
                         </PieChart>
@@ -606,59 +609,66 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl">
-                  <table className="w-full text-left text-[11px]">
-                    <thead>
-                      <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
-                        {["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag.", "Ação"].map(h => <th key={h} className="p-2.5">{h}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {[...filt].sort((a,b) => (b.comprovante || '').localeCompare(a.comprovante || '')).slice(0, 10).map((p, i) => (
-                        <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="p-2.5 text-gray-300">{p.data}</td>
-                          <td className="p-2.5 font-medium text-gray-200">{p.comprovante}</td>
-                          <td className="p-2.5 text-gray-300">{p.produto}</td>
-                          <td className="p-2.5 font-medium text-gray-200">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
-                          <td className="p-2.5 font-bold text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-2.5 font-medium text-amber-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-2.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.forma_pagamento === 'PIX' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                              {p.forma_pagamento}
-                            </span>
-                          </td>
-                          <td className="p-2.5">
-                             <button onClick={() => gerarPDF(p, p.operador_saida)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium cursor-pointer transition-colors">
-                               <Printer size={13}/> Imprimir
-                             </button>
-                          </td>
+                <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-xl">
+                  <h3 className="text-xs font-bold text-gray-300 tracking-wider uppercase mb-3 flex items-center gap-2">
+                    <History size={14} className="text-blue-400" /> Histórico Recente de Pesagens
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-gray-400">
+                      <thead className="bg-[#1A2030] text-gray-300 font-semibold uppercase text-[10px]">
+                        <tr>
+                          <th className="p-2.5 rounded-l-lg">Comprovante</th>
+                          <th className="p-2.5">Data</th>
+                          <th className="p-2.5">Placa</th>
+                          <th className="p-2.5">Produto</th>
+                          <th className="p-2.5">Peso Líq.</th>
+                          <th className="p-2.5">Valor Total</th>
+                          <th className="p-2.5">Pagamento</th>
+                          <th className="p-2.5 rounded-r-lg text-center">Ações</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {filt.slice(0, 10).map((p) => (
+                          <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="p-2.5 font-bold text-blue-400">{p.comprovante}</td>
+                            <td className="p-2.5">{p.data}</td>
+                            <td className="p-2.5 font-semibold text-white">{p.placa}</td>
+                            <td className="p-2.5">{p.produto}</td>
+                            <td className="p-2.5 text-white">{Number(p.peso_liquido || 0).toFixed(2)} kg</td>
+                            <td className="p-2.5 text-green-400 font-bold">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td className="p-2.5"><span className="bg-white/5 px-2 py-0.5 rounded text-[10px] text-gray-300 border border-white/10">{p.forma_pagamento || 'N/A'}</span></td>
+                            <td className="p-2.5 flex items-center justify-center gap-2">
+                              <button onClick={() => gerarPDF(p, userName)} className="p-1 hover:bg-white/10 rounded text-gray-300 hover:text-white transition-colors" title="Imprimir PDF"><Printer size={14}/></button>
+                              <button onClick={() => excluirPesagem(p.id)} className="p-1 hover:bg-red-500/20 rounded text-red-400 transition-colors" title="Excluir"><Trash2 size={14}/></button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
 
             {aba === "entrada" && (
               <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-2xl border border-white/5 shadow-2xl">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-blue-400">
-                  <Truck size={20} /> Registrar Entrada de Veículo
+                <h2 className="text-base font-bold text-white mb-4 flex items-center gap-2">
+                  <PlusCircle size={18} className="text-blue-400" /> Registrar Entrada de Veículo
                 </h2>
                 <form onSubmit={registrarEntrada} className="flex flex-col gap-4">
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Placa do Veículo</label>
-                    <input name="placa" placeholder="Ex: ABC-1234" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 uppercase transition-all" />
+                    <input name="placa" type="text" placeholder="ABC-1234" required uppercase className="w-full bg-[#1A2030] p-2.5 rounded-lg text-sm text-white outline-none border border-transparent focus:border-blue-500 transition-all font-mono" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Produto</label>
-                    <input name="prod" placeholder="Ex: Milho, Soja, Trigo" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
+                    <label className="text-xs text-gray-400 mb-1 block">Produto / Cereal</label>
+                    <input name="prod" type="text" placeholder="Ex: Milho, Soja..." required className="w-full bg-[#1A2030] p-2.5 rounded-lg text-sm text-white outline-none border border-transparent focus:border-blue-500 transition-all" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Peso de Entrada (kg)</label>
-                    <input name="peso" type="number" step="0.01" placeholder="Ex: 15400" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
+                    <input name="peso" type="number" step="0.01" placeholder="Ex: 15400" required className="w-full bg-[#1A2030] p-2.5 rounded-lg text-sm text-white outline-none border border-transparent focus:border-blue-500 transition-all" />
                   </div>
-                  <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-3 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 mt-2 cursor-pointer">
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 mt-2 cursor-pointer">
                     REGISTRAR ENTRADA
                   </button>
                 </form>
@@ -666,117 +676,116 @@ export default function App() {
             )}
 
             {aba === "saida" && (
-              <div className="flex flex-col gap-4 max-w-4xl mx-auto">
-                <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400 mb-2">
-                  <Truck size={20} /> Pesagens em Aberto ({pesagensAbertas.length})
+              <div className="flex flex-col gap-4">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <LogOut size={18} className="text-blue-400" /> Pesagens Pendentes de Saída
                 </h2>
                 {pesagensAbertas.length === 0 ? (
-                  <div className="bg-[#161B23] p-8 rounded-xl text-center text-gray-500 border border-white/5">
-                    Nenhum veículo aguardando saída no momento.
+                  <div className="bg-[#161B23] p-8 rounded-xl border border-white/5 text-center text-gray-400 text-sm">
+                    Nenhum veículo aguardando pesagem de saída no momento.
                   </div>
                 ) : (
-                  pesagensAbertas.map(p => (
-                    <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
-                  ))
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pesagensAbertas.map(p => (
+                      <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
+                    ))}
+                  </div>
                 )}
               </div>
             )}
 
             {aba === "caixa" && (
               <div className="flex flex-col gap-6">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Saldo Atual de Troco</p>
-                      <p className="text-2xl font-black text-emerald-400">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-white/5 flex justify-between text-[11px] text-gray-400">
-                      <span>Aportes: <b className="text-emerald-400">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-                      <span>Saídas: <b className="text-red-400">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-                    </div>
+                <div className="bg-[#161B23] p-6 rounded-2xl border border-white/5 shadow-xl flex justify-between items-center">
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Saldo Atual de Troco no Caixa</p>
+                    <p className="text-3xl font-black text-emerald-400 mt-1">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                   </div>
+                  <div className="flex gap-4">
+                    <form onSubmit={handleAdicionarTroco} className="flex gap-2 bg-[#1A2030] p-2 rounded-xl border border-white/5">
+                      <input type="number" step="0.01" placeholder="Valor Troco (R$)" value={valorAporte} onChange={(e) => setValorAporte(e.target.value)} className="bg-transparent px-2 text-xs outline-none w-32" required />
+                      <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1">
+                        <PlusCircle size={14}/> Adicionar
+                      </button>
+                    </form>
 
-                  <form onSubmit={handleAdicionarTroco} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between gap-2">
-                    <p className="text-xs font-bold text-blue-400 flex items-center gap-1.5"><PlusCircle size={16}/> ADICIONAR TROCO (APORTE)</p>
-                    <input type="number" step="0.01" placeholder="Valor R$" value={valorAporte} onChange={e => setValorAporte(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500" required />
-                    <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">INSERIR TROCO</button>
-                  </form>
-
-                  <form onSubmit={handleSangriaGasto} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between gap-2">
-                    <p className="text-xs font-bold text-red-400 flex items-center gap-1.5"><MinusCircle size={16}/> RETIRADA / SANGRIA / GASTO</p>
-                    <div className="flex gap-2">
-                      <input type="number" step="0.01" placeholder="Valor R$" value={valorSangria} onChange={e => setValorSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 flex-1" required />
-                      <input type="text" placeholder="Motivo / Descrição" value={motivoSangria} onChange={e => setMotivoSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 flex-[2]" required />
-                    </div>
-                    <button className="bg-red-600/80 hover:bg-red-600 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">REGISTRAR SAÍDA</button>
-                  </form>
+                    <form onSubmit={handleSangriaGasto} className="flex gap-2 bg-[#1A2030] p-2 rounded-xl border border-white/5">
+                      <input type="number" step="0.01" placeholder="Valor (R$)" value={valorSangria} onChange={(e) => setValorSangria(e.target.value)} className="bg-transparent px-2 text-xs outline-none w-24" required />
+                      <input type="text" placeholder="Motivo / Gasto" value={motivoSangria} onChange={(e) => setMotivoSangria(e.target.value)} className="bg-transparent px-2 text-xs outline-none w-36" required />
+                      <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1">
+                        <MinusCircle size={14}/> Retirar
+                      </button>
+                    </form>
+                  </div>
                 </div>
 
-                <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col gap-3 shadow-xl">
-                  <div className="flex justify-between items-center text-xs font-bold text-gray-300">
-                    <span className="flex items-center gap-1.5"><History size={16}/> HISTÓRICO DE MOVIMENTAÇÕES DE CAIXA</span>
-                    <span className="text-gray-500 font-normal">Exibindo {movimentacoesFiltradas.length} registros</span>
-                  </div>
+                <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-xl">
+                  <h3 className="text-xs font-bold text-gray-300 tracking-wider uppercase mb-4 flex items-center gap-2">
+                    <History size={14} className="text-blue-400" /> Extrato de Movimentações do Caixa
+                  </h3>
 
-                  <div className="grid grid-cols-5 gap-2 bg-[#0B0F15] p-2.5 rounded-lg border border-white/5 text-[11px]">
-                    <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#161B23] p-1.5 rounded text-gray-300 outline-none border border-white/5">
+                  <div className="grid grid-cols-5 gap-3 mb-4 bg-[#1A2030] p-3 rounded-lg border border-white/5">
+                    <select value={fCaixaTipo} onChange={(e) => setFCaixaTipo(e.target.value)} className="bg-[#161B23] text-xs p-2 rounded-lg border border-white/5 text-gray-300 outline-none">
                       <option value="">Todos os Tipos</option>
-                      <option value="ENTRADA_TROCO">ENTRADA_TROCO</option>
-                      <option value="SAIDA_TROCO">SAIDA_TROCO</option>
-                      <option value="SANGRIA_GASTO">SANGRIA_GASTO</option>
+                      <option value="ENTRADA_TROCO">Entrada / Aporte</option>
+                      <option value="SAIDA_TROCO">Saída Troco</option>
+                      <option value="SANGRIA_GASTO">Sangria / Gasto</option>
                     </select>
-                    <input type="date" value={fCaixaDataI} onChange={e => setFCaixaDataI(e.target.value)} className="bg-[#161B23] p-1.5 rounded text-gray-300 outline-none border border-white/5" />
-                    <input type="date" value={fCaixaDataF} onChange={e => setFCaixaDataF(e.target.value)} className="bg-[#161B23] p-1.5 rounded text-gray-300 outline-none border border-white/5" />
-                    <select value={fCaixaOperador} onChange={e => setFCaixaOperador(e.target.value)} className="bg-[#161B23] p-1.5 rounded text-gray-300 outline-none border border-white/5">
-                      <option value="">Todos Operadores</option>
+
+                    <input type="date" value={fCaixaDataI} onChange={(e) => setFCaixaDataI(e.target.value)} className="bg-[#161B23] text-xs p-2 rounded-lg border border-white/5 text-gray-300 outline-none" />
+                    <input type="date" value={fCaixaDataF} onChange={(e) => setFCaixaDataF(e.target.value)} className="bg-[#161B23] text-xs p-2 rounded-lg border border-white/5 text-gray-300 outline-none" />
+
+                    <select value={fCaixaOperador} onChange={(e) => setFCaixaOperador(e.target.value)} className="bg-[#161B23] text-xs p-2 rounded-lg border border-white/5 text-gray-300 outline-none">
+                      <option value="">Todos os Operadores</option>
                       {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
                     </select>
+
                     <div className="relative">
                       <Search size={14} className="absolute left-2.5 top-2.5 text-gray-500" />
-                      <input type="text" placeholder="Buscar motivo..." value={fCaixaBusca} onChange={e => setFCaixaBusca(e.target.value)} className="bg-[#161B23] pl-8 p-1.5 rounded text-gray-300 outline-none border border-white/5 w-full" />
+                      <input type="text" placeholder="Buscar motivo..." value={fCaixaBusca} onChange={(e) => setFCaixaBusca(e.target.value)} className="bg-[#161B23] text-xs pl-8 pr-2 py-2 rounded-lg border border-white/5 text-gray-300 outline-none w-full" />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs text-gray-400 mb-3 px-1 font-medium">
+                    <span>Exibindo <b>{movimentacoesFiltradas.length}</b> movimentações</span>
+                    <div className="flex gap-4">
+                      <span>Total Aportes: <b className="text-emerald-400">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
+                      <span>Total Saídas/Trocos: <b className="text-red-400">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
                     </div>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px]">
-                      <thead>
-                        <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
-                          <th className="p-2.5">Data/Hora</th>
+                    <table className="w-full text-left text-xs text-gray-400">
+                      <thead className="bg-[#1A2030] text-gray-300 font-semibold uppercase text-[10px]">
+                        <tr>
+                          <th className="p-2.5 rounded-l-lg">Data/Hora</th>
                           <th className="p-2.5">Tipo</th>
-                          <th className="p-2.5">Valor</th>
-                          <th className="p-2.5">Saldo Resultante</th>
-                          <th className="p-2.5">Motivo / Descrição</th>
+                          <th className="p-2.5">Descrição / Motivo</th>
                           <th className="p-2.5">Operador</th>
+                          <th className="p-2.5">Valor</th>
+                          <th className="p-2.5 rounded-r-lg">Saldo Resultante</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
-                        {movimentacoesFiltradas.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="text-center p-4 text-gray-500">Nenhuma movimentação encontrada com os filtros selecionados.</td>
-                          </tr>
-                        ) : (
-                          movimentacoesFiltradas.slice(0, 15).map((m, i) => {
-                            const isEntrada = m.tipo === 'ENTRADA_TROCO';
-                            return (
-                              <tr key={m.id || i} className="hover:bg-white/[0.02] transition-colors">
-                                <td className="p-2.5 text-gray-400">{m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '-'}</td>
-                                <td className="p-2.5">
-                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isEntrada ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                                    {m.tipo}
-                                  </span>
-                                </td>
-                                <td className={`p-2.5 font-bold ${isEntrada ? 'text-emerald-400' : 'text-red-400'}`}>
-                                  {isEntrada ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                </td>
-                                <td className="p-2.5 font-medium text-gray-300">
-                                  R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                </td>
-                                <td className="p-2.5 text-gray-300">{m.motivo}</td>
-                                <td className="p-2.5 text-gray-400 font-medium">{m.operador}</td>
-                              </tr>
-                            );
-                          })
-                        )}
+                        {movimentacoesFiltradas.map((m) => {
+                          const isEntrada = m.tipo === 'ENTRADA_TROCO';
+                          return (
+                            <tr key={m.id} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="p-2.5 text-gray-300">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                              <td className="p-2.5">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${isEntrada ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                  {m.tipo}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-white font-medium">{m.motivo}</td>
+                              <td className="p-2.5 text-gray-300">{m.operador}</td>
+                              <td className={`p-2.5 font-bold ${isEntrada ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {isEntrada ? '+' : '-'} R$ {Number(m.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              </td>
+                              <td className="p-2.5 font-semibold text-gray-300">R$ {Number(m.saldo_resultante).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './lib/supabaseClient'; // <-- Usando o cliente global do seu projeto
+import { supabase } from './lib/supabaseClient';
 
 export default function AbaLogistica() {
   const [tipoUsuario, setTipoUsuario] = useState('GESTOR'); // 'GESTOR' ou 'MOTORISTA'
@@ -8,7 +8,7 @@ export default function AbaLogistica() {
   const [viagemAtiva, setViagemAtiva] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
-  // Formulário Nova Viagem (Baseado na tabela diario_bordo)
+  // Formulário Nova Viagem
   const [formViagem, setFormViagem] = useState({
     placa: '',
     operador: 'Lucas Santos',
@@ -32,7 +32,6 @@ export default function AbaLogistica() {
   const [formDesp, setFormDesp] = useState({ tipo: 'Pedágio', valor: '', descricao: '' });
   const [formFim, setFormFim] = useState({ kmFinal: '', pesoDescarga: '', localDescarga: '' });
 
-  // Buscar dados do Supabase ao carregar
   useEffect(() => {
     carregarDadosSupabase();
   }, []);
@@ -51,7 +50,6 @@ export default function AbaLogistica() {
       if (errViagens) throw errViagens;
 
       if (viagensData) {
-        // Viagem ativa é aquela com status 'EM_TRANSITO' (ou nulo)
         const ativa = viagensData.find(v => v.status === 'EM_TRANSITO' || !v.status);
         const finalizadas = viagensData.filter(v => v.status === 'FINALIZADA');
 
@@ -100,7 +98,7 @@ export default function AbaLogistica() {
     }
   };
 
-  // Registrar Abastecimento (Atualiza a própria linha do diario_bordo)
+  // Registrar Abastecimento
   const handleSalvarAbastecimento = async (e) => {
     e.preventDefault();
     if (!viagemAtiva) return;
@@ -131,7 +129,7 @@ export default function AbaLogistica() {
     }
   };
 
-  // Registrar Despesa (Insere na tabela despesas_viagem)
+  // Registrar Despesa
   const handleSalvarDespesa = async (e) => {
     e.preventDefault();
     if (!viagemAtiva) return;
@@ -211,7 +209,7 @@ export default function AbaLogistica() {
     return acc + combustivel + outrasDespesas;
   }, 0);
 
-  // ---- KPIS POR PLACA (GESTÃO) ----
+  // KPIS POR PLACA (GESTÃO)
   const kpisPorPlaca = React.useMemo(() => {
     const mapa = {};
     viagensFinalizadas.forEach(v => {
@@ -264,14 +262,18 @@ export default function AbaLogistica() {
   return (
     <div style={{ padding: '24px', color: '#fff', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0b132b' }}>
       
-      {/* Barra superior de controle de perfil */}
+      {/* Selector de Perfil */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: '#1c2541', padding: '12px 20px', borderRadius: '8px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '20px' }}>🚚 Diário de Bordo & Logística</h2>
-          <span style={{ fontSize: '13px', color: '#94a3b8' }}>Integrado com tabelas diario_bordo e despesas_viagem</span>
+          <h2 style={{ margin: 0, fontSize: '20px' }}>
+            {tipoUsuario === 'GESTOR' ? '📊 Dashboard Logístico' : '🚚 Diário de Bordo'}
+          </h2>
+          <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+            {tipoUsuario === 'GESTOR' ? 'Visão Geral e KPIs da Frota' : 'Lançamento de Viagens e Operação'}
+          </span>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <span style={{ fontSize: '14px', color: '#cbd5e1' }}>Perfil:</span>
+          <span style={{ fontSize: '14px', color: '#cbd5e1' }}>Perfil Ativo:</span>
           <button 
             onClick={() => setTipoUsuario('GESTOR')}
             style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: tipoUsuario === 'GESTOR' ? '#3b82f6' : '#334155', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -285,62 +287,63 @@ export default function AbaLogistica() {
         </div>
       </div>
 
-      {/* CARDS DE RESUMO GERAL */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
-        <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-          <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Viagens Finalizadas</p>
-          <h3 style={{ margin: 0, fontSize: '28px', color: '#60a5fa' }}>{totalViagens}</h3>
-        </div>
-        <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-          <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>KM Total Rodados</p>
-          <h3 style={{ margin: 0, fontSize: '28px', color: '#4ade80' }}>{kmTotalRodados.toLocaleString()} km</h3>
-        </div>
-        <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-          <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Custo Operacional Total</p>
-          <h3 style={{ margin: 0, fontSize: '28px', color: '#f87171' }}>R$ {custoOperacionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-        </div>
-      </div>
-
-      {/* KPIS POR PLACA (EXCLUSIVO GESTOR) */}
+      {/* VISÃO EXCLUSIVA DO GESTOR */}
       {tipoUsuario === 'GESTOR' && (
-        <div style={{ marginBottom: '40px', background: '#131b2e', padding: '24px', borderRadius: '12px', border: '1px solid #1e293b' }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📊 Indicadores de Desempenho e Custos por Placa</h3>
-          {kpisPorPlaca.length === 0 ? (
-            <p style={{ color: '#64748b', fontSize: '14px' }}>Nenhum dado de viagem finalizada registrado.</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                    <th style={{ padding: '10px' }}>Placa</th>
-                    <th style={{ padding: '10px' }}>Viagens</th>
-                    <th style={{ padding: '10px' }}>KM Total</th>
-                    <th style={{ padding: '10px' }}>Média Km/L</th>
-                    <th style={{ padding: '10px' }}>Gasto Comb. / Viagem</th>
-                    <th style={{ padding: '10px' }}>Despesas / Viagem</th>
-                    <th style={{ padding: '10px' }}>Custo Médio Total / Viagem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {kpisPorPlaca.map((kpi, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{kpi.placa}</td>
-                      <td style={{ padding: '12px' }}>{kpi.qtdViagens}</td>
-                      <td style={{ padding: '12px' }}>{kpi.kmTotal.toLocaleString()} km</td>
-                      <td style={{ padding: '12px', color: Number(kpi.mediaKmPorLitro) > 0 ? '#4ade80' : '#cbd5e1' }}>{kpi.mediaKmPorLitro} km/L</td>
-                      <td style={{ padding: '12px', color: '#f87171' }}>R$ {Number(kpi.combustivelMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '12px', color: '#fbbf24' }}>R$ {Number(kpi.despesaMediaPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {Number(kpi.custoMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
+            <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Viagens Finalizadas</p>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#60a5fa' }}>{totalViagens}</h3>
             </div>
-          )}
-        </div>
+            <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>KM Total Rodados</p>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#4ade80' }}>{kmTotalRodados.toLocaleString()} km</h3>
+            </div>
+            <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Custo Operacional Total</p>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#f87171' }}>R$ {custoOperacionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '40px', background: '#131b2e', padding: '24px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📊 Indicadores de Desempenho e Custos por Placa</h3>
+            {kpisPorPlaca.length === 0 ? (
+              <p style={{ color: '#64748b', fontSize: '14px' }}>Nenhum dado registrado.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                      <th style={{ padding: '10px' }}>Placa</th>
+                      <th style={{ padding: '10px' }}>Viagens</th>
+                      <th style={{ padding: '10px' }}>KM Total</th>
+                      <th style={{ padding: '10px' }}>Média Km/L</th>
+                      <th style={{ padding: '10px' }}>Gasto Comb. / Viagem</th>
+                      <th style={{ padding: '10px' }}>Despesas / Viagem</th>
+                      <th style={{ padding: '10px' }}>Custo Médio Total / Viagem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpisPorPlaca.map((kpi, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                        <td style={{ padding: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{kpi.placa}</td>
+                        <td style={{ padding: '12px' }}>{kpi.qtdViagens}</td>
+                        <td style={{ padding: '12px' }}>{kpi.kmTotal.toLocaleString()} km</td>
+                        <td style={{ padding: '12px', color: Number(kpi.mediaKmPorLitro) > 0 ? '#4ade80' : '#cbd5e1' }}>{kpi.mediaKmPorLitro} km/L</td>
+                        <td style={{ padding: '12px', color: '#f87171' }}>R$ {Number(kpi.combustivelMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '12px', color: '#fbbf24' }}>R$ {Number(kpi.despesaMediaPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '12px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {Number(kpi.custoMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      {/* SEÇÃO DO MOTORISTA */}
+      {/* VISÃO EXCLUSIVA DO MOTORISTA */}
       {tipoUsuario === 'MOTORISTA' && (
         <>
           {!viagemAtiva ? (
@@ -388,7 +391,7 @@ export default function AbaLogistica() {
                   <h3 style={{ margin: '8px 0 0 0', fontSize: '18px' }}>Veículo: {viagemAtiva.placa} ({viagemAtiva.produto || 'Carga Geral'})</h3>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => setModalAbastecimentoAberto(true)} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>⛽ {viagemAtiva.valor_combustivel ? 'Atualizar Abastec.' : '+ Abastecimento'}</button>
+                  <button onClick={() => setModalAbastecimentoAberto(true)} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>⛽ Abastecimento</button>
                   <button onClick={() => setModalDespesaAberto(true)} style={{ background: '#f59e0b', color: '#000', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>💰 + Despesa</button>
                   <button onClick={() => setModalListaDespesasAberto(true)} style={{ background: '#334155', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Ver Despesas ({viagemAtiva.despesas_viagem?.length || 0})</button>
                   <button onClick={() => setModalFinalizarAberto(true)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🏁 Finalizar Viagem</button>
@@ -406,7 +409,7 @@ export default function AbaLogistica() {
         </>
       )}
 
-      {/* HISTÓRICO DE VIAGENS FINALIZADAS */}
+      {/* HISTÓRICO DE VIAGENS FINALIZADAS (COMPARTILHADO) */}
       <div style={{ background: '#1c2541', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📖 Histórico de Diários Finalizados</h3>
         {viagensFinalizadas.length === 0 ? (
@@ -449,8 +452,7 @@ export default function AbaLogistica() {
         )}
       </div>
 
-      {/* ================= MODAIS ================= */}
-      {/* Modal Abastecimento */}
+      {/* MODAIS (ABASTECIMENTO, DESPESAS, FINALIZAR E DETALHES) */}
       {modalAbastecimentoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '400px', border: '1px solid #334155' }}>
@@ -467,7 +469,6 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* Modal Despesa */}
       {modalDespesaAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '400px', border: '1px solid #334155' }}>
@@ -482,7 +483,6 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* Modal Lista Despesas */}
       {modalListaDespesasAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '500px', border: '1px solid #334155', maxHeight: '80vh', overflowY: 'auto' }}>
@@ -504,7 +504,6 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* Modal Finalizar Viagem */}
       {modalFinalizarAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '400px', border: '1px solid #334155' }}>
@@ -519,14 +518,13 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* Modal Detalhes */}
       {modalDetalhesAberto && viagemSelecionada && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#1c2541', padding: '30px', borderRadius: '12px', width: '600px', border: '1px solid #334155', maxHeight: '85vh', overflowY: 'auto', color: '#fff' }}>
             <h3 style={{ margin: '0 0 16px 0', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>Detalhes do Diário - {viagemSelecionada.placa}</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '14px', marginBottom: '20px' }}>
               <div><b>Operador:</b> {viagemSelecionada.operador || 'N/D'}</div>
-              <div><b>KM Rodados:</b> {(viagemSelecionada.km_final && viagemSelecionada.km_inicial) ? (viagemSelecionada.km_final - viagenSelecionada.km_inicial) : 'N/D'} km</div>
+              <div><b>KM Rodados:</b> {(viagemSelecionada.km_final && viagemSelecionada.km_inicial) ? (viagemSelecionada.km_final - viagemSelecionada.km_inicial) : 'N/D'} km</div>
               <div><b>Carregamento:</b> {viagemSelecionada.local_carregamento}</div>
               <div><b>Descarga:</b> {viagemSelecionada.local_descarga || 'N/D'}</div>
               <div><b>Produto:</b> {viagemSelecionada.produto || 'N/D'}</div>
