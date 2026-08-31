@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './lib/supabaseClient';
 
 export default function AbaLogistica() {
-  const [tipoUsuario, setTipoUsuario] = useState('GESTOR'); // Identificado automaticamente
+  const [tipoUsuario, setTipoUsuario] = useState('GESTOR'); 
   const [usuarioAtual, setUsuarioAtual] = useState(null);
-  const [nomeMotoristaLogado, setNomeMotoristaLogado] = useState('Lucas Santos');
 
   const [viagensFinalizadas, setViagensFinalizadas] = useState([]);
   const [viagemAtiva, setViagemAtiva] = useState(null);
-  const [viagensEmTransitoList, setViagensEmTransitoList] = useState([]); // Nova lista para o Gestor
+  const [viagensEmTransitoList, setViagensEmTransitoList] = useState([]); 
   const [carregando, setCarregando] = useState(true);
+
+  // Controle de Hover em CSS Inline
+  const [isHoveredCardEmTransito, setIsHoveredCardEmTransito] = useState(false);
 
   // Formulário Nova Viagem
   const [formViagem, setFormViagem] = useState({
@@ -28,11 +30,11 @@ export default function AbaLogistica() {
   const [modalListaDespesasAberto, setModalListaDespesasAberto] = useState(false);
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
   const [modalDetalhesAberto, setModalDetalhesAberto] = useState(false);
-  const [modalEmTransitoAberto, setModalEmTransitoAberto] = useState(false); // Novo Modal do Gestor
+  const [modalEmTransitoAberto, setModalEmTransitoAberto] = useState(false); 
   const [viagemSelecionada, setViagemSelecionada] = useState(null);
 
   // Filtros
-  const [filtroEmTransitoBusca, setFiltroEmTransitoBusca] = useState(''); // Filtro do modal em trânsito
+  const [filtroEmTransitoBusca, setFiltroEmTransitoBusca] = useState(''); 
 
   // Formulários auxiliares
   const [formAbast, setFormAbast] = useState({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
@@ -50,23 +52,15 @@ export default function AbaLogistica() {
       const { data: { user } } = await supabase.auth.getUser();
       setUsuarioAtual(user);
 
-      let nomeOperador = 'Lucas Santos';
-
       if (user) {
-        // Busca perfil/role do usuário no Supabase (tabela profiles ou metadata)
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role, name, full_name')
+          .select('role')
           .eq('id', user.id)
           .single();
 
         const role = profile?.role || user.user_metadata?.role || 'MOTORISTA';
         setTipoUsuario(role.toUpperCase() === 'GESTOR' ? 'GESTOR' : 'MOTORISTA');
-
-        // Define o nome do motorista/operador a partir dos dados do usuário logado
-        nomeOperador = profile?.full_name || profile?.name || user.user_metadata?.full_name || user.user_metadata?.name || user.email || 'Lucas Santos';
-        setNomeMotoristaLogado(nomeOperador);
-        setFormViagem(prev => ({ ...prev, operador: nomeOperador }));
       }
 
       // 2. Carregar Diários de Bordo
@@ -84,8 +78,8 @@ export default function AbaLogistica() {
         const emTransito = viagensData.filter(v => v.status === 'EM_TRANSITO' || !v.status);
         const finalizadas = viagensData.filter(v => v.status === 'FINALIZADA');
 
-        setViagemAtiva(emTransito.length > 0 ? emTransito[0] : null); // Motorista pega a 1º ativa
-        setViagensEmTransitoList(emTransito); // Gestor vê todas
+        setViagemAtiva(emTransito.length > 0 ? emTransito[0] : null); 
+        setViagensEmTransitoList(emTransito); 
         setViagensFinalizadas(finalizadas);
       }
     } catch (error) {
@@ -105,7 +99,7 @@ export default function AbaLogistica() {
 
     const novaViagemPayload = {
       placa: formViagem.placa,
-      operador: formViagem.operador || nomeMotoristaLogado,
+      operador: formViagem.operador,
       km_inicial: Number(formViagem.kmInicial),
       local_carregamento: formViagem.localCarregamento,
       cliente_destino: formViagem.clienteDestino,
@@ -127,7 +121,7 @@ export default function AbaLogistica() {
     if (data && data.length > 0) {
       setViagemAtiva(data[0]);
       setViagensEmTransitoList(prev => [data[0], ...prev]);
-      setFormViagem({ placa: '', operador: nomeMotoristaLogado, kmInicial: '', localCarregamento: '', clienteDestino: '', produto: '', pesoCarregado: '' });
+      setFormViagem({ placa: '', operador: 'Lucas Santos', kmInicial: '', localCarregamento: '', clienteDestino: '', produto: '', pesoCarregado: '' });
     }
   };
 
@@ -162,7 +156,7 @@ export default function AbaLogistica() {
     }
   };
 
-  // Registrar Despesa
+  // Registrar Despesa (Ajustado concatenação)
   const handleSalvarDespesa = async (e) => {
     e.preventDefault();
     if (!viagemAtiva) return;
@@ -184,10 +178,10 @@ export default function AbaLogistica() {
       return;
     }
 
-    if (data) {
+    if (data && data.length > 0) {
       setViagemAtiva(prev => ({
         ...prev,
-        despesas_viagem: [...(prev.despesas_viagem || []), data[0]]
+        despesas_viagem: [...(prev.despesas_viagem || []), ...data]
       }));
       setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' });
       setModalDespesaAberto(false);
@@ -277,7 +271,7 @@ export default function AbaLogistica() {
   }, 0);
 
   // KPIS POR PLACA (GESTÃO)
-  const kpisPorPlaca = React.useMemo(() => {
+  const kpisPorPlaca = useMemo(() => {
     const mapa = {};
     viagensFinalizadas.forEach(v => {
       const placa = v.placa || 'N/D';
@@ -332,16 +326,18 @@ export default function AbaLogistica() {
   const totalGastoOutrasDespesas = (viagemAtiva?.despesas_viagem || []).reduce((acc, d) => acc + (d.valor || 0), 0);
   const qtdOutrasDespesas = viagemAtiva?.despesas_viagem?.length || 0;
 
-  // Filtro de Busca Modal Em Trânsito
-  const viagensEmTransitoFiltradas = viagensEmTransitoList.filter(v => 
-    v.placa?.toLowerCase().includes(filtroEmTransitoBusca.toLowerCase()) || 
-    v.operador?.toLowerCase().includes(filtroEmTransitoBusca.toLowerCase())
-  );
+  // Filtro de Busca Modal Em Trânsito Protegido
+  const viagensEmTransitoFiltradas = viagensEmTransitoList.filter(v => {
+    const placaStr = v.placa ? String(v.placa).toLowerCase() : '';
+    const operadorStr = v.operador ? String(v.operador).toLowerCase() : '';
+    const busca = filtroEmTransitoBusca.toLowerCase();
+    return placaStr.includes(busca) || operadorStr.includes(busca);
+  });
 
   return (
     <div style={{ padding: '24px', color: '#fff', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0b132b' }}>
       
-      {/* Cabeçalho Limpo (Sem botão manual) */}
+      {/* Cabeçalho */}
       <div style={{ marginBottom: '20px', background: '#1c2541', padding: '16px 20px', borderRadius: '8px' }}>
         <h2 style={{ margin: 0, fontSize: '20px' }}>
           {tipoUsuario === 'GESTOR' ? '📊 Dashboard Logístico' : '🚚 Diário de Bordo'}
@@ -357,7 +353,16 @@ export default function AbaLogistica() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' }}>
             <div 
               onClick={() => setModalEmTransitoAberto(true)} 
-              style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155', cursor: 'pointer', transition: '0.2s' }}
+              onMouseEnter={() => setIsHoveredCardEmTransito(true)}
+              onMouseLeave={() => setIsHoveredCardEmTransito(false)}
+              style={{ 
+                background: '#1c2541', 
+                padding: '20px', 
+                borderRadius: '12px', 
+                border: `1px solid ${isHoveredCardEmTransito ? '#eab308' : '#334155'}`, 
+                cursor: 'pointer', 
+                transition: '0.2s' 
+              }}
             >
               <p style={{ margin: '0 0 4px 0', color: '#94a3b8', fontSize: '14px' }}>Viagens em Trânsito</p>
               <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '8px' }}>👆 Clique para detalhes</span>
@@ -456,10 +461,9 @@ export default function AbaLogistica() {
               </form>
             </div>
           ) : (
-            /* Layout Ajustado de Acordo com a Imagem */
+            /* Layout Viagem Ativa */
             <div style={{ background: '#161e31', padding: '20px', borderRadius: '12px', border: '1px solid #23304a', marginBottom: '30px' }}>
               
-              {/* Badge e ID */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                   VIAGEM EM TRÂNSITO
@@ -467,12 +471,10 @@ export default function AbaLogistica() {
                 <span style={{ color: '#64748b', fontSize: '13px' }}>ID #{viagemAtiva.id}</span>
               </div>
 
-              {/* Placa e Motorista */}
               <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#cbd5e1', fontWeight: 'normal' }}>
-                Placa: <strong style={{ color: '#38bdf8' }}>{viagemAtiva.placa}</strong> | Motorista: <strong style={{ color: '#38bdf8' }}>{(viagemAtiva.operador || nomeMotoristaLogado).toUpperCase()}</strong>
+                Placa: <strong style={{ color: '#38bdf8' }}>{viagemAtiva.placa}</strong> | Motorista: <strong style={{ color: '#38bdf8' }}>{(viagemAtiva.operador || 'LUCAS SANTOS').toUpperCase()}</strong>
               </h3>
 
-              {/* Box de Informações Principais */}
               <div style={{ background: '#0e1626', padding: '16px', borderRadius: '8px', border: '1px solid #1e293b', marginBottom: '16px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '13px', marginBottom: '12px' }}>
                   <div>📍 <strong>Embarque:</strong> {viagemAtiva.local_carregamento}</div>
@@ -485,7 +487,6 @@ export default function AbaLogistica() {
                 </div>
               </div>
 
-              {/* Cards de Abastecimento e Outros Gastos Side-by-Side */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
                 
                 {/* Card Abastecimentos */}
@@ -494,18 +495,7 @@ export default function AbaLogistica() {
                     <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '14px' }}>
                       ⛽ Abastecimentos ({viagemAtiva.valor_combustivel ? 1 : 0})
                     </span>
-                    <button onClick={() => {
-                      if (viagemAtiva) {
-                        setFormAbast({
-                          kmAbastecimento: viagemAtiva.km_abastecimento || '',
-                          litrosCombustivel: viagemAtiva.litros_combustivel || '',
-                          valorCombustivel: viagemAtiva.valor_combustivel || '',
-                          postoCombustivel: viagemAtiva.posto_combustivel || '',
-                          numeroNotaCombustivel: viagemAtiva.numero_nota_combustivel || ''
-                        });
-                      }
-                      setModalAbastecimentoAberto(true);
-                    }} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                    <button onClick={() => setModalAbastecimentoAberto(true)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
                       Ver / Editar
                     </button>
                   </div>
@@ -532,20 +522,9 @@ export default function AbaLogistica() {
 
               </div>
 
-              {/* Botões Inferiores de Ação */}
+              {/* Botões Inferiores */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <button onClick={() => {
-                  if (viagemAtiva) {
-                    setFormAbast({
-                      kmAbastecimento: viagemAtiva.km_abastecimento || '',
-                      litrosCombustivel: viagemAtiva.litros_combustivel || '',
-                      valorCombustivel: viagemAtiva.valor_combustivel || '',
-                      postoCombustivel: viagemAtiva.posto_combustivel || '',
-                      numeroNotaCombustivel: viagemAtiva.numero_nota_combustivel || ''
-                    });
-                  }
-                  setModalAbastecimentoAberto(true);
-                }} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => setModalAbastecimentoAberto(true)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
                   ⛽ + Novo Abastecimento
                 </button>
                 <button onClick={() => setModalDespesaAberto(true)} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
@@ -561,7 +540,7 @@ export default function AbaLogistica() {
         </>
       )}
 
-      {/* HISTÓRICO DE VIAGENS FINALIZADAS (COMPARTILHADO) */}
+      {/* HISTÓRICO DE VIAGENS FINALIZADAS */}
       <div style={{ background: '#1c2541', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📖 Histórico de Diários Finalizados</h3>
         {viagensFinalizadas.length === 0 ? (
@@ -607,7 +586,7 @@ export default function AbaLogistica() {
         )}
       </div>
 
-      {/* NOVO MODAL - VIAGENS EM TRÂNSITO (GESTOR) */}
+      {/* MODAL - VIAGENS EM TRÂNSITO (GESTOR) */}
       {modalEmTransitoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '800px', border: '1px solid #23304a', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
@@ -679,7 +658,7 @@ export default function AbaLogistica() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '420px', border: '1px solid #23304a' }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#f59e0b', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⛽ Adicionar / Editar Abastecimento
+              ⛽ Adicionar Abastecimento
             </h3>
             <form onSubmit={handleSalvarAbastecimento}>
               <div style={{ marginBottom: '12px' }}>
@@ -754,10 +733,7 @@ export default function AbaLogistica() {
                 </tbody>
               </table>
             )}
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
-              <button onClick={() => { setModalListaDespesasAberto(false); setModalDespesaAberto(true); }} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>+ Adicionar Despesa</button>
-              <button onClick={() => setModalListaDespesasAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button>
-            </div>
+            <div style={{ marginTop: '20px', textAlign: 'right' }}><button onClick={() => setModalListaDespesasAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button></div>
           </div>
         </div>
       )}
@@ -799,7 +775,7 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* MODAL DETALHES (Reutilizado no Gestor e Histórico) */}
+      {/* MODAL DETALHES */}
       {modalDetalhesAberto && viagemSelecionada && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#161e31', padding: '30px', borderRadius: '12px', width: '600px', border: '1px solid #23304a', maxHeight: '85vh', overflowY: 'auto', color: '#fff' }}>
