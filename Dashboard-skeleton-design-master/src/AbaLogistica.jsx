@@ -44,6 +44,14 @@ export default function AbaLogistica() {
   // Filtros
   const [filtroEmTransitoBusca, setFiltroEmTransitoBusca] = useState(''); 
 
+  // --- NOVOS ESTADOS DE FILTRO PARA O GESTOR ---
+  const [filtroModo, setFiltroModo] = useState('TODOS'); // 'TODOS', 'PERIODO', 'MES_ANO', 'ANO'
+  const [filtroDataInicio, setFiltroDataInicio] = useState('');
+  const [filtroDataFim, setFiltroDataFim] = useState('');
+  const [filtroMes, setFiltroMes] = useState('');
+  const [filtroAno, setFiltroAno] = useState('');
+  const [filtroPlacaGestor, setFiltroPlacaGestor] = useState('');
+
   // Formulários auxiliares
   const [formAbast, setFormAbast] = useState({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
   const [formDesp, setFormDesp] = useState({ tipo: 'Pedágio', valor: '', descricao: '' });
@@ -429,25 +437,66 @@ export default function AbaLogistica() {
     return { totalGasto, totalLitros, quantidade, lista };
   };
 
-  // Cálculos do Dashboard Geral
-  const totalViagens = viagensFinalizadas.length;
+  // --- LÓGICA DE FILTRAGEM DINÂMICA DAS VIAGENS FINALIZADAS PARA O GESTOR ---
+  const viagensFinalizadasFiltradas = useMemo(() => {
+    if (tipoUsuario !== 'GESTOR') return viagensFinalizadas;
+
+    return viagensFinalizadas.filter(v => {
+      // 1. Filtro de Placa
+      if (filtroPlacaGestor && !v.placa?.toLowerCase().includes(filtroPlacaGestor.toLowerCase())) {
+        return false;
+      }
+
+      const dataRef = v.finished_at || v.created_at;
+      if (!dataRef) return true;
+      const dataObj = new Date(dataRef);
+
+      // 2. Filtros de Data
+      if (filtroModo === 'PERIODO') {
+        if (filtroDataInicio) {
+          const dInicio = new Date(filtroDataInicio + 'T00:00:00');
+          if (dataObj < dInicio) return false;
+        }
+        if (filtroDataFim) {
+          const dFim = new Date(filtroDataFim + 'T23:59:59');
+          if (dataObj > dFim) return false;
+        }
+      } else if (filtroModo === 'MES_ANO') {
+        if (filtroMes !== '') {
+          if (dataObj.getMonth() !== parseInt(filtroMes, 10)) return false;
+        }
+        if (filtroAno !== '') {
+          if (dataObj.getFullYear() !== parseInt(filtroAno, 10)) return false;
+        }
+      } else if (filtroModo === 'ANO') {
+        if (filtroAno !== '') {
+          if (dataObj.getFullYear() !== parseInt(filtroAno, 10)) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [viagensFinalizadas, tipoUsuario, filtroModo, filtroDataInicio, filtroDataFim, filtroMes, filtroAno, filtroPlacaGestor]);
+
+  // Cálculos do Dashboard Geral (baseados nas viagens filtradas)
+  const totalViagens = viagensFinalizadasFiltradas.length;
   const viagensEmTransitoCount = viagensEmTransitoList.length;
   
-  const kmTotalRodados = viagensFinalizadas.reduce((acc, v) => {
+  const kmTotalRodados = viagensFinalizadasFiltradas.reduce((acc, v) => {
     const rodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
     return acc + rodados;
   }, 0);
 
-  const custoOperacionalTotal = viagensFinalizadas.reduce((acc, v) => {
+  const custoOperacionalTotal = viagensFinalizadasFiltradas.reduce((acc, v) => {
     const { totalGasto: combustivel } = getTotaisAbastecimento(v);
     const outrasDespesas = (v.despesas_viagem || []).reduce((sum, d) => sum + (d.valor || 0), 0);
     return acc + combustivel + outrasDespesas;
   }, 0);
 
-  // KPIS POR PLACA (GESTÃO)
+  // KPIS POR PLACA (GESTÃO) - Calculado via viagens filtradas
   const kpisPorPlaca = useMemo(() => {
     const mapa = {};
-    viagensFinalizadas.forEach(v => {
+    viagensFinalizadasFiltradas.forEach(v => {
       const placa = v.placa || 'N/D';
       if (!mapa[placa]) {
         mapa[placa] = {
@@ -487,7 +536,7 @@ export default function AbaLogistica() {
         despesaMediaPorViagem
       };
     });
-  }, [viagensFinalizadas]);
+  }, [viagensFinalizadasFiltradas]);
 
   if (carregando) {
     return <div style={{ padding: '40px', color: '#fff', textAlign: 'center' }}>Carregando dados do Supabase...</div>;
@@ -521,6 +570,15 @@ export default function AbaLogistica() {
     }
   };
 
+  const limparFiltros = () => {
+    setFiltroModo('TODOS');
+    setFiltroDataInicio('');
+    setFiltroDataFim('');
+    setFiltroMes('');
+    setFiltroAno('');
+    setFiltroPlacaGestor('');
+  };
+
   return (
     <div style={{ padding: '24px', color: '#fff', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0b132b' }}>
       
@@ -537,6 +595,82 @@ export default function AbaLogistica() {
       {/* VISÃO EXCLUSIVA DO GESTOR */}
       {tipoUsuario === 'GESTOR' && (
         <>
+          {/* PAINEL DE FILTROS DO GESTOR */}
+          <div style={{ background: '#1c2541', padding: '16px 20px', borderRadius: '12px', border: '1px solid #334155', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ fontWeight: 'bold', color: '#38bdf8', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🔍 Filtros do Dashboard
+              </span>
+              {(filtroModo !== 'TODOS' || filtroPlacaGestor) && (
+                <button onClick={limparFiltros} style={{ background: '#334155', color: '#94a3b8', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                  Limpar Filtros
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Filtrar Período por:</label>
+                <select 
+                  value={filtroModo} 
+                  onChange={e => setFiltroModo(e.target.value)}
+                  style={{ padding: '8px 12px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                >
+                  <option value="TODOS">Todo o Histórico</option>
+                  <option value="PERIODO">Intervalo de Datas</option>
+                  <option value="MES_ANO">Mês / Ano</option>
+                  <option value="ANO">Apenas Ano</option>
+                </select>
+              </div>
+
+              {filtroModo === 'PERIODO' && (
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Data Inicial:</label>
+                    <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} style={{ padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Data Final:</label>
+                    <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} style={{ padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }} />
+                  </div>
+                </>
+              )}
+
+              {filtroModo === 'MES_ANO' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Mês:</label>
+                  <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)} style={{ padding: '8px 12px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}>
+                    <option value="">Selecione...</option>
+                    <option value="0">Janeiro</option>
+                    <option value="1">Fevereiro</option>
+                    <option value="2">Março</option>
+                    <option value="3">Abril</option>
+                    <option value="4">Maio</option>
+                    <option value="5">Junho</option>
+                    <option value="6">Julho</option>
+                    <option value="7">Agosto</option>
+                    <option value="8">Setembro</option>
+                    <option value="9">Outubro</option>
+                    <option value="10">Novembro</option>
+                    <option value="11">Dezembro</option>
+                  </select>
+                </div>
+              )}
+
+              {(filtroModo === 'MES_ANO' || filtroModo === 'ANO') && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Ano:</label>
+                  <input type="number" placeholder="Ex: 2026" value={filtroAno} onChange={e => setFiltroAno(e.target.value)} style={{ padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px', width: '100px' }} />
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Filtrar Placa:</label>
+                <input type="text" placeholder="Ex: ABC-1234" value={filtroPlacaGestor} onChange={e => setFiltroPlacaGestor(e.target.value)} style={{ padding: '8px 12px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px', width: '140px' }} />
+              </div>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' }}>
             <div 
               onClick={() => setModalEmTransitoAberto(true)} 
@@ -585,7 +719,7 @@ export default function AbaLogistica() {
           <div style={{ marginBottom: '40px', background: '#131b2e', padding: '24px', borderRadius: '12px', border: '1px solid #1e293b' }}>
             <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📊 Indicadores de Desempenho e Custos por Placa</h3>
             {kpisPorPlaca.length === 0 ? (
-              <p style={{ color: '#64748b', fontSize: '14px' }}>Nenhum dado registrado.</p>
+              <p style={{ color: '#64748b', fontSize: '14px' }}>Nenhum dado registrado para o filtro selecionado.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
@@ -748,8 +882,8 @@ export default function AbaLogistica() {
       {/* HISTÓRICO DE VIAGENS FINALIZADAS */}
       <div style={{ background: '#1c2541', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>📖 Histórico de Diários Finalizados</h3>
-        {viagensFinalizadas.length === 0 ? (
-          <p style={{ color: '#94a3b8', fontSize: '14px' }}>Nenhuma viagem finalizada registrada.</p>
+        {viagensFinalizadasFiltradas.length === 0 ? (
+          <p style={{ color: '#94a3b8', fontSize: '14px' }}>Nenhuma viagem finalizada encontrada com os filtros selecionados.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
@@ -767,7 +901,7 @@ export default function AbaLogistica() {
                 </tr>
               </thead>
               <tbody>
-                {viagensFinalizadas.map(v => {
+                {viagensFinalizadasFiltradas.map(v => {
                   const kmRodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
                   const difPeso = (v.peso_descarga && v.peso_carregado) ? (v.peso_descarga - v.peso_carregado) : 0;
                   return (
