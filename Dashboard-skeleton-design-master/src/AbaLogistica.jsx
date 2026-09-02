@@ -14,7 +14,7 @@ export default function AbaLogistica() {
   const [isHoveredCardEmTransito, setIsHoveredCardEmTransito] = useState(false);
   const [isHoveredCardCustoTotal, setIsHoveredCardCustoTotal] = useState(false);
 
-  // Formulário Nova Viagem
+  // Formulário Nova Viagem (com campo Nota Fiscal)
   const [formViagem, setFormViagem] = useState({
     placa: '',
     operador: 'Lucas Santos',
@@ -22,11 +22,13 @@ export default function AbaLogistica() {
     localCarregamento: '',
     clienteDestino: '',
     produto: '',
-    pesoCarregado: ''
+    pesoCarregado: '',
+    notaFiscal: ''
   });
 
   // Modais
   const [modalAbastecimentoAberto, setModalAbastecimentoAberto] = useState(false);
+  const [modalListaAbastecimentosAberto, setModalListaAbastecimentosAberto] = useState(false);
   const [modalDespesaAberto, setModalDespesaAberto] = useState(false);
   const [modalListaDespesasAberto, setModalListaDespesasAberto] = useState(false);
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
@@ -35,8 +37,9 @@ export default function AbaLogistica() {
   const [modalCustoTotalAberto, setModalCustoTotalAberto] = useState(false);
   const [viagemSelecionada, setViagemSelecionada] = useState(null);
 
-  // Estado para Edição de Despesa Existente
+  // Estados para Edição Existente
   const [despesaEditandoId, setDespesaEditandoId] = useState(null);
+  const [abastecimentoEditandoId, setAbastecimentoEditandoId] = useState(null);
 
   // Filtros
   const [filtroEmTransitoBusca, setFiltroEmTransitoBusca] = useState(''); 
@@ -71,12 +74,13 @@ export default function AbaLogistica() {
         setTipoUsuario(currentRole);
       }
 
-      // 2. Carregar Diários de Bordo
+      // 2. Carregar Diários de Bordo com Despesas e Abastecimentos vinculados
       let query = supabase
         .from('diario_bordo')
         .select(`
           *,
-          despesas_viagem (*)
+          despesas_viagem (*),
+          abastecimentos_viagem (*)
         `)
         .order('created_at', { ascending: false });
 
@@ -99,17 +103,6 @@ export default function AbaLogistica() {
         setViagemAtiva(ativa); 
         setViagensEmTransitoList(emTransito); 
         setViagensFinalizadas(finalizadas);
-
-        // Preenche formulário de abastecimento caso exista dados na viagem ativa
-        if (ativa) {
-          setFormAbast({
-            kmAbastecimento: ativa.km_abastecimento || '',
-            litrosCombustivel: ativa.litros_combustivel || '',
-            valorCombustivel: ativa.valor_combustivel || '',
-            postoCombustivel: ativa.posto_combustivel || '',
-            numeroNotaCombustivel: ativa.numero_nota_combustivel || ''
-          });
-        }
       }
     } catch (error) {
       console.error('Erro ao buscar dados do Supabase:', error.message);
@@ -134,6 +127,7 @@ export default function AbaLogistica() {
       cliente_destino: formViagem.clienteDestino,
       produto: formViagem.produto,
       peso_carregado: Number(formViagem.pesoCarregado),
+      nota_fiscal: formViagem.notaFiscal,
       status: 'EM_TRANSITO',
       user_id: usuarioAtual?.id || null
     };
@@ -141,7 +135,7 @@ export default function AbaLogistica() {
     const { data, error } = await supabase
       .from('diario_bordo')
       .insert([novaViagemPayload])
-      .select(`*, despesas_viagem (*)`);
+      .select(`*, despesas_viagem (*), abastecimentos_viagem (*)`);
 
     if (error) {
       alert('Erro ao iniciar viagem: ' + error.message);
@@ -151,17 +145,18 @@ export default function AbaLogistica() {
     if (data && data.length > 0) {
       setViagemAtiva(data[0]);
       setViagensEmTransitoList(prev => [data[0], ...prev]);
-      setFormViagem({ placa: '', operador: 'Lucas Santos', kmInicial: '', localCarregamento: '', clienteDestino: '', produto: '', pesoCarregado: '' });
+      setFormViagem({ placa: '', operador: 'Lucas Santos', kmInicial: '', localCarregamento: '', clienteDestino: '', produto: '', pesoCarregado: '', notaFiscal: '' });
       setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
     }
   };
 
-  // Registrar / Atualizar Abastecimento
+  // Registrar / Editar Abastecimento
   const handleSalvarAbastecimento = async (e) => {
     e.preventDefault();
     if (!viagemAtiva) return;
 
     const payload = {
+      viagem_id: viagemAtiva.id,
       km_abastecimento: Number(formAbast.kmAbastecimento),
       litros_combustivel: Number(formAbast.litrosCombustivel),
       valor_combustivel: Number(formAbast.valorCombustivel),
@@ -169,35 +164,97 @@ export default function AbaLogistica() {
       numero_nota_combustivel: formAbast.numeroNotaCombustivel
     };
 
-    const { data, error } = await supabase
-      .from('diario_bordo')
-      .update(payload)
-      .eq('id', viagemAtiva.id)
-      .select(`*, despesas_viagem (*)`);
+    if (abastecimentoEditandoId) {
+      // Atualizar Abastecimento Existente
+      const { data, error } = await supabase
+        .from('abastecimentos_viagem')
+        .update(payload)
+        .eq('id', abastecimentoEditandoId)
+        .select();
+
+      if (error) {
+        // Fallback para coluna legada se tabela associada não existir
+        const { data: dataLegado, error: errLegado } = await supabase
+          .from('diario_bordo')
+          .update(payload)
+          .eq('id', viagemAtiva.id)
+          .select(`*, despesas_viagem (*), abastecimentos_viagem (*)`);
+
+        if (errLegado) {
+          alert('Erro ao atualizar abastecimento: ' + errLegado.message);
+          return;
+        }
+        if (dataLegado && dataLegado.length > 0) setViagemAtiva(dataLegado[0]);
+      } else if (data && data.length > 0) {
+        setViagemAtiva(prev => ({
+          ...prev,
+          abastecimentos_viagem: (prev.abastecimentos_viagem || []).map(a => a.id === abastecimentoEditandoId ? data[0] : a)
+        }));
+      }
+    } else {
+      // Inserir Novo Abastecimento
+      const { data, error } = await supabase
+        .from('abastecimentos_viagem')
+        .insert([payload])
+        .select();
+
+      if (error) {
+        // Fallback atualizando diário diretamente caso tabela de relação não exista
+        const { data: dataLegado, error: errLegado } = await supabase
+          .from('diario_bordo')
+          .update(payload)
+          .eq('id', viagemAtiva.id)
+          .select(`*, despesas_viagem (*), abastecimentos_viagem (*)`);
+
+        if (errLegado) {
+          alert('Erro ao salvar abastecimento: ' + errLegado.message);
+          return;
+        }
+        if (dataLegado && dataLegado.length > 0) setViagemAtiva(dataLegado[0]);
+      } else if (data && data.length > 0) {
+        setViagemAtiva(prev => ({
+          ...prev,
+          abastecimentos_viagem: [...(prev.abastecimentos_viagem || []), ...data]
+        }));
+      }
+    }
+
+    setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
+    setAbastecimentoEditandoId(null);
+    setModalAbastecimentoAberto(false);
+  };
+
+  // Editar Item de Abastecimento
+  const handleEditarAbastecimentoItem = (abast) => {
+    setAbastecimentoEditandoId(abast.id);
+    setFormAbast({
+      kmAbastecimento: abast.km_abastecimento || '',
+      litrosCombustivel: abast.litros_combustivel || '',
+      valorCombustivel: abast.valor_combustivel || '',
+      postoCombustivel: abast.posto_combustivel || '',
+      numeroNotaCombustivel: abast.numero_nota_combustivel || ''
+    });
+    setModalAbastecimentoAberto(true);
+  };
+
+  // Excluir Item de Abastecimento
+  const handleExcluirAbastecimentoItem = async (abastId) => {
+    if (!window.confirm('Deseja excluir este registro de abastecimento?')) return;
+
+    const { error } = await supabase
+      .from('abastecimentos_viagem')
+      .delete()
+      .eq('id', abastId);
 
     if (error) {
-      alert('Erro ao salvar abastecimento: ' + error.message);
+      alert('Erro ao excluir abastecimento: ' + error.message);
       return;
     }
 
-    if (data && data.length > 0) {
-      setViagemAtiva(data[0]);
-      setModalAbastecimentoAberto(false);
-    }
-  };
-
-  // Abrir Modal do Abastecimento Preenchido
-  const handleAbrirModalAbastecimento = () => {
-    if (viagemAtiva) {
-      setFormAbast({
-        kmAbastecimento: viagemAtiva.km_abastecimento || '',
-        litrosCombustivel: viagemAtiva.litros_combustivel || '',
-        valorCombustivel: viagemAtiva.valor_combustivel || '',
-        postoCombustivel: viagemAtiva.posto_combustivel || '',
-        numeroNotaCombustivel: viagemAtiva.numero_nota_combustivel || ''
-      });
-    }
-    setModalAbastecimentoAberto(true);
+    setViagemAtiva(prev => ({
+      ...prev,
+      abastecimentos_viagem: (prev.abastecimentos_viagem || []).filter(a => a.id !== abastId)
+    }));
   };
 
   // Registrar ou Editar Despesa
@@ -213,7 +270,6 @@ export default function AbaLogistica() {
     };
 
     if (despesaEditandoId) {
-      // Atualizar Despesa Existente
       const { data, error } = await supabase
         .from('despesas_viagem')
         .update(payload)
@@ -235,7 +291,6 @@ export default function AbaLogistica() {
         setModalDespesaAberto(false);
       }
     } else {
-      // Inserir Nova Despesa
       const { data, error } = await supabase
         .from('despesas_viagem')
         .insert([payload])
@@ -257,7 +312,7 @@ export default function AbaLogistica() {
     }
   };
 
-  // Iniciar Edição de Despesa da Lista
+  // Iniciar Edição de Despesa
   const handleEditarDespesaItem = (despesa) => {
     setDespesaEditandoId(despesa.id);
     setFormDesp({
@@ -268,7 +323,7 @@ export default function AbaLogistica() {
     setModalDespesaAberto(true);
   };
 
-  // Excluir Despesa da Lista
+  // Excluir Despesa
   const handleExcluirDespesaItem = async (despesaId) => {
     if (!window.confirm('Deseja excluir este lançamento de despesa?')) return;
 
@@ -303,7 +358,8 @@ export default function AbaLogistica() {
       km_final: kmFinalNum,
       peso_descarga: pesoDescNum,
       local_descarga: formFim.localDescarga,
-      status: 'FINALIZADA'
+      status: 'FINALIZADA',
+      finished_at: new Date().toISOString()
     };
 
     const { error } = await supabase
@@ -331,12 +387,8 @@ export default function AbaLogistica() {
     }
 
     try {
-      const { error: errDespesas } = await supabase
-        .from('despesas_viagem')
-        .delete()
-        .eq('viagem_id', id);
-
-      if (errDespesas) throw errDespesas;
+      await supabase.from('despesas_viagem').delete().eq('viagem_id', id);
+      await supabase.from('abastecimentos_viagem').delete().eq('viagem_id', id);
 
       const { error: errViagem } = await supabase
         .from('diario_bordo')
@@ -355,6 +407,28 @@ export default function AbaLogistica() {
     }
   };
 
+  // Auxiliar para Obter Totais de Abastecimento
+  const getTotaisAbastecimento = (viagem) => {
+    if (!viagem) return { totalGasto: 0, totalLitros: 0, quantidade: 0, lista: [] };
+    if (viagem.abastecimentos_viagem && viagem.abastecimentos_viagem.length > 0) {
+      const totalGasto = viagem.abastecimentos_viagem.reduce((acc, a) => acc + (Number(a.valor_combustivel) || 0), 0);
+      const totalLitros = viagem.abastecimentos_viagem.reduce((acc, a) => acc + (Number(a.litros_combustivel) || 0), 0);
+      return { totalGasto, totalLitros, quantidade: viagem.abastecimentos_viagem.length, lista: viagem.abastecimentos_viagem };
+    }
+    const totalGasto = Number(viagem.valor_combustivel) || 0;
+    const totalLitros = Number(viagem.litros_combustivel) || 0;
+    const quantidade = totalGasto > 0 ? 1 : 0;
+    const lista = quantidade > 0 ? [{
+      id: 'legado',
+      posto_combustivel: viagem.posto_combustivel,
+      numero_nota_combustivel: viagem.numero_nota_combustivel,
+      km_abastecimento: viagem.km_abastecimento,
+      litros_combustivel: viagem.litros_combustivel,
+      valor_combustivel: viagem.valor_combustivel
+    }] : [];
+    return { totalGasto, totalLitros, quantidade, lista };
+  };
+
   // Cálculos do Dashboard Geral
   const totalViagens = viagensFinalizadas.length;
   const viagensEmTransitoCount = viagensEmTransitoList.length;
@@ -365,7 +439,7 @@ export default function AbaLogistica() {
   }, 0);
 
   const custoOperacionalTotal = viagensFinalizadas.reduce((acc, v) => {
-    const combustivel = v.valor_combustivel || 0;
+    const { totalGasto: combustivel } = getTotaisAbastecimento(v);
     const outrasDespesas = (v.despesas_viagem || []).reduce((sum, d) => sum + (d.valor || 0), 0);
     return acc + combustivel + outrasDespesas;
   }, 0);
@@ -390,8 +464,7 @@ export default function AbaLogistica() {
       const kmRodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
       mapa[placa].kmTotal += kmRodados;
       
-      const valComb = v.valor_combustivel || 0;
-      const litComb = v.litros_combustivel || 0;
+      const { totalGasto: valComb, totalLitros: litComb } = getTotaisAbastecimento(v);
       const valDesp = (v.despesas_viagem || []).reduce((sum, d) => sum + (d.valor || 0), 0);
 
       mapa[placa].gastoCombustivelTotal += valComb;
@@ -421,8 +494,11 @@ export default function AbaLogistica() {
   }
 
   // Cálculos do Card do Motorista
-  const totalGastoAbastecimento = viagemAtiva?.valor_combustivel || 0;
-  const totalLitrosAbastecimento = viagemAtiva?.litros_combustivel || 0;
+  const abastInfoAtiva = getTotaisAbastecimento(viagemAtiva);
+  const totalGastoAbastecimento = abastInfoAtiva.totalGasto;
+  const totalLitrosAbastecimento = abastInfoAtiva.totalLitros;
+  const qtdAbastecimentos = abastInfoAtiva.quantidade;
+
   const totalGastoOutrasDespesas = (viagemAtiva?.despesas_viagem || []).reduce((acc, d) => acc + (d.valor || 0), 0);
   const qtdOutrasDespesas = viagemAtiva?.despesas_viagem?.length || 0;
 
@@ -433,6 +509,17 @@ export default function AbaLogistica() {
     const busca = filtroEmTransitoBusca.toLowerCase();
     return placaStr.includes(busca) || operadorStr.includes(busca);
   });
+
+  // Função Auxiliar de Formatação de Data
+  const formatarData = (isoString) => {
+    if (!isoString) return 'N/D';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return isoString;
+    }
+  };
 
   return (
     <div style={{ padding: '24px', color: '#fff', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0b132b' }}>
@@ -568,8 +655,12 @@ export default function AbaLogistica() {
                   <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Peso Carregado (Kg)</label>
                   <input type="number" step="0.01" placeholder="Ex: 50000" value={formViagem.pesoCarregado} onChange={e => setFormViagem({...formViagem, pesoCarregado: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <button type="submit" style={{ width: '100%', padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Iniciar Diário</button>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Nota Fiscal</label>
+                  <input type="text" placeholder="Nº Nota Fiscal" value={formViagem.notaFiscal} onChange={e => setFormViagem({...formViagem, notaFiscal: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} />
+                </div>
+                <div style={{ gridColumn: 'span 4', display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <button type="submit" style={{ width: '250px', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Iniciar Diário</button>
                 </div>
               </form>
             </div>
@@ -589,11 +680,12 @@ export default function AbaLogistica() {
               </h3>
 
               <div style={{ background: '#0e1626', padding: '16px', borderRadius: '8px', border: '1px solid #1e293b', marginBottom: '16px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '13px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', fontSize: '13px', marginBottom: '12px' }}>
                   <div>📍 <strong>Embarque:</strong> {viagemAtiva.local_carregamento}</div>
                   <div>🎯 <strong>Destino:</strong> {viagemAtiva.cliente_destino || 'N/D'}</div>
                   <div>📦 <strong>Produto:</strong> {viagemAtiva.produto || 'N/D'}</div>
                   <div>⚖️ <strong>Peso Carga:</strong> {viagemAtiva.peso_carregado || '0'}</div>
+                  <div>📄 <strong>Nota Fiscal:</strong> {viagemAtiva.nota_fiscal || 'N/D'}</div>
                 </div>
                 <div style={{ fontSize: '13px' }}>
                   🏎️ <strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km
@@ -606,9 +698,9 @@ export default function AbaLogistica() {
                 <div style={{ border: '1px solid #d97706', borderRadius: '8px', padding: '16px', background: '#0e1626' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '14px' }}>
-                      ⛽ Abastecimentos ({viagemAtiva.valor_combustivel ? 1 : 0})
+                      ⛽ Abastecimentos ({qtdAbastecimentos})
                     </span>
-                    <button onClick={handleAbrirModalAbastecimento} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                    <button onClick={() => setModalListaAbastecimentosAberto(true)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
                       Ver / Editar
                     </button>
                   </div>
@@ -637,7 +729,7 @@ export default function AbaLogistica() {
 
               {/* Botões Inferiores */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <button onClick={handleAbrirModalAbastecimento} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => { setAbastecimentoEditandoId(null); setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' }); setModalAbastecimentoAberto(true); }} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
                   ⛽ + Novo Abastecimento
                 </button>
                 <button onClick={() => { setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
@@ -663,6 +755,8 @@ export default function AbaLogistica() {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                  <th style={{ padding: '12px' }}>Data Início</th>
+                  <th style={{ padding: '12px' }}>Data Final</th>
                   <th style={{ padding: '12px' }}>Placa</th>
                   <th style={{ padding: '12px' }}>Operador</th>
                   <th style={{ padding: '12px' }}>Produto / Origem</th>
@@ -678,6 +772,8 @@ export default function AbaLogistica() {
                   const difPeso = (v.peso_descarga && v.peso_carregado) ? (v.peso_descarga - v.peso_carregado) : 0;
                   return (
                     <tr key={v.id} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '12px', fontSize: '12px', color: '#cbd5e1' }}>{formatarData(v.created_at)}</td>
+                      <td style={{ padding: '12px', fontSize: '12px', color: '#cbd5e1' }}>{formatarData(v.finished_at || v.updated_at)}</td>
                       <td style={{ padding: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{v.placa}</td>
                       <td style={{ padding: '12px' }}>{v.operador || 'N/D'}</td>
                       <td style={{ padding: '12px' }}>{v.produto || 'Geral'}<br/><span style={{ fontSize: '11px', color: '#94a3b8' }}>📍 {v.local_carregamento}</span></td>
@@ -816,12 +912,67 @@ export default function AbaLogistica() {
         </div>
       )}
 
+      {/* MODAL LISTA DE ABASTECIMENTOS (VER / EDITAR) */}
+      {modalListaAbastecimentosAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '600px', border: '1px solid #23304a', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: '#fff' }}>⛽ Abastecimentos da Viagem</h3>
+              <button 
+                onClick={() => { setModalListaAbastecimentosAberto(false); setAbastecimentoEditandoId(null); setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' }); setModalAbastecimentoAberto(true); }}
+                style={{ background: '#d97706', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+              >
+                + Novo Abastecimento
+              </button>
+            </div>
+            {abastInfoAtiva.lista.length === 0 ? (
+              <p style={{ color: '#94a3b8' }}>Nenhum abastecimento registrado até o momento.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                    <th style={{ padding: '8px' }}>Posto</th>
+                    <th style={{ padding: '8px' }}>Nº NF</th>
+                    <th style={{ padding: '8px' }}>KM</th>
+                    <th style={{ padding: '8px' }}>Litros</th>
+                    <th style={{ padding: '8px' }}>Valor Total</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {abastInfoAtiva.lista.map((a, idx) => (
+                    <tr key={a.id || idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '8px' }}>{a.posto_combustivel || '-'}</td>
+                      <td style={{ padding: '8px' }}>{a.numero_nota_combustivel || '-'}</td>
+                      <td style={{ padding: '8px' }}>{a.km_abastecimento || '-'}</td>
+                      <td style={{ padding: '8px' }}>{Number(a.litros_combustivel || 0).toFixed(2)} L</td>
+                      <td style={{ padding: '8px', color: '#f59e0b', fontWeight: 'bold' }}>R$ {Number(a.valor_combustivel || 0).toFixed(2)}</td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button onClick={() => handleEditarAbastecimentoItem(a)} style={{ background: '#eab308', color: '#000', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Editar</button>
+                          {a.id !== 'legado' && (
+                            <button onClick={() => handleExcluirAbastecimentoItem(a.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Excluir</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
+              <button onClick={() => setModalListaAbastecimentosAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL ADICIONAR / EDITAR ABASTECIMENTO */}
       {modalAbastecimentoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '420px', border: '1px solid #23304a' }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#f59e0b', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⛽ Ver / Editar Abastecimento
+              ⛽ {abastecimentoEditandoId ? 'Editar Abastecimento' : 'Novo Abastecimento'}
             </h3>
             <form onSubmit={handleSalvarAbastecimento}>
               <div style={{ marginBottom: '12px' }}>
@@ -856,8 +1007,10 @@ export default function AbaLogistica() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <button type="submit" style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Salvar Alterações</button>
-                <button type="button" onClick={() => setModalAbastecimentoAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
+                <button type="submit" style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+                  {abastecimentoEditandoId ? 'Atualizar' : 'Salvar'}
+                </button>
+                <button type="button" onClick={() => { setModalAbastecimentoAberto(false); setAbastecimentoEditandoId(null); }} style={{ background: '#475569', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
               </div>
             </form>
           </div>
@@ -989,22 +1142,30 @@ export default function AbaLogistica() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '14px', marginBottom: '20px' }}>
               <div><b>Operador:</b> {viagemSelecionada.operador || 'N/D'}</div>
               <div><b>Status:</b> {viagemSelecionada.status === 'EM_TRANSITO' ? 'Em Trânsito 🚚' : 'Finalizada 🏁'}</div>
+              <div><b>Data Início:</b> {formatarData(viagemSelecionada.created_at)}</div>
+              <div><b>Data Final:</b> {formatarData(viagemSelecionada.finished_at || viagemSelecionada.updated_at)}</div>
               <div><b>KM Rodados:</b> {(viagemSelecionada.km_final && viagemSelecionada.km_inicial) ? (viagemSelecionada.km_final - viagemSelecionada.km_inicial) : 'N/D'} km</div>
               <div><b>Carregamento:</b> {viagemSelecionada.local_carregamento}</div>
               <div><b>Descarga:</b> {viagemSelecionada.local_descarga || 'N/D'}</div>
               <div><b>Produto:</b> {viagemSelecionada.produto || 'N/D'}</div>
               <div><b>Destino:</b> {viagemSelecionada.cliente_destino || 'N/D'}</div>
+              <div><b>Nota Fiscal:</b> {viagemSelecionada.nota_fiscal || 'N/D'}</div>
               <div><b>Peso Carregado:</b> {viagemSelecionada.peso_carregado?.toLocaleString()} kg</div>
               <div><b>Peso Descarga:</b> {viagemSelecionada.peso_descarga?.toLocaleString()} kg</div>
             </div>
 
             <h4 style={{ color: '#0ea5e9', marginBottom: '8px' }}>Combustível / Abastecimentos</h4>
             <div style={{ background: '#0e1626', padding: '12px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
-              <div><b>Posto:</b> {viagemSelecionada.posto_combustivel || 'Não informado'}</div>
-              <div><b>Nº NF:</b> {viagemSelecionada.numero_nota_combustivel || 'Não informado'}</div>
-              <div><b>KM Abastecimento:</b> {viagemSelecionada.km_abastecimento || 'Não informado'}</div>
-              <div><b>Litros:</b> {viagemSelecionada.litros_combustivel || 0} L</div>
-              <div><b>Valor Total:</b> R$ {(viagemSelecionada.valor_combustivel || 0).toFixed(2)}</div>
+              {getTotaisAbastecimento(viagemSelecionada).lista.length === 0 ? (
+                <div>Sem abastecimentos registrados.</div>
+              ) : (
+                getTotaisAbastecimento(viagemSelecionada).lista.map((ab, idx) => (
+                  <div key={idx} style={{ marginBottom: '8px', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
+                    <div><b>Posto:</b> {ab.posto_combustivel || 'Não informado'} | <b>Nº NF:</b> {ab.numero_nota_combustivel || 'Não informado'}</div>
+                    <div><b>KM:</b> {ab.km_abastecimento || '-'} | <b>Litros:</b> {ab.litros_combustivel || 0} L | <b>Valor:</b> R$ {Number(ab.valor_combustivel || 0).toFixed(2)}</div>
+                  </div>
+                ))
+              )}
             </div>
 
             <h4 style={{ color: '#fbbf24', marginBottom: '8px' }}>Despesas Adicionais</h4>
