@@ -12,6 +12,7 @@ export default function AbaLogistica() {
 
   // Controle de Hover em CSS Inline
   const [isHoveredCardEmTransito, setIsHoveredCardEmTransito] = useState(false);
+  const [isHoveredCardCustoTotal, setIsHoveredCardCustoTotal] = useState(false);
 
   // Formulário Nova Viagem
   const [formViagem, setFormViagem] = useState({
@@ -31,6 +32,7 @@ export default function AbaLogistica() {
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
   const [modalDetalhesAberto, setModalDetalhesAberto] = useState(false);
   const [modalEmTransitoAberto, setModalEmTransitoAberto] = useState(false); 
+  const [modalCustoTotalAberto, setModalCustoTotalAberto] = useState(false);
   const [viagemSelecionada, setViagemSelecionada] = useState(null);
 
   // Filtros
@@ -156,7 +158,7 @@ export default function AbaLogistica() {
     }
   };
 
-  // Registrar Despesa (Ajustado concatenação)
+  // Registrar Despesa
   const handleSalvarDespesa = async (e) => {
     e.preventDefault();
     if (!viagemAtiva) return;
@@ -376,8 +378,21 @@ export default function AbaLogistica() {
               <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>KM Total Rodados</p>
               <h3 style={{ margin: 0, fontSize: '28px', color: '#4ade80' }}>{kmTotalRodados.toLocaleString()} km</h3>
             </div>
-            <div style={{ background: '#1c2541', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '14px' }}>Custo Operacional Total</p>
+            <div 
+              onClick={() => setModalCustoTotalAberto(true)}
+              onMouseEnter={() => setIsHoveredCardCustoTotal(true)}
+              onMouseLeave={() => setIsHoveredCardCustoTotal(false)}
+              style={{ 
+                background: '#1c2541', 
+                padding: '20px', 
+                borderRadius: '12px', 
+                border: `1px solid ${isHoveredCardCustoTotal ? '#f87171' : '#334155'}`, 
+                cursor: 'pointer',
+                transition: '0.2s'
+              }}
+            >
+              <p style={{ margin: '0 0 4px 0', color: '#94a3b8', fontSize: '14px' }}>Custo Operacional Total</p>
+              <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '8px' }}>👆 Clique para ver por placa</span>
               <h3 style={{ margin: 0, fontSize: '28px', color: '#f87171' }}>R$ {custoOperacionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
             </div>
           </div>
@@ -586,6 +601,54 @@ export default function AbaLogistica() {
         )}
       </div>
 
+      {/* MODAL - CUSTO OPERACIONAL TOTAL POR PLACA (GESTÃO) */}
+      {modalCustoTotalAberto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '750px', border: '1px solid #23304a', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#f87171', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                💰 Detalhamento de Custo Operacional por Placa
+              </h3>
+            </div>
+            
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {kpisPorPlaca.length === 0 ? (
+                <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px' }}>Nenhum custo registrado em viagens finalizadas.</p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                      <th style={{ padding: '12px' }}>Placa</th>
+                      <th style={{ padding: '12px' }}>Qtd. Viagens</th>
+                      <th style={{ padding: '12px' }}>Gasto Combustível</th>
+                      <th style={{ padding: '12px' }}>Outras Despesas</th>
+                      <th style={{ padding: '12px' }}>Custo Total Acumulado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpisPorPlaca.map((kpi, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
+                        <td style={{ padding: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{kpi.placa}</td>
+                        <td style={{ padding: '12px' }}>{kpi.qtdViagens}</td>
+                        <td style={{ padding: '12px', color: '#f87171' }}>R$ {kpi.gastoCombustivelTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '12px', color: '#fbbf24' }}>R$ {kpi.gastoOutrasDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '12px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {kpi.gastoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div style={{ marginTop: '20px', textAlign: 'right', borderTop: '1px solid #334155', paddingTop: '16px' }}>
+              <button onClick={() => setModalCustoTotalAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL - VIAGENS EM TRÂNSITO (GESTOR) */}
       {modalEmTransitoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
@@ -792,9 +855,11 @@ export default function AbaLogistica() {
               <div><b>Peso Descarga:</b> {viagemSelecionada.peso_descarga?.toLocaleString()} kg</div>
             </div>
 
-            <h4 style={{ color: '#0ea5e9', marginBottom: '8px' }}>Combustível</h4>
+            <h4 style={{ color: '#0ea5e9', marginBottom: '8px' }}>Combustível / Abastecimentos</h4>
             <div style={{ background: '#0e1626', padding: '12px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
               <div><b>Posto:</b> {viagemSelecionada.posto_combustivel || 'Não informado'}</div>
+              <div><b>Nº NF:</b> {viagemSelecionada.numero_nota_combustivel || 'Não informado'}</div>
+              <div><b>KM Abastecimento:</b> {viagemSelecionada.km_abastecimento || 'Não informado'}</div>
               <div><b>Litros:</b> {viagemSelecionada.litros_combustivel || 0} L</div>
               <div><b>Valor Total:</b> R$ {(viagemSelecionada.valor_combustivel || 0).toFixed(2)}</div>
             </div>
