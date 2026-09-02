@@ -35,6 +35,9 @@ export default function AbaLogistica() {
   const [modalCustoTotalAberto, setModalCustoTotalAberto] = useState(false);
   const [viagemSelecionada, setViagemSelecionada] = useState(null);
 
+  // Estado para Edição de Despesa Existente
+  const [despesaEditandoId, setDespesaEditandoId] = useState(null);
+
   // Filtros
   const [filtroEmTransitoBusca, setFiltroEmTransitoBusca] = useState(''); 
 
@@ -54,6 +57,8 @@ export default function AbaLogistica() {
       const { data: { user } } = await supabase.auth.getUser();
       setUsuarioAtual(user);
 
+      let currentRole = 'MOTORISTA';
+
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -62,11 +67,12 @@ export default function AbaLogistica() {
           .single();
 
         const role = profile?.role || user.user_metadata?.role || 'MOTORISTA';
-        setTipoUsuario(role.toUpperCase() === 'GESTOR' ? 'GESTOR' : 'MOTORISTA');
+        currentRole = role.toUpperCase() === 'GESTOR' ? 'GESTOR' : 'MOTORISTA';
+        setTipoUsuario(currentRole);
       }
 
       // 2. Carregar Diários de Bordo
-      const { data: viagensData, error: errViagens } = await supabase
+      let query = supabase
         .from('diario_bordo')
         .select(`
           *,
@@ -74,15 +80,36 @@ export default function AbaLogistica() {
         `)
         .order('created_at', { ascending: false });
 
+      const { data: viagensData, error: errViagens } = await query;
+
       if (errViagens) throw errViagens;
 
       if (viagensData) {
-        const emTransito = viagensData.filter(v => v.status === 'EM_TRANSITO' || !v.status);
-        const finalizadas = viagensData.filter(v => v.status === 'FINALIZADA');
+        // Filtrar viagem ativa e histórico conforme perfil
+        let emTransito = viagensData.filter(v => v.status === 'EM_TRANSITO' || !v.status);
+        let finalizadas = viagensData.filter(v => v.status === 'FINALIZADA');
 
-        setViagemAtiva(emTransito.length > 0 ? emTransito[0] : null); 
+        if (currentRole === 'MOTORISTA' && user) {
+          // Motorista visualiza histórico filtrado para suas próprias viagens (por user_id ou operador)
+          finalizadas = finalizadas.filter(v => v.user_id === user.id || v.operador === formViagem.operador);
+          emTransito = emTransito.filter(v => v.user_id === user.id || v.operador === formViagem.operador);
+        }
+
+        const ativa = emTransito.length > 0 ? emTransito[0] : null;
+        setViagemAtiva(ativa); 
         setViagensEmTransitoList(emTransito); 
         setViagensFinalizadas(finalizadas);
+
+        // Preenche formulário de abastecimento caso exista dados na viagem ativa
+        if (ativa) {
+          setFormAbast({
+            kmAbastecimento: ativa.km_abastecimento || '',
+            litrosCombustivel: ativa.litros_combustivel || '',
+            valorCombustivel: ativa.valor_combustivel || '',
+            postoCombustivel: ativa.posto_combustivel || '',
+            numeroNotaCombustivel: ativa.numero_nota_combustivel || ''
+          });
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar dados do Supabase:', error.message);
@@ -107,7 +134,8 @@ export default function AbaLogistica() {
       cliente_destino: formViagem.clienteDestino,
       produto: formViagem.produto,
       peso_carregado: Number(formViagem.pesoCarregado),
-      status: 'EM_TRANSITO'
+      status: 'EM_TRANSITO',
+      user_id: usuarioAtual?.id || null
     };
 
     const { data, error } = await supabase
@@ -124,10 +152,11 @@ export default function AbaLogistica() {
       setViagemAtiva(data[0]);
       setViagensEmTransitoList(prev => [data[0], ...prev]);
       setFormViagem({ placa: '', operador: 'Lucas Santos', kmInicial: '', localCarregamento: '', clienteDestino: '', produto: '', pesoCarregado: '' });
+      setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
     }
   };
 
-  // Registrar Abastecimento
+  // Registrar / Atualizar Abastecimento
   const handleSalvarAbastecimento = async (e) => {
     e.preventDefault();
     if (!viagemAtiva) return;
@@ -153,12 +182,25 @@ export default function AbaLogistica() {
 
     if (data && data.length > 0) {
       setViagemAtiva(data[0]);
-      setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
       setModalAbastecimentoAberto(false);
     }
   };
 
-  // Registrar Despesa
+  // Abrir Modal do Abastecimento Preenchido
+  const handleAbrirModalAbastecimento = () => {
+    if (viagemAtiva) {
+      setFormAbast({
+        kmAbastecimento: viagemAtiva.km_abastecimento || '',
+        litrosCombustivel: viagemAtiva.litros_combustivel || '',
+        valorCombustivel: viagemAtiva.valor_combustivel || '',
+        postoCombustivel: viagemAtiva.posto_combustivel || '',
+        numeroNotaCombustivel: viagemAtiva.numero_nota_combustivel || ''
+      });
+    }
+    setModalAbastecimentoAberto(true);
+  };
+
+  // Registrar ou Editar Despesa
   const handleSalvarDespesa = async (e) => {
     e.preventDefault();
     if (!viagemAtiva) return;
@@ -170,24 +212,80 @@ export default function AbaLogistica() {
       descricao: formDesp.descricao
     };
 
-    const { data, error } = await supabase
+    if (despesaEditandoId) {
+      // Atualizar Despesa Existente
+      const { data, error } = await supabase
+        .from('despesas_viagem')
+        .update(payload)
+        .eq('id', despesaEditandoId)
+        .select();
+
+      if (error) {
+        alert('Erro ao atualizar despesa: ' + error.message);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setViagemAtiva(prev => ({
+          ...prev,
+          despesas_viagem: (prev.despesas_viagem || []).map(d => d.id === despesaEditandoId ? data[0] : d)
+        }));
+        setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' });
+        setDespesaEditandoId(null);
+        setModalDespesaAberto(false);
+      }
+    } else {
+      // Inserir Nova Despesa
+      const { data, error } = await supabase
+        .from('despesas_viagem')
+        .insert([payload])
+        .select();
+
+      if (error) {
+        alert('Erro ao salvar despesa: ' + error.message);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setViagemAtiva(prev => ({
+          ...prev,
+          despesas_viagem: [...(prev.despesas_viagem || []), ...data]
+        }));
+        setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' });
+        setModalDespesaAberto(false);
+      }
+    }
+  };
+
+  // Iniciar Edição de Despesa da Lista
+  const handleEditarDespesaItem = (despesa) => {
+    setDespesaEditandoId(despesa.id);
+    setFormDesp({
+      tipo: despesa.tipo || 'Pedágio',
+      valor: despesa.valor || '',
+      descricao: despesa.descricao || ''
+    });
+    setModalDespesaAberto(true);
+  };
+
+  // Excluir Despesa da Lista
+  const handleExcluirDespesaItem = async (despesaId) => {
+    if (!window.confirm('Deseja excluir este lançamento de despesa?')) return;
+
+    const { error } = await supabase
       .from('despesas_viagem')
-      .insert([payload])
-      .select();
+      .delete()
+      .eq('id', despesaId);
 
     if (error) {
-      alert('Erro ao salvar despesa: ' + error.message);
+      alert('Erro ao excluir despesa: ' + error.message);
       return;
     }
 
-    if (data && data.length > 0) {
-      setViagemAtiva(prev => ({
-        ...prev,
-        despesas_viagem: [...(prev.despesas_viagem || []), ...data]
-      }));
-      setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' });
-      setModalDespesaAberto(false);
-    }
+    setViagemAtiva(prev => ({
+      ...prev,
+      despesas_viagem: (prev.despesas_viagem || []).filter(d => d.id !== despesaId)
+    }));
   };
 
   // Concluir Viagem
@@ -226,7 +324,7 @@ export default function AbaLogistica() {
     setFormFim({ kmFinal: '', pesoDescarga: '', localDescarga: '' });
   };
 
-  // Excluir Viagem
+  // Excluir Viagem do Histórico
   const handleExcluirViagem = async (id) => {
     if (!window.confirm('Tem certeza de que deseja excluir este registro do histórico?')) {
       return;
@@ -510,7 +608,7 @@ export default function AbaLogistica() {
                     <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '14px' }}>
                       ⛽ Abastecimentos ({viagemAtiva.valor_combustivel ? 1 : 0})
                     </span>
-                    <button onClick={() => setModalAbastecimentoAberto(true)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                    <button onClick={handleAbrirModalAbastecimento} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
                       Ver / Editar
                     </button>
                   </div>
@@ -539,10 +637,10 @@ export default function AbaLogistica() {
 
               {/* Botões Inferiores */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <button onClick={() => setModalAbastecimentoAberto(true)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                <button onClick={handleAbrirModalAbastecimento} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
                   ⛽ + Novo Abastecimento
                 </button>
-                <button onClick={() => setModalDespesaAberto(true)} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => { setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
                   💸 + Nova Despesa
                 </button>
                 <button onClick={() => setModalFinalizarAberto(true)} style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
@@ -589,7 +687,9 @@ export default function AbaLogistica() {
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Detalhes</button>
-                          <button onClick={() => handleExcluirViagem(v.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Excluir</button>
+                          {tipoUsuario === 'GESTOR' && (
+                            <button onClick={() => handleExcluirViagem(v.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Excluir</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -716,12 +816,12 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* MODAL ADICIONAR ABASTECIMENTO */}
+      {/* MODAL ADICIONAR / EDITAR ABASTECIMENTO */}
       {modalAbastecimentoAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '420px', border: '1px solid #23304a' }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#f59e0b', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⛽ Adicionar Abastecimento
+              ⛽ Ver / Editar Abastecimento
             </h3>
             <form onSubmit={handleSalvarAbastecimento}>
               <div style={{ marginBottom: '12px' }}>
@@ -756,7 +856,7 @@ export default function AbaLogistica() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <button type="submit" style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Salvar</button>
+                <button type="submit" style={{ background: '#d97706', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Salvar Alterações</button>
                 <button type="button" onClick={() => setModalAbastecimentoAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
               </div>
             </form>
@@ -764,39 +864,82 @@ export default function AbaLogistica() {
         </div>
       )}
 
-      {/* MODAL DESPESAS */}
+      {/* MODAL CRIAR / EDITAR DESPESA */}
       {modalDespesaAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '400px', border: '1px solid #23304a' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: '#c084fc' }}>💸 Nova Despesa de Viagem</h3>
+            <h3 style={{ margin: '0 0 16px 0', color: '#c084fc' }}>
+              {despesaEditandoId ? '✏️ Editar Despesa de Viagem' : '💸 Nova Despesa de Viagem'}
+            </h3>
             <form onSubmit={handleSalvarDespesa}>
-              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Tipo</label><input type="text" placeholder="Ex: Pedágio, Borracharia" value={formDesp.tipo} onChange={e => setFormDesp({...formDesp, tipo: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required /></div>
-              <div style={{ marginBottom: '12px' }}><label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Valor (R$)</label><input type="number" step="0.01" value={formDesp.valor} onChange={e => setFormDesp({...formDesp, valor: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required /></div>
-              <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Descrição</label><input type="text" value={formDesp.descricao} onChange={e => setFormDesp({...formDesp, descricao: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} /></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}><button type="submit" style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Salvar</button><button type="button" onClick={() => setModalDespesaAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button></div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Tipo</label>
+                <input type="text" placeholder="Ex: Pedágio, Borracharia" value={formDesp.tipo} onChange={e => setFormDesp({...formDesp, tipo: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Valor (R$)</label>
+                <input type="number" step="0.01" value={formDesp.valor} onChange={e => setFormDesp({...formDesp, valor: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Descrição</label>
+                <input type="text" value={formDesp.descricao} onChange={e => setFormDesp({...formDesp, descricao: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <button type="submit" style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  {despesaEditandoId ? 'Atualizar' : 'Salvar'}
+                </button>
+                <button type="button" onClick={() => { setModalDespesaAberto(false); setDespesaEditandoId(null); }} style={{ background: '#475569', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL LISTA DE DESPESAS */}
+      {/* MODAL LISTA DE DESPESAS (VER / EDITAR) */}
       {modalListaDespesasAberto && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '500px', border: '1px solid #23304a', maxHeight: '80vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: '#fff' }}>💸 Despesas Vinculadas</h3>
+          <div style={{ background: '#161e31', padding: '24px', borderRadius: '12px', width: '550px', border: '1px solid #23304a', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: '#fff' }}>💸 Despesas Vinculadas à Viagem em Trânsito</h3>
+              <button 
+                onClick={() => { setModalListaDespesasAberto(false); setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }}
+                style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+              >
+                + Adicionar Despesa
+              </button>
+            </div>
             {(!viagemAtiva?.despesas_viagem || viagemAtiva.despesas_viagem.length === 0) ? (
-              <p style={{ color: '#94a3b8' }}>Nenhuma despesa registrada.</p>
+              <p style={{ color: '#94a3b8' }}>Nenhuma despesa registrada até o momento.</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-                <thead><tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}><th style={{ padding: '8px' }}>Tipo</th><th style={{ padding: '8px' }}>Descrição</th><th style={{ padding: '8px' }}>Valor</th></tr></thead>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+                    <th style={{ padding: '8px' }}>Tipo</th>
+                    <th style={{ padding: '8px' }}>Descrição</th>
+                    <th style={{ padding: '8px' }}>Valor</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>Ações</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {viagemAtiva.despesas_viagem.map(d => (
-                    <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}><td style={{ padding: '8px' }}>{d.tipo}</td><td style={{ padding: '8px' }}>{d.descricao || '-'}</td><td style={{ padding: '8px', color: '#f87171' }}>R$ {Number(d.valor).toFixed(2)}</td></tr>
+                    <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '8px' }}>{d.tipo}</td>
+                      <td style={{ padding: '8px' }}>{d.descricao || '-'}</td>
+                      <td style={{ padding: '8px', color: '#f87171', fontWeight: 'bold' }}>R$ {Number(d.valor).toFixed(2)}</td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button onClick={() => handleEditarDespesaItem(d)} style={{ background: '#eab308', color: '#000', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Editar</button>
+                          <button onClick={() => handleExcluirDespesaItem(d.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Excluir</button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             )}
-            <div style={{ marginTop: '20px', textAlign: 'right' }}><button onClick={() => setModalListaDespesasAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button></div>
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
+              <button onClick={() => setModalListaDespesasAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Fechar</button>
+            </div>
           </div>
         </div>
       )}
