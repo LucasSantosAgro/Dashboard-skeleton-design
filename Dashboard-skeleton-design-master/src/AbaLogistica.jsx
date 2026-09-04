@@ -57,9 +57,42 @@ export default function AbaLogistica() {
   const [formDesp, setFormDesp] = useState({ tipo: 'Pedágio', valor: '', descricao: '' });
   const [formFim, setFormFim] = useState({ kmFinal: '', pesoDescarga: '', localDescarga: '' });
 
+  // Formulário Edição Completa pelo Gestor
+  const [formEdicaoGestor, setFormEdicaoGestor] = useState({
+    placa: '',
+    operador: '',
+    km_inicial: '',
+    km_final: '',
+    local_carregamento: '',
+    local_descarga: '',
+    cliente_destino: '',
+    produto: '',
+    peso_carregado: '',
+    peso_descarga: '',
+    nota_fiscal: ''
+  });
+
   useEffect(() => {
     verificarUsuarioEObterDados();
   }, []);
+
+  useEffect(() => {
+    if (viagemSelecionada) {
+      setFormEdicaoGestor({
+        placa: viagemSelecionada.placa || '',
+        operador: viagemSelecionada.operador || '',
+        km_inicial: viagemSelecionada.km_inicial ?? '',
+        km_final: viagemSelecionada.km_final ?? '',
+        local_carregamento: viagemSelecionada.local_carregamento || '',
+        local_descarga: viagemSelecionada.local_descarga || '',
+        cliente_destino: viagemSelecionada.cliente_destino || '',
+        produto: viagemSelecionada.produto || '',
+        peso_carregado: viagemSelecionada.peso_carregado ?? '',
+        peso_descarga: viagemSelecionada.peso_descarga ?? '',
+        nota_fiscal: viagemSelecionada.nota_fiscal || ''
+      });
+    }
+  }, [viagemSelecionada]);
 
   const verificarUsuarioEObterDados = async () => {
     setCarregando(true);
@@ -370,6 +403,47 @@ export default function AbaLogistica() {
     setViagemAtiva(null);
     setModalFinalizarAberto(false);
     setFormFim({ kmFinal: '', pesoDescarga: '', localDescarga: '' });
+  };
+
+  const handleSalvarEdicaoGestor = async (e) => {
+    e.preventDefault();
+    if (!viagemSelecionada) return;
+
+    const payload = {
+      placa: formEdicaoGestor.placa,
+      operador: formEdicaoGestor.operador,
+      km_inicial: formEdicaoGestor.km_inicial === '' ? null : Number(formEdicaoGestor.km_inicial),
+      km_final: formEdicaoGestor.km_final === '' ? null : Number(formEdicaoGestor.km_final),
+      local_carregamento: formEdicaoGestor.local_carregamento,
+      local_descarga: formEdicaoGestor.local_descarga,
+      cliente_destino: formEdicaoGestor.cliente_destino,
+      produto: formEdicaoGestor.produto,
+      peso_carregado: formEdicaoGestor.peso_carregado === '' ? null : Number(formEdicaoGestor.peso_carregado),
+      peso_descarga: formEdicaoGestor.peso_descarga === '' ? null : Number(formEdicaoGestor.peso_descarga),
+      nota_fiscal: formEdicaoGestor.nota_fiscal
+    };
+
+    const { data, error } = await supabase
+      .from('diario_bordo')
+      .update(payload)
+      .eq('id', viagemSelecionada.id)
+      .select(`*, despesas_viagem (*), abastecimentos_viagem (*)`);
+
+    if (error) {
+      alert('Erro ao atualizar diário: ' + error.message);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      const atualizado = data[0];
+      setViagemSelecionada(atualizado);
+      setViagensFinalizadas(prev => prev.map(v => v.id === atualizado.id ? atualizado : v));
+      setViagensEmTransitoList(prev => prev.map(v => v.id === atualizado.id ? atualizado : v));
+      if (viagemAtiva && viagemAtiva.id === atualizado.id) {
+        setViagemAtiva(atualizado);
+      }
+      alert('Dados do diário atualizados com sucesso!');
+    }
   };
 
   const handleExcluirViagem = async (id) => {
@@ -752,7 +826,7 @@ export default function AbaLogistica() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Nota Fiscal</label>
-                  <input type="text" placeholder="Nº NF" value={formViagem.notaFiscal} onChange={e => setFormViagem({...formViagem, notaFiscal: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                  <input type="text" placeholder="Nº NF" value={formViagem.notaFiscal} onChange={e => setFormViagem({...formViagem, notaFiscal: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
                   <button type="submit" style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Iniciar Diário</button>
@@ -1180,20 +1254,78 @@ export default function AbaLogistica() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
           <div style={{ background: '#161e31', padding: '20px', borderRadius: '12px', width: '100%', maxWidth: '600px', border: '1px solid #23304a', maxHeight: '90vh', overflowY: 'auto', color: '#fff' }}>
             <h3 style={{ margin: '0 0 12px 0', borderBottom: '1px solid #334155', paddingBottom: '8px', fontSize: '16px' }}>Detalhes - {viagemSelecionada.placa}</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px', marginBottom: '16px' }}>
-              <div><b>Operador:</b> {viagemSelecionada.operador || 'N/D'}</div>
-              <div><b>Status:</b> {viagemSelecionada.status === 'EM_TRANSITO' ? 'Em Trânsito 🚚' : 'Finalizada 🏁'}</div>
-              <div><b>Data Início:</b> {formatarData(viagemSelecionada.created_at)}</div>
-              <div><b>Data Final:</b> {formatarData(viagemSelecionada.finished_at || viagemSelecionada.updated_at)}</div>
-              <div><b>KM Rodados:</b> {(viagemSelecionada.km_final && viagemSelecionada.km_inicial) ? (viagemSelecionada.km_final - viagemSelecionada.km_inicial) : 'N/D'} km</div>
-              <div><b>Carregamento:</b> {viagemSelecionada.local_carregamento}</div>
-              <div><b>Descarga:</b> {viagemSelecionada.local_descarga || 'N/D'}</div>
-              <div><b>Produto:</b> {viagemSelecionada.produto || 'N/D'}</div>
-              <div><b>Destino:</b> {viagemSelecionada.cliente_destino || 'N/D'}</div>
-              <div><b>Nota Fiscal:</b> {viagemSelecionada.nota_fiscal || 'N/D'}</div>
-              <div><b>Peso Carregado:</b> {viagemSelecionada.peso_carregado?.toLocaleString()} kg</div>
-              <div><b>Peso Descarga:</b> {viagemSelecionada.peso_descarga?.toLocaleString()} kg</div>
-            </div>
+            
+            {tipoUsuario === 'GESTOR' ? (
+              <form onSubmit={handleSalvarEdicaoGestor} style={{ marginBottom: '16px', background: '#0e1626', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: '13px' }}>✏️ Editar Dados do Diário</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Placa</label>
+                    <input type="text" value={formEdicaoGestor.placa} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, placa: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Operador</label>
+                    <input type="text" value={formEdicaoGestor.operador} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, operador: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>KM Inicial</label>
+                    <input type="number" value={formEdicaoGestor.km_inicial} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, km_inicial: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>KM Final</label>
+                    <input type="number" value={formEdicaoGestor.km_final} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, km_final: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Carregamento</label>
+                    <input type="text" value={formEdicaoGestor.local_carregamento} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, local_carregamento: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Descarga</label>
+                    <input type="text" value={formEdicaoGestor.local_descarga} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, local_descarga: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Cliente / Destino</label>
+                    <input type="text" value={formEdicaoGestor.cliente_destino} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, cliente_destino: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Produto</label>
+                    <input type="text" value={formEdicaoGestor.produto} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, produto: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Peso Carregado</label>
+                    <input type="number" step="0.01" value={formEdicaoGestor.peso_carregado} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, peso_carregado: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Peso Descarga</label>
+                    <input type="number" step="0.01" value={formEdicaoGestor.peso_descarga} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, peso_descarga: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Nota Fiscal</label>
+                    <input type="text" value={formEdicaoGestor.nota_fiscal} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, nota_fiscal: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                <div style={{ marginTop: '10px', textAlign: 'right' }}>
+                  <button type="submit" style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                    Salvar Alterações
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px', marginBottom: '16px' }}>
+                <div><b>Operador:</b> {viagemSelecionada.operador || 'N/D'}</div>
+                <div><b>Status:</b> {viagemSelecionada.status === 'EM_TRANSITO' ? 'Em Trânsito 🚚' : 'Finalizada 🏁'}</div>
+                <div><b>Data Início:</b> {formatarData(viagemSelecionada.created_at)}</div>
+                <div><b>Data Final:</b> {formatarData(viagemSelecionada.finished_at || viagemSelecionada.updated_at)}</div>
+                <div><b>KM Rodados:</b> {(viagemSelecionada.km_final && viagemSelecionada.km_inicial) ? (viagemSelecionada.km_final - viagemSelecionada.km_inicial) : 'N/D'} km</div>
+                <div><b>Carregamento:</b> {viagemSelecionada.local_carregamento}</div>
+                <div><b>Descarga:</b> {viagemSelecionada.local_descarga || 'N/D'}</div>
+                <div><b>Produto:</b> {viagemSelecionada.produto || 'N/D'}</div>
+                <div><b>Destino:</b> {viagemSelecionada.cliente_destino || 'N/D'}</div>
+                <div><b>Nota Fiscal:</b> {viagemSelecionada.nota_fiscal || 'N/D'}</div>
+                <div><b>Peso Carregado:</b> {viagemSelecionada.peso_carregado?.toLocaleString()} kg</div>
+                <div><b>Peso Descarga:</b> {viagemSelecionada.peso_descarga?.toLocaleString()} kg</div>
+              </div>
+            )}
 
             <h4 style={{ color: '#0ea5e9', marginBottom: '6px', fontSize: '13px' }}>Abastecimentos</h4>
             <div style={{ background: '#0e1626', padding: '10px', borderRadius: '6px', fontSize: '12px', marginBottom: '12px' }}>
