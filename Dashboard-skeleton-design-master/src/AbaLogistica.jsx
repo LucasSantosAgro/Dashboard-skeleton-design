@@ -186,12 +186,13 @@ export default function AbaLogistica() {
     }
   };
 
-  const handleSalvarAbastecimento = async (e) => {
-    e.preventDefault();
-    if (!viagemAtiva) return;
+  const handleSalvarAbastecimentoModal = async (e, alvoViagem = null) => {
+    if (e) e.preventDefault();
+    const target = alvoViagem || viagemAtiva;
+    if (!target) return;
 
     const payload = {
-      viagem_id: viagemAtiva.id,
+      viagem_id: target.id,
       km_abastecimento: Number(formAbast.kmAbastecimento),
       litros_combustivel: Number(formAbast.litrosCombustivel),
       valor_combustivel: Number(formAbast.valorCombustivel),
@@ -199,7 +200,7 @@ export default function AbaLogistica() {
       numero_nota_combustivel: formAbast.numeroNotaCombustivel
     };
 
-    if (abastecimentoEditandoId) {
+    if (abastecimentoEditandoId && abastecimentoEditandoId !== 'legado') {
       const { data, error } = await supabase
         .from('abastecimentos_viagem')
         .update(payload)
@@ -207,22 +208,21 @@ export default function AbaLogistica() {
         .select();
 
       if (error) {
-        const { data: dataLegado, error: errLegado } = await supabase
-          .from('diario_bordo')
-          .update(payload)
-          .eq('id', viagemAtiva.id)
-          .select(`*, despesas_viagem (*), abastecimentos_viagem (*)`);
+        alert('Erro ao atualizar abastecimento: ' + error.message);
+        return;
+      }
 
-        if (errLegado) {
-          alert('Erro ao atualizar abastecimento: ' + errLegado.message);
-          return;
+      if (data && data.length > 0) {
+        const itemAtualizado = data[0];
+        const atualizarLista = (prevList) => (prevList || []).map(a => a.id === abastecimentoEditandoId ? itemAtualizado : a);
+
+        if (viagemAtiva && viagemAtiva.id === target.id) {
+          setViagemAtiva(prev => ({ ...prev, abastecimentos_viagem: atualizarLista(prev.abastecimentos_viagem) }));
         }
-        if (dataLegado && dataLegado.length > 0) setViagemAtiva(dataLegado[0]);
-      } else if (data && data.length > 0) {
-        setViagemAtiva(prev => ({
-          ...prev,
-          abastecimentos_viagem: (prev.abastecimentos_viagem || []).map(a => a.id === abastecimentoEditandoId ? data[0] : a)
-        }));
+        if (viagemSelecionada && viagemSelecionada.id === target.id) {
+          setViagemSelecionada(prev => ({ ...prev, abastecimentos_viagem: atualizarLista(prev.abastecimentos_viagem) }));
+        }
+        setViagensFinalizadas(prev => prev.map(v => v.id === target.id ? { ...v, abastecimentos_viagem: atualizarLista(v.abastecimentos_viagem) } : v));
       }
     } else {
       const { data, error } = await supabase
@@ -234,25 +234,40 @@ export default function AbaLogistica() {
         const { data: dataLegado, error: errLegado } = await supabase
           .from('diario_bordo')
           .update(payload)
-          .eq('id', viagemAtiva.id)
+          .eq('id', target.id)
           .select(`*, despesas_viagem (*), abastecimentos_viagem (*)`);
 
         if (errLegado) {
           alert('Erro ao salvar abastecimento: ' + errLegado.message);
           return;
         }
-        if (dataLegado && dataLegado.length > 0) setViagemAtiva(dataLegado[0]);
+        if (dataLegado && dataLegado.length > 0) {
+          const vAtual = dataLegado[0];
+          if (viagemAtiva && viagemAtiva.id === target.id) setViagemAtiva(vAtual);
+          if (viagemSelecionada && viagemSelecionada.id === target.id) setViagemSelecionada(vAtual);
+          setViagensFinalizadas(prev => prev.map(v => v.id === target.id ? vAtual : v));
+        }
       } else if (data && data.length > 0) {
-        setViagemAtiva(prev => ({
-          ...prev,
-          abastecimentos_viagem: [...(prev.abastecimentos_viagem || []), ...data]
-        }));
+        const novoItem = data[0];
+        const adicionarLista = (prevList) => [...(prevList || []), novoItem];
+
+        if (viagemAtiva && viagemAtiva.id === target.id) {
+          setViagemAtiva(prev => ({ ...prev, abastecimentos_viagem: adicionarLista(prev.abastecimentos_viagem) }));
+        }
+        if (viagemSelecionada && viagemSelecionada.id === target.id) {
+          setViagemSelecionada(prev => ({ ...prev, abastecimentos_viagem: adicionarLista(prev.abastecimentos_viagem) }));
+        }
+        setViagensFinalizadas(prev => prev.map(v => v.id === target.id ? { ...v, abastecimentos_viagem: adicionarLista(v.abastecimentos_viagem) } : v));
       }
     }
 
     setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' });
     setAbastecimentoEditandoId(null);
     setModalAbastecimentoAberto(false);
+  };
+
+  const handleSalvarAbastecimento = (e) => {
+    handleSalvarAbastecimentoModal(e, modalDetalhesAberto ? viagemSelecionada : viagemAtiva);
   };
 
   const handleEditarAbastecimentoItem = (abast) => {
@@ -267,8 +282,9 @@ export default function AbaLogistica() {
     setModalAbastecimentoAberto(true);
   };
 
-  const handleExcluirAbastecimentoItem = async (abastId) => {
+  const handleExcluirAbastecimentoItem = async (abastId, viagemAlvo = null) => {
     if (!window.confirm('Deseja excluir este registro de abastecimento?')) return;
+    const target = viagemAlvo || viagemAtiva;
 
     const { error } = await supabase
       .from('abastecimentos_viagem')
@@ -280,18 +296,24 @@ export default function AbaLogistica() {
       return;
     }
 
-    setViagemAtiva(prev => ({
-      ...prev,
-      abastecimentos_viagem: (prev.abastecimentos_viagem || []).filter(a => a.id !== abastId)
-    }));
+    const removerLista = (prevList) => (prevList || []).filter(a => a.id !== abastId);
+
+    if (viagemAtiva && viagemAtiva.id === target?.id) {
+      setViagemAtiva(prev => ({ ...prev, abastecimentos_viagem: removerLista(prev.abastecimentos_viagem) }));
+    }
+    if (viagemSelecionada && viagemSelecionada.id === target?.id) {
+      setViagemSelecionada(prev => ({ ...prev, abastecimentos_viagem: removerLista(prev.abastecimentos_viagem) }));
+    }
+    setViagensFinalizadas(prev => prev.map(v => v.id === target?.id ? { ...v, abastecimentos_viagem: removerLista(v.abastecimentos_viagem) } : v));
   };
 
-  const handleSalvarDespesa = async (e) => {
-    e.preventDefault();
-    if (!viagemAtiva) return;
+  const handleSalvarDespesaModal = async (e, alvoViagem = null) => {
+    if (e) e.preventDefault();
+    const target = alvoViagem || viagemAtiva;
+    if (!target) return;
 
     const payload = {
-      viagem_id: viagemAtiva.id,
+      viagem_id: target.id,
       tipo: formDesp.tipo,
       valor: Number(formDesp.valor),
       descricao: formDesp.descricao
@@ -310,10 +332,17 @@ export default function AbaLogistica() {
       }
 
       if (data && data.length > 0) {
-        setViagemAtiva(prev => ({
-          ...prev,
-          despesas_viagem: (prev.despesas_viagem || []).map(d => d.id === despesaEditandoId ? data[0] : d)
-        }));
+        const itemAtualiz = data[0];
+        const atualizarLista = (prevList) => (prevList || []).map(d => d.id === despesaEditandoId ? itemAtualiz : d);
+
+        if (viagemAtiva && viagemAtiva.id === target.id) {
+          setViagemAtiva(prev => ({ ...prev, despesas_viagem: atualizarLista(prev.despesas_viagem) }));
+        }
+        if (viagemSelecionada && viagemSelecionada.id === target.id) {
+          setViagemSelecionada(prev => ({ ...prev, despesas_viagem: atualizarLista(prev.despesas_viagem) }));
+        }
+        setViagensFinalizadas(prev => prev.map(v => v.id === target.id ? { ...v, despesas_viagem: atualizarLista(v.despesas_viagem) } : v));
+
         setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' });
         setDespesaEditandoId(null);
         setModalDespesaAberto(false);
@@ -330,14 +359,25 @@ export default function AbaLogistica() {
       }
 
       if (data && data.length > 0) {
-        setViagemAtiva(prev => ({
-          ...prev,
-          despesas_viagem: [...(prev.despesas_viagem || []), ...data]
-        }));
+        const itemNovo = data[0];
+        const adicionarLista = (prevList) => [...(prevList || []), itemNovo];
+
+        if (viagemAtiva && viagemAtiva.id === target.id) {
+          setViagemAtiva(prev => ({ ...prev, despesas_viagem: adicionarLista(prev.despesas_viagem) }));
+        }
+        if (viagemSelecionada && viagemSelecionada.id === target.id) {
+          setViagemSelecionada(prev => ({ ...prev, despesas_viagem: adicionarLista(prev.despesas_viagem) }));
+        }
+        setViagensFinalizadas(prev => prev.map(v => v.id === target.id ? { ...v, despesas_viagem: adicionarLista(v.despesas_viagem) } : v));
+
         setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' });
         setModalDespesaAberto(false);
       }
     }
+  };
+
+  const handleSalvarDespesa = (e) => {
+    handleSalvarDespesaModal(e, modalDetalhesAberto ? viagemSelecionada : viagemAtiva);
   };
 
   const handleEditarDespesaItem = (despesa) => {
@@ -350,8 +390,9 @@ export default function AbaLogistica() {
     setModalDespesaAberto(true);
   };
 
-  const handleExcluirDespesaItem = async (despesaId) => {
+  const handleExcluirDespesaItem = async (despesaId, viagemAlvo = null) => {
     if (!window.confirm('Deseja excluir este lançamento de despesa?')) return;
+    const target = viagemAlvo || viagemAtiva;
 
     const { error } = await supabase
       .from('despesas_viagem')
@@ -363,10 +404,15 @@ export default function AbaLogistica() {
       return;
     }
 
-    setViagemAtiva(prev => ({
-      ...prev,
-      despesas_viagem: (prev.despesas_viagem || []).filter(d => d.id !== despesaId)
-    }));
+    const removerLista = (prevList) => (prevList || []).filter(d => d.id !== despesaId);
+
+    if (viagemAtiva && viagemAtiva.id === target?.id) {
+      setViagemAtiva(prev => ({ ...prev, despesas_viagem: removerLista(prev.despesas_viagem) }));
+    }
+    if (viagemSelecionada && viagemSelecionada.id === target?.id) {
+      setViagemSelecionada(prev => ({ ...prev, despesas_viagem: removerLista(prev.despesas_viagem) }));
+    }
+    setViagensFinalizadas(prev => prev.map(v => v.id === target?.id ? { ...v, despesas_viagem: removerLista(v.despesas_viagem) } : v));
   };
 
   const handleConcluirViagem = async (e) => {
@@ -589,8 +635,118 @@ export default function AbaLogistica() {
     });
   }, [viagensFinalizadasFiltradas]);
 
+  // Estilos globais modernos e responsivos
+  const styles = {
+    container: {
+      padding: '16px',
+      color: '#f8fafc',
+      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0b132b 0%, #1c2541 100%)',
+      boxSizing: 'border-box'
+    },
+    card: {
+      background: 'rgba(28, 37, 65, 0.7)',
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      padding: '18px',
+      borderRadius: '16px',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+    },
+    input: {
+      width: '100%',
+      padding: '10px 12px',
+      background: '#0b132b',
+      border: '1px solid #334155',
+      borderRadius: '8px',
+      color: '#f8fafc',
+      fontSize: '13px',
+      boxSizing: 'border-box',
+      outline: 'none',
+      transition: 'border-color 0.2s'
+    },
+    btnPrimary: {
+      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '10px 16px',
+      borderRadius: '8px',
+      fontWeight: '600',
+      cursor: 'pointer',
+      fontSize: '13px',
+      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+      transition: 'transform 0.1s, opacity 0.2s'
+    },
+    btnSuccess: {
+      background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '10px 16px',
+      borderRadius: '8px',
+      fontWeight: '600',
+      cursor: 'pointer',
+      fontSize: '13px',
+      boxShadow: '0 4px 14px rgba(22, 163, 74, 0.4)'
+    },
+    btnWarning: {
+      background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '10px 16px',
+      borderRadius: '8px',
+      fontWeight: '600',
+      cursor: 'pointer',
+      fontSize: '13px',
+      boxShadow: '0 4px 14px rgba(217, 119, 6, 0.4)'
+    },
+    btnPurple: {
+      background: 'linear-gradient(135deg, #9333ea 0%, #7e22ce 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '10px 16px',
+      borderRadius: '8px',
+      fontWeight: '600',
+      cursor: 'pointer',
+      fontSize: '13px',
+      boxShadow: '0 4px 14px rgba(147, 51, 234, 0.4)'
+    },
+    btnSecondary: {
+      background: '#334155',
+      color: '#94a3b8',
+      border: 'none',
+      padding: '10px 16px',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '13px'
+    },
+    tableTh: {
+      padding: '12px 10px',
+      color: '#94a3b8',
+      fontWeight: '600',
+      fontSize: '12px',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em'
+    },
+    modalOverlay: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      background: 'rgba(5, 10, 20, 0.85)',
+      backdropFilter: 'blur(8px)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+      padding: '12px',
+      boxSizing: 'border-box'
+    }
+  };
+
   if (carregando) {
-    return <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}>Carregando dados do Supabase...</div>;
+    return <div style={{ padding: '40px', color: '#fff', textAlign: 'center', fontFamily: 'sans-serif' }}>Carregando dados do Supabase...</div>;
   }
 
   const abastInfoAtiva = getTotaisAbastecimento(viagemAtiva);
@@ -628,29 +784,34 @@ export default function AbaLogistica() {
   };
 
   return (
-    <div style={{ padding: '12px', color: '#fff', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0b132b', boxSizing: 'border-box' }}>
+    <div style={styles.container}>
       
       {/* Cabeçalho */}
-      <div style={{ marginBottom: '16px', background: '#1c2541', padding: '16px', borderRadius: '8px' }}>
-        <h2 style={{ margin: 0, fontSize: '18px' }}>
-          {tipoUsuario === 'GESTOR' ? '📊 Dashboard Logístico' : '🚚 Diário de Bordo'}
-        </h2>
-        <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-          {tipoUsuario === 'GESTOR' ? 'Visão Geral e KPIs da Frota' : 'Lançamento de Viagens e Operação'}
-        </span>
+      <div style={{ ...styles.card, marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {tipoUsuario === 'GESTOR' ? '📊 Dashboard Logístico' : '🚚 Diário de Bordo'}
+          </h2>
+          <span style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+            {tipoUsuario === 'GESTOR' ? 'Visão Geral e KPIs da Frota' : 'Lançamento de Viagens e Operação'}
+          </span>
+        </div>
+        <div style={{ background: tipoUsuario === 'GESTOR' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(74, 222, 128, 0.15)', border: `1px solid ${tipoUsuario === 'GESTOR' ? '#38bdf8' : '#4ade80'}`, padding: '6px 12px', borderRadius: '20px', color: tipoUsuario === 'GESTOR' ? '#38bdf8' : '#4ade80', fontSize: '12px', fontWeight: '600' }}>
+          {tipoUsuario}
+        </div>
       </div>
 
       {/* VISÃO EXCLUSIVA DO GESTOR */}
       {tipoUsuario === 'GESTOR' && (
         <>
           {/* PAINEL DE FILTROS DO GESTOR */}
-          <div style={{ background: '#1c2541', padding: '16px', borderRadius: '12px', border: '1px solid #334155', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-              <span style={{ fontWeight: 'bold', color: '#38bdf8', fontSize: '14px' }}>
+          <div style={{ ...styles.card, marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <span style={{ fontWeight: '600', color: '#38bdf8', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 🔍 Filtros do Dashboard
               </span>
               {(filtroModo !== 'TODOS' || filtroPlacaGestor) && (
-                <button onClick={limparFiltros} style={{ background: '#334155', color: '#94a3b8', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                <button onClick={limparFiltros} style={styles.btnSecondary}>
                   Limpar Filtros
                 </button>
               )}
@@ -658,11 +819,11 @@ export default function AbaLogistica() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', alignItems: 'flex-end' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Período:</label>
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Período:</label>
                 <select 
                   value={filtroModo} 
                   onChange={e => setFiltroModo(e.target.value)}
-                  style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                  style={styles.input}
                 >
                   <option value="TODOS">Todo o Histórico</option>
                   <option value="PERIODO">Intervalo</option>
@@ -674,20 +835,20 @@ export default function AbaLogistica() {
               {filtroModo === 'PERIODO' && (
                 <>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Início:</label>
-                    <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Início:</label>
+                    <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Fim:</label>
-                    <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Fim:</label>
+                    <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} style={styles.input} />
                   </div>
                 </>
               )}
 
               {filtroModo === 'MES_ANO' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Mês:</label>
-                  <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Mês:</label>
+                  <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)} style={styles.input}>
                     <option value="">Selecione...</option>
                     <option value="0">Janeiro</option>
                     <option value="1">Fevereiro</option>
@@ -707,78 +868,78 @@ export default function AbaLogistica() {
 
               {(filtroModo === 'MES_ANO' || filtroModo === 'ANO') && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Ano:</label>
-                  <input type="number" placeholder="2026" value={filtroAno} onChange={e => setFiltroAno(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Ano:</label>
+                  <input type="number" placeholder="2026" value={filtroAno} onChange={e => setFiltroAno(e.target.value)} style={styles.input} />
                 </div>
               )}
 
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Placa:</label>
-                <input type="text" placeholder="ABC-1234" value={filtroPlacaGestor} onChange={e => setFiltroPlacaGestor(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }} />
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Placa:</label>
+                <input type="text" placeholder="ABC-1234" value={filtroPlacaGestor} onChange={e => setFiltroPlacaGestor(e.target.value)} style={styles.input} />
               </div>
             </div>
           </div>
 
           {/* Cards KPI Responsivos */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
             <div 
               onClick={() => setModalEmTransitoAberto(true)} 
               onMouseEnter={() => setIsHoveredCardEmTransito(true)}
               onMouseLeave={() => setIsHoveredCardEmTransito(false)}
-              style={{ background: '#1c2541', padding: '16px', borderRadius: '12px', border: `1px solid ${isHoveredCardEmTransito ? '#eab308' : '#334155'}`, cursor: 'pointer', transition: '0.2s' }}
+              style={{ ...styles.card, border: `1px solid ${isHoveredCardEmTransito ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`, cursor: 'pointer', transition: 'all 0.2s' }}
             >
-              <p style={{ margin: '0 0 4px 0', color: '#94a3b8', fontSize: '13px' }}>Em Trânsito</p>
-              <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '4px' }}>👆 Clique p/ detalhes</span>
-              <h3 style={{ margin: 0, fontSize: '24px', color: '#eab308' }}>{viagensEmTransitoCount}</h3>
+              <p style={{ margin: '0 0 4px 0', color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>Em Trânsito</p>
+              <span style={{ fontSize: '11px', color: '#f59e0b', display: 'block', marginBottom: '8px' }}>👆 Clique p/ detalhes</span>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#f59e0b', fontWeight: '700' }}>{viagensEmTransitoCount}</h3>
             </div>
-            <div style={{ background: '#1c2541', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '13px' }}>Viagens Finalizadas</p>
-              <h3 style={{ margin: 0, fontSize: '24px', color: '#60a5fa' }}>{totalViagens}</h3>
+            <div style={{ ...styles.card, border: '1px solid rgba(96, 165, 250, 0.3)' }}>
+              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>Viagens Finalizadas</p>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#60a5fa', fontWeight: '700' }}>{totalViagens}</h3>
             </div>
-            <div style={{ background: '#1c2541', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '13px' }}>KM Rodados</p>
-              <h3 style={{ margin: 0, fontSize: '24px', color: '#4ade80' }}>{kmTotalRodados.toLocaleString()} km</h3>
+            <div style={{ ...styles.card, border: '1px solid rgba(74, 222, 128, 0.3)' }}>
+              <p style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>KM Rodados</p>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#4ade80', fontWeight: '700' }}>{kmTotalRodados.toLocaleString()} km</h3>
             </div>
             <div 
               onClick={() => setModalCustoTotalAberto(true)}
               onMouseEnter={() => setIsHoveredCardCustoTotal(true)}
               onMouseLeave={() => setIsHoveredCardCustoTotal(false)}
-              style={{ background: '#1c2541', padding: '16px', borderRadius: '12px', border: `1px solid ${isHoveredCardCustoTotal ? '#f87171' : '#334155'}`, cursor: 'pointer', transition: '0.2s' }}
+              style={{ ...styles.card, border: `1px solid ${isHoveredCardCustoTotal ? '#f87171' : 'rgba(248, 113, 113, 0.3)'}`, cursor: 'pointer', transition: 'all 0.2s' }}
             >
-              <p style={{ margin: '0 0 4px 0', color: '#94a3b8', fontSize: '13px' }}>Custo Total</p>
-              <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '4px' }}>👆 Clique p/ detalhes</span>
-              <h3 style={{ margin: 0, fontSize: '24px', color: '#f87171' }}>R$ {custoOperacionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              <p style={{ margin: '0 0 4px 0', color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>Custo Total</p>
+              <span style={{ fontSize: '11px', color: '#f87171', display: 'block', marginBottom: '8px' }}>👆 Clique p/ detalhes</span>
+              <h3 style={{ margin: 0, fontSize: '28px', color: '#f87171', fontWeight: '700' }}>R$ {custoOperacionalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
             </div>
           </div>
 
-          <div style={{ marginBottom: '24px', background: '#131b2e', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#e2e8f0' }}>📊 Desempenho e Custos por Placa</h3>
+          <div style={{ ...styles.card, marginBottom: '24px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#e2e8f0', fontWeight: '600' }}>📊 Desempenho e Custos por Placa</h3>
             {kpisPorPlaca.length === 0 ? (
               <p style={{ color: '#64748b', fontSize: '13px' }}>Nenhum dado registrado para o filtro selecionado.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', minWidth: '600px' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                      <th style={{ padding: '8px' }}>Placa</th>
-                      <th style={{ padding: '8px' }}>Viagens</th>
-                      <th style={{ padding: '8px' }}>KM Total</th>
-                      <th style={{ padding: '8px' }}>Média Km/L</th>
-                      <th style={{ padding: '8px' }}>Gasto Comb.</th>
-                      <th style={{ padding: '8px' }}>Despesas</th>
-                      <th style={{ padding: '8px' }}>Custo Médio</th>
+                    <tr style={{ borderBottom: '1px solid #334155' }}>
+                      <th style={styles.tableTh}>Placa</th>
+                      <th style={styles.tableTh}>Viagens</th>
+                      <th style={styles.tableTh}>KM Total</th>
+                      <th style={styles.tableTh}>Média Km/L</th>
+                      <th style={styles.tableTh}>Gasto Comb.</th>
+                      <th style={styles.tableTh}>Despesas</th>
+                      <th style={styles.tableTh}>Custo Médio</th>
                     </tr>
                   </thead>
                   <tbody>
                     {kpisPorPlaca.map((kpi, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#60a5fa' }}>{kpi.placa}</td>
-                        <td style={{ padding: '10px' }}>{kpi.qtdViagens}</td>
-                        <td style={{ padding: '10px' }}>{kpi.kmTotal.toLocaleString()} km</td>
-                        <td style={{ padding: '10px', color: Number(kpi.mediaKmPorLitro) > 0 ? '#4ade80' : '#cbd5e1' }}>{kpi.mediaKmPorLitro}</td>
-                        <td style={{ padding: '10px', color: '#f87171' }}>R$ {Number(kpi.combustivelMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td style={{ padding: '10px', color: '#fbbf24' }}>R$ {Number(kpi.despesaMediaPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {Number(kpi.custoMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '12px 10px', fontWeight: 'bold', color: '#38bdf8' }}>{kpi.placa}</td>
+                        <td style={{ padding: '12px 10px' }}>{kpi.qtdViagens}</td>
+                        <td style={{ padding: '12px 10px' }}>{kpi.kmTotal.toLocaleString()} km</td>
+                        <td style={{ padding: '12px 10px', color: Number(kpi.mediaKmPorLitro) > 0 ? '#4ade80' : '#cbd5e1' }}>{kpi.mediaKmPorLitro}</td>
+                        <td style={{ padding: '12px 10px', color: '#f87171' }}>R$ {Number(kpi.combustivelMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '12px 10px', color: '#fbbf24' }}>R$ {Number(kpi.despesaMediaPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '12px 10px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {Number(kpi.custoMedioPorViagem).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -793,70 +954,70 @@ export default function AbaLogistica() {
       {tipoUsuario === 'MOTORISTA' && (
         <>
           {!viagemAtiva ? (
-            <div style={{ background: '#1c2541', padding: '16px', borderRadius: '12px', border: '1px solid #334155', marginBottom: '24px' }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#e2e8f0' }}>🚀 Iniciar Novo Diário de Bordo</h3>
-              <form onSubmit={handleIniciarViagem} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+            <div style={{ ...styles.card, marginBottom: '24px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#38bdf8', fontWeight: '600' }}>🚀 Iniciar Novo Diário de Bordo</h3>
+              <form onSubmit={handleIniciarViagem} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Placa</label>
-                  <input type="text" placeholder="ABC-1234" value={formViagem.placa} onChange={e => setFormViagem({...formViagem, placa: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Placa</label>
+                  <input type="text" placeholder="ABC-1234" value={formViagem.placa} onChange={e => setFormViagem({...formViagem, placa: e.target.value})} style={styles.input} required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Operador</label>
-                  <input type="text" value={formViagem.operador} onChange={e => setFormViagem({...formViagem, operador: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Operador</label>
+                  <input type="text" value={formViagem.operador} onChange={e => setFormViagem({...formViagem, operador: e.target.value})} style={styles.input} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>KM Inicial</label>
-                  <input type="number" placeholder="150000" value={formViagem.kmInicial} onChange={e => setFormViagem({...formViagem, kmInicial: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>KM Inicial</label>
+                  <input type="number" placeholder="150000" value={formViagem.kmInicial} onChange={e => setFormViagem({...formViagem, kmInicial: e.target.value})} style={styles.input} required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Origem / Carregamento</label>
-                  <input type="text" placeholder="Fazenda / Local" value={formViagem.localCarregamento} onChange={e => setFormViagem({...formViagem, localCarregamento: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Origem / Carregamento</label>
+                  <input type="text" placeholder="Fazenda / Local" value={formViagem.localCarregamento} onChange={e => setFormViagem({...formViagem, localCarregamento: e.target.value})} style={styles.input} required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Destino</label>
-                  <input type="text" placeholder="Cliente / Cidade" value={formViagem.clienteDestino} onChange={e => setFormViagem({...formViagem, clienteDestino: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Destino</label>
+                  <input type="text" placeholder="Cliente / Cidade" value={formViagem.clienteDestino} onChange={e => setFormViagem({...formViagem, clienteDestino: e.target.value})} style={styles.input} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Produto</label>
-                  <input type="text" placeholder="Soja, Milho..." value={formViagem.produto} onChange={e => setFormViagem({...formViagem, produto: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Produto</label>
+                  <input type="text" placeholder="Soja, Milho..." value={formViagem.produto} onChange={e => setFormViagem({...formViagem, produto: e.target.value})} style={styles.input} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Peso (Kg)</label>
-                  <input type="number" step="0.01" placeholder="50000" value={formViagem.pesoCarregado} onChange={e => setFormViagem({...formViagem, pesoCarregado: e.target.value})} style={{ width: '100%', padding: '10px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Peso (Kg)</label>
+                  <input type="number" step="0.01" placeholder="50000" value={formViagem.pesoCarregado} onChange={e => setFormViagem({...formViagem, pesoCarregado: e.target.value})} style={styles.input} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Nota Fiscal</label>
-                  <input type="text" placeholder="Nº NF" value={formViagem.notaFiscal} onChange={e => setFormViagem({...formViagem, notaFiscal: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0b132b', border: '1px solid #334155', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>Nota Fiscal</label>
+                  <input type="text" placeholder="Nº NF" value={formViagem.notaFiscal} onChange={e => setFormViagem({...formViagem, notaFiscal: e.target.value})} style={styles.input} />
                 </div>
                 <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
-                  <button type="submit" style={{ width: '100%', padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Iniciar Diário</button>
+                  <button type="submit" style={{ ...styles.btnPrimary, width: '100%', padding: '12px' }}>Iniciar Diário</button>
                 </div>
               </form>
             </div>
           ) : (
             /* Layout Viagem Ativa */
-            <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', border: '1px solid #23304a', marginBottom: '24px' }}>
+            <div style={{ ...styles.card, marginBottom: '24px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <span style={{ background: '#2563eb', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <span style={{ background: '#2563eb', color: '#fff', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold' }}>
                   EM TRÂNSITO
                 </span>
                 <span style={{ color: '#64748b', fontSize: '12px' }}>ID #{viagemAtiva.id}</span>
               </div>
 
-              <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#cbd5e1', fontWeight: 'normal' }}>
+              <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', color: '#f8fafc', fontWeight: '500' }}>
                 Placa: <strong style={{ color: '#38bdf8' }}>{viagemAtiva.placa}</strong>
               </h3>
 
-              <div style={{ background: '#0e1626', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b', marginBottom: '16px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', fontSize: '13px', marginBottom: '10px' }}>
                   <div>📍 <strong>Origem:</strong> {viagemAtiva.local_carregamento}</div>
                   <div>🎯 <strong>Destino:</strong> {viagemAtiva.cliente_destino || 'N/D'}</div>
                   <div>📦 <strong>Produto:</strong> {viagemAtiva.produto || 'N/D'}</div>
                   <div>⚖️ <strong>Peso:</strong> {viagemAtiva.peso_carregado || '0'} kg</div>
                   <div>📄 <strong>NF:</strong> {viagemAtiva.nota_fiscal || 'N/D'}</div>
                 </div>
-                <div style={{ fontSize: '12px' }}>
+                <div style={{ fontSize: '13px' }}>
                   🏎️ <strong>KM Inicial:</strong> {viagemAtiva.km_inicial} km
                 </div>
               </div>
@@ -864,12 +1025,12 @@ export default function AbaLogistica() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
                 
                 {/* Card Abastecimentos */}
-                <div style={{ border: '1px solid #d97706', borderRadius: '8px', padding: '12px', background: '#0e1626' }}>
+                <div style={{ border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: '10px', padding: '12px', background: 'rgba(15, 23, 42, 0.6)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '13px' }}>
                       ⛽ Combustível ({qtdAbastecimentos})
                     </span>
-                    <button onClick={() => setModalListaAbastecimentosAberto(true)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                    <button onClick={() => setModalListaAbastecimentosAberto(true)} style={{ ...styles.btnWarning, padding: '4px 8px', fontSize: '11px' }}>
                       Ver/Editar
                     </button>
                   </div>
@@ -880,12 +1041,12 @@ export default function AbaLogistica() {
                 </div>
 
                 {/* Card Outros Gastos */}
-                <div style={{ border: '1px solid #9333ea', borderRadius: '8px', padding: '12px', background: '#0e1626' }}>
+                <div style={{ border: '1px solid rgba(147, 51, 234, 0.4)', borderRadius: '10px', padding: '12px', background: 'rgba(15, 23, 42, 0.6)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ color: '#c084fc', fontWeight: 'bold', fontSize: '13px' }}>
                       💸 Despesas ({qtdOutrasDespesas})
                     </span>
-                    <button onClick={() => setModalListaDespesasAberto(true)} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                    <button onClick={() => setModalListaDespesasAberto(true)} style={{ ...styles.btnPurple, padding: '4px 8px', fontSize: '11px' }}>
                       Ver/Editar
                     </button>
                   </div>
@@ -897,14 +1058,14 @@ export default function AbaLogistica() {
               </div>
 
               {/* Botões Inferiores */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' }}>
-                <button onClick={() => { setAbastecimentoEditandoId(null); setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' }); setModalAbastecimentoAberto(true); }} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
+                <button onClick={() => { setAbastecimentoEditandoId(null); setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' }); setModalAbastecimentoAberto(true); }} style={styles.btnWarning}>
                   ⛽ + Abastecimento
                 </button>
-                <button onClick={() => { setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                <button onClick={() => { setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }} style={styles.btnPurple}>
                   💸 + Despesa
                 </button>
-                <button onClick={() => setModalFinalizarAberto(true)} style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                <button onClick={() => setModalFinalizarAberto(true)} style={styles.btnSuccess}>
                   🏁 Finalizar
                 </button>
               </div>
@@ -915,43 +1076,43 @@ export default function AbaLogistica() {
       )}
 
       {/* HISTÓRICO DE VIAGENS FINALIZADAS */}
-      <div style={{ background: '#1c2541', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#e2e8f0' }}>📖 Histórico de Diários</h3>
+      <div style={styles.card}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#e2e8f0', fontWeight: '600' }}>📖 Histórico de Diários</h3>
         {viagensFinalizadasFiltradas.length === 0 ? (
           <p style={{ color: '#94a3b8', fontSize: '13px' }}>Nenhuma viagem finalizada encontrada com os filtros selecionados.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', minWidth: '650px' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                  <th style={{ padding: '8px' }}>Datas</th>
-                  <th style={{ padding: '8px' }}>Placa</th>
-                  <th style={{ padding: '8px' }}>Operador</th>
-                  <th style={{ padding: '8px' }}>Produto / Origem</th>
-                  <th style={{ padding: '8px' }}>KM</th>
-                  <th style={{ padding: '8px' }}>Pesos</th>
-                  <th style={{ padding: '8px', textAlign: 'center' }}>Ações</th>
+                <tr style={{ borderBottom: '1px solid #334155' }}>
+                  <th style={styles.tableTh}>Datas</th>
+                  <th style={styles.tableTh}>Placa</th>
+                  <th style={styles.tableTh}>Operador</th>
+                  <th style={styles.tableTh}>Produto / Origem</th>
+                  <th style={styles.tableTh}>KM</th>
+                  <th style={styles.tableTh}>Pesos</th>
+                  <th style={{ ...styles.tableTh, textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {viagensFinalizadasFiltradas.map(v => {
                   const kmRodados = (v.km_final && v.km_inicial) ? (v.km_final - v.km_inicial) : 0;
                   return (
-                    <tr key={v.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '8px', fontSize: '11px', color: '#cbd5e1' }}>
+                    <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '12px 10px', fontSize: '11px', color: '#cbd5e1' }}>
                         Início: {formatarData(v.created_at)}<br/>
                         Fim: {formatarData(v.finished_at || v.updated_at)}
                       </td>
-                      <td style={{ padding: '8px', fontWeight: 'bold', color: '#60a5fa' }}>{v.placa}</td>
-                      <td style={{ padding: '8px' }}>{v.operador || 'N/D'}</td>
-                      <td style={{ padding: '8px' }}>{v.produto || 'Geral'}<br/><span style={{ fontSize: '10px', color: '#94a3b8' }}>📍 {v.local_carregamento}</span></td>
-                      <td style={{ padding: '8px' }}>{kmRodados} km</td>
-                      <td style={{ padding: '8px', fontSize: '11px' }}>{v.peso_carregado?.toLocaleString()} / {v.peso_descarga?.toLocaleString()} kg</td>
-                      <td style={{ padding: '8px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Det.</button>
+                      <td style={{ padding: '12px 10px', fontWeight: 'bold', color: '#38bdf8' }}>{v.placa}</td>
+                      <td style={{ padding: '12px 10px' }}>{v.operador || 'N/D'}</td>
+                      <td style={{ padding: '12px 10px' }}>{v.produto || 'Geral'}<br/><span style={{ fontSize: '11px', color: '#94a3b8' }}>📍 {v.local_carregamento}</span></td>
+                      <td style={{ padding: '12px 10px' }}>{kmRodados} km</td>
+                      <td style={{ padding: '12px 10px', fontSize: '12px' }}>{v.peso_carregado?.toLocaleString()} / {v.peso_descarga?.toLocaleString()} kg</td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ ...styles.btnPrimary, padding: '6px 10px', fontSize: '11px' }}>Detalhes</button>
                           {tipoUsuario === 'GESTOR' && (
-                            <button onClick={() => handleExcluirViagem(v.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Excl.</button>
+                            <button onClick={() => handleExcluirViagem(v.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Excluir</button>
                           )}
                         </div>
                       </td>
@@ -966,29 +1127,29 @@ export default function AbaLogistica() {
 
       {/* MODAL - CUSTO OPERACIONAL TOTAL POR PLACA */}
       {modalCustoTotalAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', width: '100%', maxWidth: '750px', border: '1px solid #23304a', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: '#f87171', fontSize: '18px' }}>💰 Custo Operacional por Placa</h3>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '750px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#f87171', fontSize: '18px', fontWeight: '600' }}>💰 Custo Operacional por Placa</h3>
             
             <div style={{ overflowY: 'auto', flex: 1, overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', minWidth: '450px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                    <th style={{ padding: '8px' }}>Placa</th>
-                    <th style={{ padding: '8px' }}>Viagens</th>
-                    <th style={{ padding: '8px' }}>Combustível</th>
-                    <th style={{ padding: '8px' }}>Despesas</th>
-                    <th style={{ padding: '8px' }}>Total</th>
+                  <tr style={{ borderBottom: '1px solid #334155' }}>
+                    <th style={styles.tableTh}>Placa</th>
+                    <th style={styles.tableTh}>Viagens</th>
+                    <th style={styles.tableTh}>Combustível</th>
+                    <th style={styles.tableTh}>Despesas</th>
+                    <th style={styles.tableTh}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {kpisPorPlaca.map((kpi, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', color: '#60a5fa' }}>{kpi.placa}</td>
-                      <td style={{ padding: '8px' }}>{kpi.qtdViagens}</td>
-                      <td style={{ padding: '8px', color: '#f87171' }}>R$ {kpi.gastoCombustivelTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '8px', color: '#fbbf24' }}>R$ {kpi.gastoOutrasDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '8px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {kpi.gastoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#38bdf8' }}>{kpi.placa}</td>
+                      <td style={{ padding: '10px' }}>{kpi.qtdViagens}</td>
+                      <td style={{ padding: '10px', color: '#f87171' }}>R$ {kpi.gastoCombustivelTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '10px', color: '#fbbf24' }}>R$ {kpi.gastoOutrasDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#f43f5e' }}>R$ {kpi.gastoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -996,7 +1157,7 @@ export default function AbaLogistica() {
             </div>
 
             <div style={{ marginTop: '16px', textAlign: 'right', borderTop: '1px solid #334155', paddingTop: '12px' }}>
-              <button onClick={() => setModalCustoTotalAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Fechar</button>
+              <button onClick={() => setModalCustoTotalAberto(false)} style={styles.btnSecondary}>Fechar</button>
             </div>
           </div>
         </div>
@@ -1004,37 +1165,37 @@ export default function AbaLogistica() {
 
       {/* MODAL - VIAGENS EM TRÂNSITO */}
       {modalEmTransitoAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', width: '100%', maxWidth: '800px', border: '1px solid #23304a', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-              <h3 style={{ margin: 0, color: '#eab308', fontSize: '18px' }}>🚚 Frota em Trânsito ({viagensEmTransitoCount})</h3>
+              <h3 style={{ margin: 0, color: '#f59e0b', fontSize: '18px', fontWeight: '600' }}>🚚 Frota em Trânsito ({viagensEmTransitoCount})</h3>
               <input 
                 type="text" 
                 placeholder="Filtrar placa/motorista..." 
                 value={filtroEmTransitoBusca}
                 onChange={(e) => setFiltroEmTransitoBusca(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #334155', background: '#0e1626', color: '#fff', fontSize: '12px' }}
+                style={{ ...styles.input, width: 'auto' }}
               />
             </div>
             
             <div style={{ overflowY: 'auto', flex: 1, overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', minWidth: '500px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                    <th style={{ padding: '8px' }}>Placa</th>
-                    <th style={{ padding: '8px' }}>Motorista</th>
-                    <th style={{ padding: '8px' }}>Origem/Destino</th>
-                    <th style={{ padding: '8px', textAlign: 'center' }}>Ação</th>
+                  <tr style={{ borderBottom: '1px solid #334155' }}>
+                    <th style={styles.tableTh}>Placa</th>
+                    <th style={styles.tableTh}>Motorista</th>
+                    <th style={styles.tableTh}>Origem/Destino</th>
+                    <th style={{ ...styles.tableTh, textAlign: 'center' }}>Ação</th>
                   </tr>
                 </thead>
                 <tbody>
                   {viagensEmTransitoFiltradas.map(v => (
-                    <tr key={v.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', color: '#eab308' }}>{v.placa}</td>
-                      <td style={{ padding: '8px', color: '#cbd5e1' }}>{v.operador || 'N/D'}</td>
-                      <td style={{ padding: '8px' }}>De: {v.local_carregamento}<br/>Para: {v.cliente_destino || 'N/D'}</td>
-                      <td style={{ padding: '8px', textAlign: 'center' }}>
-                        <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Detalhes</button>
+                    <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#f59e0b' }}>{v.placa}</td>
+                      <td style={{ padding: '10px', color: '#cbd5e1' }}>{v.operador || 'N/D'}</td>
+                      <td style={{ padding: '10px' }}>De: {v.local_carregamento}<br/>Para: {v.cliente_destino || 'N/D'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        <button onClick={() => { setViagemSelecionada(v); setModalDetalhesAberto(true); }} style={{ ...styles.btnPrimary, padding: '4px 8px', fontSize: '11px' }}>Detalhes</button>
                       </td>
                     </tr>
                   ))}
@@ -1043,7 +1204,7 @@ export default function AbaLogistica() {
             </div>
 
             <div style={{ marginTop: '16px', textAlign: 'right', borderTop: '1px solid #334155', paddingTop: '12px' }}>
-              <button onClick={() => setModalEmTransitoAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Fechar</button>
+              <button onClick={() => setModalEmTransitoAberto(false)} style={styles.btnSecondary}>Fechar</button>
             </div>
           </div>
         </div>
@@ -1051,35 +1212,35 @@ export default function AbaLogistica() {
 
       {/* MODAL LISTA DE ABASTECIMENTOS */}
       {modalListaAbastecimentosAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', width: '100%', maxWidth: '600px', border: '1px solid #23304a', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: '#fff', fontSize: '16px' }}>⛽ Abastecimentos</h3>
-              <button onClick={() => { setModalListaAbastecimentosAberto(false); setAbastecimentoEditandoId(null); setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' }); setModalAbastecimentoAberto(true); }} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+              <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '16px', fontWeight: '600' }}>⛽ Abastecimentos</h3>
+              <button onClick={() => { setModalListaAbastecimentosAberto(false); setAbastecimentoEditandoId(null); setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' }); setModalAbastecimentoAberto(true); }} style={styles.btnWarning}>
                 + Novo
               </button>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', minWidth: '400px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                    <th style={{ padding: '6px' }}>Posto/NF</th>
-                    <th style={{ padding: '6px' }}>KM</th>
-                    <th style={{ padding: '6px' }}>Litros</th>
-                    <th style={{ padding: '6px' }}>Valor Total</th>
-                    <th style={{ padding: '6px', textAlign: 'center' }}>Ações</th>
+                  <tr style={{ borderBottom: '1px solid #334155' }}>
+                    <th style={styles.tableTh}>Posto/NF</th>
+                    <th style={styles.tableTh}>KM</th>
+                    <th style={styles.tableTh}>Litros</th>
+                    <th style={styles.tableTh}>Valor Total</th>
+                    <th style={{ ...styles.tableTh, textAlign: 'center' }}>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {abastInfoAtiva.lista.map((a, idx) => (
-                    <tr key={a.id || idx} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '6px' }}>{a.posto_combustivel || '-'}<br/><span style={{ fontSize: '10px', color: '#64748b' }}>NF: {a.numero_nota_combustivel || '-'}</span></td>
-                      <td style={{ padding: '6px' }}>{a.km_abastecimento || '-'}</td>
-                      <td style={{ padding: '6px' }}>{Number(a.litros_combustivel || 0).toFixed(2)} L</td>
-                      <td style={{ padding: '6px', color: '#f59e0b', fontWeight: 'bold' }}>R$ {Number(a.valor_combustivel || 0).toFixed(2)}</td>
-                      <td style={{ padding: '6px', textAlign: 'center' }}>
+                    <tr key={a.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '8px' }}>{a.posto_combustivel || '-'}<br/><span style={{ fontSize: '10px', color: '#64748b' }}>NF: {a.numero_nota_combustivel || '-'}</span></td>
+                      <td style={{ padding: '8px' }}>{a.km_abastecimento || '-'}</td>
+                      <td style={{ padding: '8px' }}>{Number(a.litros_combustivel || 0).toFixed(2)} L</td>
+                      <td style={{ padding: '8px', color: '#f59e0b', fontWeight: 'bold' }}>R$ {Number(a.valor_combustivel || 0).toFixed(2)}</td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button onClick={() => handleEditarAbastecimentoItem(a)} style={{ background: '#eab308', color: '#000', border: 'none', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Editar</button>
+                          <button onClick={() => handleEditarAbastecimentoItem(a)} style={{ background: '#f59e0b', color: '#000', border: 'none', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Editar</button>
                           {a.id !== 'legado' && (
                             <button onClick={() => handleExcluirAbastecimentoItem(a.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Excl.</button>
                           )}
@@ -1091,7 +1252,7 @@ export default function AbaLogistica() {
               </table>
             </div>
             <div style={{ marginTop: '16px', textAlign: 'right' }}>
-              <button onClick={() => setModalListaAbastecimentosAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Fechar</button>
+              <button onClick={() => setModalListaAbastecimentosAberto(false)} style={styles.btnSecondary}>Fechar</button>
             </div>
           </div>
         </div>
@@ -1099,43 +1260,43 @@ export default function AbaLogistica() {
 
       {/* MODAL ADICIONAR / EDITAR ABASTECIMENTO */}
       {modalAbastecimentoAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', width: '100%', maxWidth: '420px', border: '1px solid #23304a' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#f59e0b', fontSize: '16px' }}>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '420px' }}>
+            <h3 style={{ margin: '0 0 14px 0', color: '#f59e0b', fontSize: '16px', fontWeight: '600' }}>
               ⛽ {abastecimentoEditandoId ? 'Editar Abastecimento' : 'Novo Abastecimento'}
             </h3>
             <form onSubmit={handleSalvarAbastecimento}>
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Posto de Combustível</label>
-                <input type="text" placeholder="Nome do Posto" value={formAbast.postoCombustivel} onChange={e => setFormAbast({...formAbast, postoCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                <input type="text" placeholder="Nome do Posto" value={formAbast.postoCombustivel} onChange={e => setFormAbast({...formAbast, postoCombustivel: e.target.value})} style={styles.input} />
               </div>
 
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Número da Nota Fiscal</label>
-                <input type="text" placeholder="Nº NF" value={formAbast.numeroNotaCombustivel} onChange={e => setFormAbast({...formAbast, numeroNotaCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                <input type="text" placeholder="Nº NF" value={formAbast.numeroNotaCombustivel} onChange={e => setFormAbast({...formAbast, numeroNotaCombustivel: e.target.value})} style={styles.input} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Valor (R$)</label>
-                  <input type="number" step="0.01" placeholder="0.00" value={formAbast.valorCombustivel} onChange={e => setFormAbast({...formAbast, valorCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                  <input type="number" step="0.01" placeholder="0.00" value={formAbast.valorCombustivel} onChange={e => setFormAbast({...formAbast, valorCombustivel: e.target.value})} style={styles.input} required />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Litros</label>
-                  <input type="number" step="0.01" placeholder="0.00" value={formAbast.litrosCombustivel} onChange={e => setFormAbast({...formAbast, litrosCombustivel: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                  <input type="number" step="0.01" placeholder="0.00" value={formAbast.litrosCombustivel} onChange={e => setFormAbast({...formAbast, litrosCombustivel: e.target.value})} style={styles.input} required />
                 </div>
               </div>
 
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>KM Abastecimento</label>
-                <input type="number" step="0.1" placeholder="150250" value={formAbast.kmAbastecimento} onChange={e => setFormAbast({...formAbast, kmAbastecimento: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                <input type="number" step="0.1" placeholder="150250" value={formAbast.kmAbastecimento} onChange={e => setFormAbast({...formAbast, kmAbastecimento: e.target.value})} style={styles.input} required />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '16px' }}>
-                <button type="submit" style={{ background: '#d97706', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '16px' }}>
+                <button type="submit" style={styles.btnWarning}>
                   {abastecimentoEditandoId ? 'Atualizar' : 'Salvar'}
                 </button>
-                <button type="button" onClick={() => { setModalAbastecimentoAberto(false); setAbastecimentoEditandoId(null); }} style={{ background: '#475569', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Cancelar</button>
+                <button type="button" onClick={() => { setModalAbastecimentoAberto(false); setAbastecimentoEditandoId(null); }} style={styles.btnSecondary}>Cancelar</button>
               </div>
             </form>
           </div>
@@ -1144,29 +1305,29 @@ export default function AbaLogistica() {
 
       {/* MODAL CRIAR / EDITAR DESPESA */}
       {modalDespesaAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', width: '100%', maxWidth: '400px', border: '1px solid #23304a' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#c084fc', fontSize: '16px' }}>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ margin: '0 0 14px 0', color: '#c084fc', fontSize: '16px', fontWeight: '600' }}>
               {despesaEditandoId ? '✏️ Editar Despesa' : '💸 Nova Despesa'}
             </h3>
             <form onSubmit={handleSalvarDespesa}>
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Tipo</label>
-                <input type="text" placeholder="Pedágio, Borracharia..." value={formDesp.tipo} onChange={e => setFormDesp({...formDesp, tipo: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                <input type="text" placeholder="Pedágio, Borracharia..." value={formDesp.tipo} onChange={e => setFormDesp({...formDesp, tipo: e.target.value})} style={styles.input} required />
               </div>
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Valor (R$)</label>
-                <input type="number" step="0.01" value={formDesp.valor} onChange={e => setFormDesp({...formDesp, valor: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                <input type="number" step="0.01" value={formDesp.valor} onChange={e => setFormDesp({...formDesp, valor: e.target.value})} style={styles.input} required />
               </div>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Descrição</label>
-                <input type="text" value={formDesp.descricao} onChange={e => setFormDesp({...formDesp, descricao: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                <input type="text" value={formDesp.descricao} onChange={e => setFormDesp({...formDesp, descricao: e.target.value})} style={styles.input} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <button type="submit" style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button type="submit" style={styles.btnPurple}>
                   {despesaEditandoId ? 'Atualizar' : 'Salvar'}
                 </button>
-                <button type="button" onClick={() => { setModalDespesaAberto(false); setDespesaEditandoId(null); }} style={{ background: '#475569', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Cancelar</button>
+                <button type="button" onClick={() => { setModalDespesaAberto(false); setDespesaEditandoId(null); }} style={styles.btnSecondary}>Cancelar</button>
               </div>
             </form>
           </div>
@@ -1175,33 +1336,33 @@ export default function AbaLogistica() {
 
       {/* MODAL LISTA DE DESPESAS */}
       {modalListaDespesasAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', width: '100%', maxWidth: '550px', border: '1px solid #23304a', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '550px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: '#fff', fontSize: '16px' }}>💸 Despesas da Viagem</h3>
-              <button onClick={() => { setModalListaDespesasAberto(false); setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }} style={{ background: '#9333ea', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+              <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '16px', fontWeight: '600' }}>💸 Despesas da Viagem</h3>
+              <button onClick={() => { setModalListaDespesasAberto(false); setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }} style={styles.btnPurple}>
                 + Adicionar
               </button>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', minWidth: '350px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                    <th style={{ padding: '6px' }}>Tipo</th>
-                    <th style={{ padding: '6px' }}>Descrição</th>
-                    <th style={{ padding: '6px' }}>Valor</th>
-                    <th style={{ padding: '6px', textAlign: 'center' }}>Ações</th>
+                  <tr style={{ borderBottom: '1px solid #334155' }}>
+                    <th style={styles.tableTh}>Tipo</th>
+                    <th style={styles.tableTh}>Descrição</th>
+                    <th style={styles.tableTh}>Valor</th>
+                    <th style={{ ...styles.tableTh, textAlign: 'center' }}>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(viagemAtiva?.despesas_viagem || []).map(d => (
-                    <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '6px' }}>{d.tipo}</td>
-                      <td style={{ padding: '6px' }}>{d.descricao || '-'}</td>
-                      <td style={{ padding: '6px', color: '#f87171', fontWeight: 'bold' }}>R$ {Number(d.valor).toFixed(2)}</td>
-                      <td style={{ padding: '6px', textAlign: 'center' }}>
+                    <tr key={d.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '8px' }}>{d.tipo}</td>
+                      <td style={{ padding: '8px' }}>{d.descricao || '-'}</td>
+                      <td style={{ padding: '8px', color: '#f87171', fontWeight: 'bold' }}>R$ {Number(d.valor).toFixed(2)}</td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button onClick={() => handleEditarDespesaItem(d)} style={{ background: '#eab308', color: '#000', border: 'none', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Editar</button>
+                          <button onClick={() => handleEditarDespesaItem(d)} style={{ background: '#f59e0b', color: '#000', border: 'none', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Editar</button>
                           <button onClick={() => handleExcluirDespesaItem(d.id)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Excl.</button>
                         </div>
                       </td>
@@ -1211,7 +1372,7 @@ export default function AbaLogistica() {
               </table>
             </div>
             <div style={{ marginTop: '16px', textAlign: 'right' }}>
-              <button onClick={() => setModalListaDespesasAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Fechar</button>
+              <button onClick={() => setModalListaDespesasAberto(false)} style={styles.btnSecondary}>Fechar</button>
             </div>
           </div>
         </div>
@@ -1219,99 +1380,106 @@ export default function AbaLogistica() {
 
       {/* MODAL FINALIZAR VIAGEM */}
       {modalFinalizarAberto && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '16px', borderRadius: '12px', width: '100%', maxWidth: '420px', border: '1px solid #23304a' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#22c55e', fontSize: '16px' }}>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '420px' }}>
+            <h3 style={{ margin: '0 0 14px 0', color: '#4ade80', fontSize: '16px', fontWeight: '600' }}>
               🏁 Finalizar Viagem
             </h3>
             <form onSubmit={handleConcluirViagem}>
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>KM Final de Chegada</label>
-                <input type="number" placeholder="KM Chegada" value={formFim.kmFinal} onChange={e => setFormFim({...formFim, kmFinal: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+                <input type="number" placeholder="KM Chegada" value={formFim.kmFinal} onChange={e => setFormFim({...formFim, kmFinal: e.target.value})} style={styles.input} required />
               </div>
 
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Local Descarga</label>
-                <input type="text" placeholder="Local / Cliente" value={formFim.localDescarga} onChange={e => setFormFim({...formFim, localDescarga: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                <input type="text" placeholder="Local / Cliente" value={formFim.localDescarga} onChange={e => setFormFim({...formFim, localDescarga: e.target.value})} style={styles.input} />
               </div>
 
-              <div style={{ marginBottom: '10px' }}>
+              <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Peso Descarga (Kg)</label>
-                <input type="number" step="0.01" placeholder="25000" value={formFim.pesoDescarga} onChange={e => setFormFim({...formFim, pesoDescarga: e.target.value})} style={{ width: '100%', padding: '8px', background: '#0e1626', border: '1px solid #2563eb', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                <input type="number" step="0.01" placeholder="25000" value={formFim.pesoDescarga} onChange={e => setFormFim({...formFim, pesoDescarga: e.target.value})} style={styles.input} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '16px' }}>
-                <button type="submit" style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>Finalizar</button>
-                <button type="button" onClick={() => setModalFinalizarAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Cancelar</button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '16px' }}>
+                <button type="submit" style={styles.btnSuccess}>Finalizar</button>
+                <button type="button" onClick={() => setModalFinalizarAberto(false)} style={styles.btnSecondary}>Cancelar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL DETALHES */}
+      {/* MODAL DETALHES COMPLETO (GESTOR COM EDIÇÃO TOTAL DE DADOS, ABASTECIMENTOS E DESPESAS) */}
       {modalDetalhesAberto && viagemSelecionada && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '10px', boxSizing: 'border-box' }}>
-          <div style={{ background: '#161e31', padding: '20px', borderRadius: '12px', width: '100%', maxWidth: '600px', border: '1px solid #23304a', maxHeight: '90vh', overflowY: 'auto', color: '#fff' }}>
-            <h3 style={{ margin: '0 0 12px 0', borderBottom: '1px solid #334155', paddingBottom: '8px', fontSize: '16px' }}>Detalhes - {viagemSelecionada.placa}</h3>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.card, width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#38bdf8' }}>
+                📋 Detalhes do Diário - Placa {viagemSelecionada.placa}
+              </h3>
+              <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '12px', color: '#94a3b8' }}>
+                ID #{viagemSelecionada.id}
+              </span>
+            </div>
             
             {tipoUsuario === 'GESTOR' ? (
-              <form onSubmit={handleSalvarEdicaoGestor} style={{ marginBottom: '16px', background: '#0e1626', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                <h4 style={{ margin: '0 0 10px 0', color: '#38bdf8', fontSize: '13px' }}>✏️ Editar Dados do Diário</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', fontSize: '12px' }}>
+              <form onSubmit={handleSalvarEdicaoGestor} style={{ marginBottom: '20px', background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+                <h4 style={{ margin: '0 0 12px 0', color: '#38bdf8', fontSize: '14px', fontWeight: '600' }}>✏️ Edição Geral de Dados</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Placa</label>
-                    <input type="text" value={formEdicaoGestor.placa} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, placa: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Placa</label>
+                    <input type="text" value={formEdicaoGestor.placa} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, placa: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Operador</label>
-                    <input type="text" value={formEdicaoGestor.operador} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, operador: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Operador</label>
+                    <input type="text" value={formEdicaoGestor.operador} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, operador: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>KM Inicial</label>
-                    <input type="number" value={formEdicaoGestor.km_inicial} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, km_inicial: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>KM Inicial</label>
+                    <input type="number" value={formEdicaoGestor.km_inicial} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, km_inicial: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>KM Final</label>
-                    <input type="number" value={formEdicaoGestor.km_final} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, km_final: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>KM Final</label>
+                    <input type="number" value={formEdicaoGestor.km_final} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, km_final: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Carregamento</label>
-                    <input type="text" value={formEdicaoGestor.local_carregamento} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, local_carregamento: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Carregamento</label>
+                    <input type="text" value={formEdicaoGestor.local_carregamento} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, local_carregamento: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Descarga</label>
-                    <input type="text" value={formEdicaoGestor.local_descarga} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, local_descarga: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Descarga</label>
+                    <input type="text" value={formEdicaoGestor.local_descarga} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, local_descarga: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Cliente / Destino</label>
-                    <input type="text" value={formEdicaoGestor.cliente_destino} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, cliente_destino: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Cliente / Destino</label>
+                    <input type="text" value={formEdicaoGestor.cliente_destino} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, cliente_destino: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Produto</label>
-                    <input type="text" value={formEdicaoGestor.produto} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, produto: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Produto</label>
+                    <input type="text" value={formEdicaoGestor.produto} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, produto: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Peso Carregado</label>
-                    <input type="number" step="0.01" value={formEdicaoGestor.peso_carregado} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, peso_carregado: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Peso Carregado</label>
+                    <input type="number" step="0.01" value={formEdicaoGestor.peso_carregado} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, peso_carregado: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Peso Descarga</label>
-                    <input type="number" step="0.01" value={formEdicaoGestor.peso_descarga} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, peso_descarga: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Peso Descarga</label>
+                    <input type="number" step="0.01" value={formEdicaoGestor.peso_descarga} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, peso_descarga: e.target.value})} style={styles.input} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '2px' }}>Nota Fiscal</label>
-                    <input type="text" value={formEdicaoGestor.nota_fiscal} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, nota_fiscal: e.target.value})} style={{ width: '100%', padding: '6px', background: '#0b132b', border: '1px solid #334155', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' }} />
+                    <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px' }}>Nota Fiscal</label>
+                    <input type="text" value={formEdicaoGestor.nota_fiscal} onChange={e => setFormEdicaoGestor({...formEdicaoGestor, nota_fiscal: e.target.value})} style={styles.input} />
                   </div>
                 </div>
-                <div style={{ marginTop: '10px', textAlign: 'right' }}>
-                  <button type="submit" style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
-                    Salvar Alterações
+                <div style={{ marginTop: '12px', textAlign: 'right' }}>
+                  <button type="submit" style={styles.btnSuccess}>
+                    💾 Salvar Alterações Gerais
                   </button>
                 </div>
               </form>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '13px', marginBottom: '20px', background: 'rgba(15, 23, 42, 0.6)', padding: '14px', borderRadius: '10px' }}>
                 <div><b>Operador:</b> {viagemSelecionada.operador || 'N/D'}</div>
                 <div><b>Status:</b> {viagemSelecionada.status === 'EM_TRANSITO' ? 'Em Trânsito 🚚' : 'Finalizada 🏁'}</div>
                 <div><b>Data Início:</b> {formatarData(viagemSelecionada.created_at)}</div>
@@ -1327,32 +1495,104 @@ export default function AbaLogistica() {
               </div>
             )}
 
-            <h4 style={{ color: '#0ea5e9', marginBottom: '6px', fontSize: '13px' }}>Abastecimentos</h4>
-            <div style={{ background: '#0e1626', padding: '10px', borderRadius: '6px', fontSize: '12px', marginBottom: '12px' }}>
-              {getTotaisAbastecimento(viagemSelecionada).lista.length === 0 ? (
-                <div>Sem abastecimentos registrados.</div>
-              ) : (
-                getTotaisAbastecimento(viagemSelecionada).lista.map((ab, idx) => (
-                  <div key={idx} style={{ marginBottom: '6px', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
-                    <div><b>Posto:</b> {ab.posto_combustivel || '-'} | <b>NF:</b> {ab.numero_nota_combustivel || '-'}</div>
-                    <div><b>KM:</b> {ab.km_abastecimento || '-'} | <b>L:</b> {ab.litros_combustivel || 0} | <b>Valor:</b> R$ {Number(ab.valor_combustivel || 0).toFixed(2)}</div>
-                  </div>
-                ))
-              )}
+            {/* GERENCIAMENTO DE ABASTECIMENTOS NO MODAL DE DETALHES */}
+            <div style={{ marginBottom: '20px', background: 'rgba(15, 23, 42, 0.6)', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ color: '#f59e0b', margin: 0, fontSize: '14px', fontWeight: '600' }}>⛽ Abastecimentos da Viagem</h4>
+                {tipoUsuario === 'GESTOR' && (
+                  <button onClick={() => { setAbastecimentoEditandoId(null); setFormAbast({ kmAbastecimento: '', litrosCombustivel: '', valorCombustivel: '', postoCombustivel: '', numeroNotaCombustivel: '' }); setModalAbastecimentoAberto(true); }} style={{ ...styles.btnWarning, padding: '4px 8px', fontSize: '11px' }}>
+                    + Adicionar Abastecimento
+                  </button>
+                )}
+              </div>
+              
+              <div style={{ overflowX: 'auto' }}>
+                {getTotaisAbastecimento(viagemSelecionada).lista.length === 0 ? (
+                  <div style={{ color: '#94a3b8', fontSize: '12px' }}>Nenhum abastecimento registrado.</div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #334155' }}>
+                        <th style={styles.tableTh}>Posto / NF</th>
+                        <th style={styles.tableTh}>KM</th>
+                        <th style={styles.tableTh}>Litros</th>
+                        <th style={styles.tableTh}>Valor</th>
+                        {tipoUsuario === 'GESTOR' && <th style={{ ...styles.tableTh, textAlign: 'center' }}>Ações</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getTotaisAbastecimento(viagemSelecionada).lista.map((ab, idx) => (
+                        <tr key={ab.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '8px' }}>{ab.posto_combustivel || '-'}<br/><span style={{ fontSize: '10px', color: '#64748b' }}>NF: {ab.numero_nota_combustivel || '-'}</span></td>
+                          <td style={{ padding: '8px' }}>{ab.km_abastecimento || '-'}</td>
+                          <td style={{ padding: '8px' }}>{Number(ab.litros_combustivel || 0).toFixed(2)} L</td>
+                          <td style={{ padding: '8px', color: '#f59e0b', fontWeight: 'bold' }}>R$ {Number(ab.valor_combustivel || 0).toFixed(2)}</td>
+                          {tipoUsuario === 'GESTOR' && (
+                            <td style={{ padding: '8px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                <button onClick={() => handleEditarAbastecimentoItem(ab)} style={{ background: '#f59e0b', color: '#000', border: 'none', padding: '3px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Editar</button>
+                                {ab.id !== 'legado' && (
+                                  <button onClick={() => handleExcluirAbastecimentoItem(ab.id, viagemSelecionada)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '3px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Excl.</button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
 
-            <h4 style={{ color: '#fbbf24', marginBottom: '6px', fontSize: '13px' }}>Despesas Adicionais</h4>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginBottom: '16px' }}>
-              <thead><tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}><th style={{ padding: '4px' }}>Tipo</th><th style={{ padding: '4px' }}>Descrição</th><th style={{ padding: '4px' }}>Valor</th></tr></thead>
-              <tbody>
-                {(viagemSelecionada.despesas_viagem || []).map(d => (
-                  <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}><td style={{ padding: '4px' }}>{d.tipo}</td><td style={{ padding: '4px' }}>{d.descricao || '-'}</td><td style={{ padding: '4px', color: '#f87171' }}>R$ {Number(d.valor).toFixed(2)}</td></tr>
-                ))}
-              </tbody>
-            </table>
+            {/* GERENCIAMENTO DE DESPESAS NO MODAL DE DETALHES */}
+            <div style={{ marginBottom: '20px', background: 'rgba(15, 23, 42, 0.6)', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ color: '#c084fc', margin: 0, fontSize: '14px', fontWeight: '600' }}>💸 Despesas Adicionais</h4>
+                {tipoUsuario === 'GESTOR' && (
+                  <button onClick={() => { setDespesaEditandoId(null); setFormDesp({ tipo: 'Pedágio', valor: '', descricao: '' }); setModalDespesaAberto(true); }} style={{ ...styles.btnPurple, padding: '4px 8px', fontSize: '11px' }}>
+                    + Adicionar Despesa
+                  </button>
+                )}
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                {(viagemSelecionada.despesas_viagem || []).length === 0 ? (
+                  <div style={{ color: '#94a3b8', fontSize: '12px' }}>Nenhuma despesa lançada.</div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #334155' }}>
+                        <th style={styles.tableTh}>Tipo</th>
+                        <th style={styles.tableTh}>Descrição</th>
+                        <th style={styles.tableTh}>Valor</th>
+                        {tipoUsuario === 'GESTOR' && <th style={{ ...styles.tableTh, textAlign: 'center' }}>Ações</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(viagemSelecionada.despesas_viagem || []).map(d => (
+                        <tr key={d.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '8px' }}>{d.tipo}</td>
+                          <td style={{ padding: '8px' }}>{d.descricao || '-'}</td>
+                          <td style={{ padding: '8px', color: '#f87171', fontWeight: 'bold' }}>R$ {Number(d.valor).toFixed(2)}</td>
+                          {tipoUsuario === 'GESTOR' && (
+                            <td style={{ padding: '8px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                <button onClick={() => handleEditarDespesaItem(d)} style={{ background: '#f59e0b', color: '#000', border: 'none', padding: '3px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Editar</button>
+                                <button onClick={() => handleExcluirDespesaItem(d.id, viagemSelecionada)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '3px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Excl.</button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
 
             <div style={{ textAlign: 'right', marginTop: '16px' }}>
-              <button onClick={() => setModalDetalhesAberto(false)} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>Fechar</button>
+              <button onClick={() => setModalDetalhesAberto(false)} style={styles.btnSecondary}>Fechar</button>
             </div>
           </div>
         </div>
