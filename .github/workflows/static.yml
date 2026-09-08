@@ -25,22 +25,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Locate Project, Install & Build
-        run: |
-          # 1. Encontra a pasta onde reside o index.html (ignorando node_modules)
-          INDEX_FILE=$(find . -name "index.html" -not -path "*/node_modules/*" -print -quit)
-          PROJECT_DIR=$(dirname "$INDEX_FILE")
-          
-          echo "Projeto encontrado no diretório: $PROJECT_DIR"
-          cd "$PROJECT_DIR"
+      - name: Install Dependencies
+        run: npm install
 
-          # 2. Instala as dependências e roda o build via Vite local
-          npm install
-          npx vite build
-
-          # 3. Copia o resultado do dist para a raiz para o GitHub Pages ler
-          mkdir -p $GITHUB_WORKSPACE/dist_final
-          cp -r dist/* $GITHUB_WORKSPACE/dist_final/
+      - name: Build with Vite
+        run: npx vite build --base=./
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -48,7 +37,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist_final'
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
