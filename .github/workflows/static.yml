@@ -16,6 +16,9 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Dashboard-skeleton-design-master
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,7 +32,7 @@ jobs:
         run: npm install
 
       - name: Build with Vite
-        run: npx vite build --base=./
+        run: npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -37,7 +40,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './Dashboard-skeleton-design-master/dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
