@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "scripts": {
+"scripts": {
     "dev": "vite",
-    "build": "next build || vite build",
-    "start": "next start",
+    "build": "vite build",
+    "start": "vite preview",
     "preview": "vite preview"
   },
   "dependencies": {
