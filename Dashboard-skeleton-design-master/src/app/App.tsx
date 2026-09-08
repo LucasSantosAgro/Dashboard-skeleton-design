@@ -6,6 +6,7 @@ import jsPDF from "jspdf";
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import AbaLogistica from "../AbaLogistica";
+import FormularioTransportadora from "./components/FormularioTransportadora";
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
@@ -107,136 +108,6 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
-const COLUNAS_PATIO = [
-  { id: 'aguardando', titulo: 'Aguardando Chegada', cor: 'border-amber-500', btnCor: 'bg-blue-600 hover:bg-blue-500', txtBtn: 'Dar Entrada' },
-  { id: 'em_patio', titulo: 'Em Pátio / Triagem', cor: 'border-blue-500', btnCor: 'bg-purple-600 hover:bg-purple-500', txtBtn: 'Iniciar Carregamento' },
-  { id: 'carregando', titulo: 'Carregando', cor: 'border-purple-500', btnCor: 'bg-emerald-600 hover:bg-emerald-500', txtBtn: 'Finalizar e Liberar' },
-  { id: 'concluido', titulo: 'Concluído / Saída', cor: 'border-emerald-500', btnCor: '', txtBtn: '' }
-];
-
-const ModuloPatio = () => {
-  const [ordens, setOrdens] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-
-  const buscarOrdens = async () => {
-    const { data, error } = await supabase
-      .from('ordens_carregamento')
-      .select('*')
-      .order('created_at', { ascending: true });
-
-    if (!error && data) setOrdens(data);
-    setCarregando(false);
-  };
-
-  const atualizarStatus = async (id, novoStatus) => {
-    setOrdens((prev) =>
-      prev.map((ordem) => (ordem.id === id ? { ...ordem, status: novoStatus } : ordem))
-    );
-
-    const { error } = await supabase
-      .from('ordens_carregamento')
-      .update({ status: novoStatus })
-      .eq('id', id);
-
-    if (error) buscarOrdens();
-  };
-
-  useEffect(() => {
-    buscarOrdens();
-
-    const canal = supabase
-      .channel('mudancas-patio')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'ordens_carregamento' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setOrdens((prev) => [...prev, payload.new]);
-          } else if (payload.eventType === 'UPDATE') {
-            setOrdens((prev) =>
-              prev.map((item) => (item.id === payload.new.id ? payload.new : item))
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setOrdens((prev) => prev.filter((item) => item.id === payload.old.id));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(canal);
-    };
-  }, []);
-
-  if (carregando) return <div className="p-8 text-center text-gray-400 flex items-center justify-center gap-2"><Loader2 className="animate-spin" size={20}/> Carregando pátio...</div>;
-
-  return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center border-b border-white/5 pb-4">
-        <div>
-          <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400">
-            <CheckSquare size={20} /> Controle de Pátio e Carregamento
-          </h2>
-          <p className="text-xs text-gray-400 mt-0.5">Gestão de veículos e fila de carregamento em tempo real</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {COLUNAS_PATIO.map((coluna) => {
-          const ordensColuna = ordens.filter((o) => o.status === coluna.id);
-          return (
-            <div key={coluna.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-210px)] shadow-xl">
-              <div className={`flex justify-between items-center pb-3 mb-3 border-b-2 ${coluna.cor}`}>
-                <h3 className="font-bold text-gray-300 text-xs uppercase tracking-wider">{coluna.titulo}</h3>
-                <span className="bg-[#1A2030] text-gray-300 text-xs font-bold px-2.5 py-0.5 rounded-full border border-white/5">{ordensColuna.length}</span>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                {ordensColuna.length === 0 ? (
-                  <div className="text-center py-8 text-gray-600 text-xs italic">Nenhum veículo nesta etapa</div>
-                ) : (
-                  ordensColuna.map((ordem) => (
-                    <div key={ordem.id} className="bg-[#1A2030] p-3.5 rounded-lg border border-white/5 shadow-md flex flex-col gap-2">
-                      <div className="flex justify-between text-xs font-bold text-blue-400">
-                        <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
-                        <span className="text-gray-400 font-normal">{ordem.tipo_veiculo}</span>
-                      </div>
-                      <h4 className="font-bold text-sm text-gray-100">{ordem.transportadora}</h4>
-                      <p className="text-xs text-gray-400">Motorista: <b className="text-gray-200">{ordem.nome_motorista}</b></p>
-                      <div className="pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
-                        <div><strong>Cavalo:</strong> <span className="text-gray-200 font-mono">{ordem.placa_cavalo}</span></div>
-                        <div><strong>Carreta:</strong> <span className="text-gray-200 font-mono">{ordem.placa_carreta || 'N/A'}</span></div>
-                      </div>
-                      {coluna.txtBtn && (
-                        <div className="pt-2 border-t border-white/5 mt-1">
-                          {ordem.status === 'aguardando' && (
-                            <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className={`w-full text-white text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer shadow-md ${coluna.btnCor}`}>
-                              {coluna.txtBtn}
-                            </button>
-                          )}
-                          {ordem.status === 'em_patio' && (
-                            <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className={`w-full text-white text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer shadow-md ${coluna.btnCor}`}>
-                              {coluna.txtBtn}
-                            </button>
-                          )}
-                          {ordem.status === 'carregando' && (
-                            <button onClick={() => atualizarStatus(ordem.id, 'concluido')} className={`w-full text-white text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer shadow-md ${coluna.btnCor}`}>
-                              {coluna.txtBtn}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
 const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
   const [pesoSaida, setPesoSaida] = useState("");
   const [valorSaca, setValorSaca] = useState("");
@@ -313,6 +184,9 @@ export default function App() {
   const [fCaixaOperador, setFCaixaOperador] = useState("");
   const [fCaixaBusca, setFCaixaBusca] = useState("");
 
+  // Rota pública para pré-agendamento da transportadora
+  const isPublicAgendamento = window.location.pathname === "/agendamento-transportadora" || window.location.search.includes("public=agendamento-transportadora");
+
   useEffect(() => {
     document.title = "Grasel Cerealista";
 
@@ -350,6 +224,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (isPublicAgendamento) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) load(session.user.id); else setLoading(false);
@@ -359,7 +238,7 @@ export default function App() {
       if (session) load(session.user.id); else setLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, [load]);
+  }, [load, isPublicAgendamento]);
 
   const registrarMovimentacao = async (tipo, valor, motivo, novoSaldo) => {
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
@@ -508,6 +387,11 @@ export default function App() {
   const totalTroco = filt.reduce((a, b) => a + (Number(b.valor_troco) || 0), 0);
 
   const pesagensAbertas = useMemo(() => pesagens.filter(p => p.status_pagamento === 'ABERTO'), [pesagens]);
+
+  // Se a Rota for pública para a transportadora, exibe o formulário sem solicitar login
+  if (isPublicAgendamento) {
+    return <FormularioTransportadora />;
+  }
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
 
@@ -846,7 +730,20 @@ export default function App() {
 
             {aba === "logistica" && <AbaLogistica session={session} userName={userName} />}
 
-            {aba === "patio" && <ModuloPatio />}
+            {aba === "patio" && (
+              <div className="flex flex-col gap-4 max-w-5xl mx-auto">
+                <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400 mb-2">
+                  <CheckSquare size={20} /> Controle de Liberações de Pátio
+                </h2>
+                <div className="bg-[#161B23] p-8 rounded-xl text-center text-gray-400 border border-white/5 shadow-xl flex flex-col items-center justify-center gap-3">
+                  <CheckSquare className="text-blue-400 opacity-60" size={48} />
+                  <p className="text-sm font-semibold">Módulo de Controle e Liberações de Pátio ativo.</p>
+                  <p className="text-xs text-gray-500 max-w-md">
+                    Aqui você pode integrar os fluxos de liberação de carregamentos e autorizações de saída de veículos.
+                  </p>
+                </div>
+              </div>
+            )}
           </>
         )}
       </main>

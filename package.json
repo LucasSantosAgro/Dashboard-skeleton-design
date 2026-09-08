@@ -5,6 +5,7 @@
     "@supabase/supabase-js": "^2.110.2",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.24.0",
+    "react-router-dom": "^7.18.3",
     "recharts": "^3.9.2"
   }
 }
