@@ -24,13 +24,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci || npm install
-
-      - name: Build project
-        run: npx vite build
+      - name: Locate, Install and Build
+        run: |
+          # Encontra o diretório onde está o package.json
+          PACKAGE_PATH=$(find . -name "package.json" -not -path "*/node_modules/*" -print -quit | xargs dirname)
+          cd "$PACKAGE_PATH"
+          
+          # Instala as dependências exatas do projeto
+          npm install
+          
+          # Executa o build usando as dependências locais
+          npm run build
+          
+          # Prepara a pasta dist na raiz para o upload do GitHub Pages
+          mkdir -p ../dist_final
+          cp -r dist/* ../dist_final/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -38,7 +47,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './dist_final'
 
       - name: Deploy to GitHub Pages
         id: deployment
