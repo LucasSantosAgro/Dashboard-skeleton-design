@@ -162,6 +162,101 @@ const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
   );
 };
 
+// Componente Kanban integrado para o Controle de Pátio
+function PainelControlePatio() {
+  const [agendamentos, setAgendamentos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    async function buscarAgendamentos() {
+      const { data, error } = await supabase
+        .from('ordens_carregamento')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setAgendamentos(data);
+      }
+      setCarregando(false);
+    }
+
+    buscarAgendamentos();
+
+    // Ouve novos agendamentos em tempo real
+    const channel = supabase
+      .channel('realtime-ordens-carregamento')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ordens_carregamento' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setAgendamentos((prev) => [payload.new, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setAgendamentos((prev) =>
+              prev.map((item) => (item.id === payload.new.id ? payload.new : item))
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  if (carregando) {
+    return <div className="p-6 text-gray-300">Carregando agendamentos...</div>;
+  }
+
+  return (
+    <div className="p-6 text-white w-full">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-xl font-bold">Ordens de Carregamento / Agendamentos</h2>
+          <p className="text-sm text-gray-400">Gerencie os veículos cadastrados pelas transportadoras</p>
+        </div>
+        <span className="bg-blue-600 text-xs font-bold px-3 py-1 rounded-full">
+          Total: {agendamentos.length}
+        </span>
+      </div>
+
+      {agendamentos.length === 0 ? (
+        <div className="bg-gray-800/50 border border-gray-700 p-8 rounded-xl text-center text-gray-400">
+          Nenhum agendamento encontrado na tabela <code className="text-blue-400">ordens_carregamento</code>.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {agendamentos.map((item) => (
+            <div key={item.id} className="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-md flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs bg-blue-900/80 text-blue-300 border border-blue-700 px-2 py-0.5 rounded font-bold uppercase">
+                    {item.status || 'aguardando'}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {new Date(item.created_at).toLocaleDateString('pt-BR')} {new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                
+                <h3 className="font-bold text-lg text-white mb-1">{item.transportadora || 'Transportadora não informada'}</h3>
+                <p className="text-sm text-gray-300"><strong>Motorista:</strong> {item.nome_motorista}</p>
+                <p className="text-sm text-gray-300"><strong>CPF:</strong> {item.cpf_motorista || 'N/A'}</p>
+                <p className="text-sm text-gray-300"><strong>Veículo:</strong> {item.tipo_veiculo}</p>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-gray-700 grid grid-cols-2 gap-2 text-xs text-gray-400">
+                <div>Cavalo: <strong className="text-white font-mono">{item.placa_cavalo}</strong></div>
+                <div>Carreta: <strong className="text-white font-mono">{item.placa_carreta || 'N/A'}</strong></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -730,20 +825,7 @@ export default function App() {
 
             {aba === "logistica" && <AbaLogistica session={session} userName={userName} />}
 
-            {aba === "patio" && (
-              <div className="flex flex-col gap-4 max-w-5xl mx-auto">
-                <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400 mb-2">
-                  <CheckSquare size={20} /> Controle de Liberações de Pátio
-                </h2>
-                <div className="bg-[#161B23] p-8 rounded-xl text-center text-gray-400 border border-white/5 shadow-xl flex flex-col items-center justify-center gap-3">
-                  <CheckSquare className="text-blue-400 opacity-60" size={48} />
-                  <p className="text-sm font-semibold">Módulo de Controle e Liberações de Pátio ativo.</p>
-                  <p className="text-xs text-gray-500 max-w-md">
-                    Aqui você pode integrar os fluxos de liberação de carregamentos e autorizações de saída de veículos.
-                  </p>
-                </div>
-              </div>
-            )}
+            {aba === "patio" && <PainelControlePatio />}
           </>
         )}
       </main>
