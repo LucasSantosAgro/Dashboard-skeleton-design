@@ -35,16 +35,20 @@ export default function FormularioTransportadora() {
     e.preventDefault();
     setCarregando(true);
 
-    const { error } = await supabase.from('ordens_carregamento').insert([
-      {
-        ...form,
-        placa_cavalo: form.placa_cavalo.toUpperCase().trim(),
-        placa_carreta: form.placa_carreta ? form.placa_carreta.toUpperCase().trim() : null,
-        codigo_ordem: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
-        status: 'aguardando',
-        checkin_realizado: false
-      }
-    ]);
+    // Trata contrato_id vazio como NULL e força caixa alta nos textos
+    const dadosEnvio = {
+      ...form,
+      contrato_id: form.contrato_id || null,
+      transportadora: form.transportadora.toUpperCase().trim(),
+      nome_motorista: form.nome_motorista.toUpperCase().trim(),
+      placa_cavalo: form.placa_cavalo.toUpperCase().trim(),
+      placa_carreta: form.placa_carreta ? form.placa_carreta.toUpperCase().trim() : null,
+      codigo_ordem: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
+      status: 'aguardando',
+      checkin_realizado: false
+    };
+
+    const { error } = await supabase.from('ordens_carregamento').insert([dadosEnvio]);
 
     setCarregando(false);
 
@@ -61,7 +65,8 @@ export default function FormularioTransportadora() {
         tipo_veiculo: 'Bitrem'
       });
     } else {
-      alert('Erro ao cadastrar agendamento. Verifique se o banco de dados aceita inserção pública (RLS).');
+      console.error('Erro Supabase:', error);
+      alert(`Erro ao salvar: ${error.message}`);
     }
   };
 
@@ -115,9 +120,9 @@ export default function FormularioTransportadora() {
                 type="text"
                 required
                 value={form.transportadora}
-                onChange={(e) => setForm({ ...form, transportadora: e.target.value })}
-                className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                placeholder="Nome da Transportadora"
+                onChange={(e) => setForm({ ...form, transportadora: e.target.value.toUpperCase() })}
+                className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white uppercase focus:outline-none focus:border-blue-500"
+                placeholder="NOME DA TRANSPORTADORA"
               />
             </div>
 
@@ -130,9 +135,9 @@ export default function FormularioTransportadora() {
                   type="text"
                   required
                   value={form.nome_motorista}
-                  onChange={(e) => setForm({ ...form, nome_motorista: e.target.value })}
-                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                  placeholder="Nome Completo"
+                  onChange={(e) => setForm({ ...form, nome_motorista: e.target.value.toUpperCase() })}
+                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white uppercase focus:outline-none focus:border-blue-500"
+                  placeholder="NOME COMPLETO"
                 />
               </div>
 
