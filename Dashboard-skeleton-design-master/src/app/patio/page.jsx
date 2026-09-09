@@ -4,10 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 const COLUNAS = [
-  { id: 'aguardando', titulo: 'Aguardando Chegada', cor: 'border-yellow-500' },
-  { id: 'em_patio', titulo: 'Em Pátio / Triagem', cor: 'border-blue-500' },
+  { id: 'aguardando_checkin', titulo: 'Pré-Agendado', cor: 'border-amber-500' },
+  { id: 'em_patio_aguardando_liberacao', titulo: 'No Pátio - Aguardando Liberação', cor: 'border-blue-500' },
   { id: 'carregando', titulo: 'Carregando', cor: 'border-purple-500' },
-  { id: 'concluido', titulo: 'Concluído / Saída', cor: 'border-green-500' }
+  { id: 'carregamento_concluido', titulo: 'Carregamento Concluído', cor: 'border-green-500' }
 ];
 
 export default function KanbanPatio() {
@@ -98,14 +98,21 @@ export default function KanbanPatio() {
                       <div><strong>Carreta:</strong> {ordem.placa_carreta || 'N/A'}</div>
                     </div>
                     <div className="mt-3 pt-2 border-t">
-                      {ordem.status === 'aguardando' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 text-white text-xs py-1.5 rounded font-semibold">Aprovar Entrada</button>
-                      )}
-                      {ordem.status === 'em_patio' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 text-white text-xs py-1.5 rounded font-semibold">Iniciar Carregamento</button>
+                      {ordem.status === 'em_patio_aguardando_liberacao' && (
+                        <button
+                          onClick={() => atualizarStatus(ordem.id, 'carregando')}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded transition-colors"
+                        >
+                          Liberar para Carregamento
+                        </button>
                       )}
                       {ordem.status === 'carregando' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'concluido')} className="w-full bg-green-600 text-white text-xs py-1.5 rounded font-semibold">Finalizar e Liberar</button>
+                        <button
+                          onClick={() => atualizarStatus(ordem.id, 'carregamento_concluido')}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 rounded transition-colors"
+                        >
+                          Finalizar Carregamento
+                        </button>
                       )}
                     </div>
                   </div>

@@ -11,6 +11,13 @@ import FormularioTransportadora from "./components/FormularioTransportadora";
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
 
+const COLUNAS_PATIO = [
+  { id: 'aguardando', titulo: 'Aguardando Chegada', cor: 'border-yellow-500 text-yellow-400' },
+  { id: 'em_patio', titulo: 'Em Pátio / Triagem', cor: 'border-blue-500 text-blue-400' },
+  { id: 'carregando', titulo: 'Carregando', cor: 'border-purple-500 text-purple-400' },
+  { id: 'concluido', titulo: 'Concluído / Saída', cor: 'border-green-500 text-green-400' }
+];
+
 const faviconSvg = `data:image/svg+xml,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <path d="M 85 22 C 75.5 11.5 61 5 45 5 C 22.9 5 5 22.9 5 45 C 5 67.1 22.9 85 45 85 C 60.5 85 74.2 76.2 81 63.5 L 68 63.5 C 62.5 71 54 75.5 45 75.5 C 28.2 75.5 14.5 61.8 14.5 45 C 14.5 28.2 28.2 14.5 45 14.5 C 57.5 14.5 68.2 22 73 32 L 85 22 Z" fill="#FFFFFF"/>
@@ -162,97 +169,237 @@ const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
   );
 };
 
-// Componente Kanban integrado para o Controle de Pátio
-function PainelControlePatio() {
-  const [agendamentos, setAgendamentos] = useState([]);
+export function KanbanPatio() {
+  const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
 
+  const buscarOrdens = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('ordens_carregamento')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (!error && data) setOrdens(data);
+    setCarregando(false);
+  }, []);
+
+  const atualizarStatus = async (id, novoStatus) => {
+    setOrdens((prev) =>
+      prev.map((ordem) => (ordem.id === id ? { ...ordem, status: novoStatus } : ordem))
+    );
+
+    const { error } = await supabase
+      .from('ordens_carregamento')
+      .update({ status: novoStatus })
+      .eq('id', id);
+
+    if (error) buscarOrdens();
+  };
+
   useEffect(() => {
-    async function buscarAgendamentos() {
-      const { data, error } = await supabase
-        .from('ordens_carregamento')
-        .select('*')
-        .order('created_at', { ascending: false });
+    buscarOrdens();
 
-      if (!error && data) {
-        setAgendamentos(data);
-      }
-      setCarregando(false);
-    }
-
-    buscarAgendamentos();
-
-    // Ouve novos agendamentos em tempo real
-    const channel = supabase
-      .channel('realtime-ordens-carregamento')
+    const canal = supabase
+      .channel('mudancas-patio')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'ordens_carregamento' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setAgendamentos((prev) => [payload.new, ...prev]);
+            setOrdens((prev) => [...prev, payload.new]);
           } else if (payload.eventType === 'UPDATE') {
-            setAgendamentos((prev) =>
+            setOrdens((prev) =>
               prev.map((item) => (item.id === payload.new.id ? payload.new : item))
             );
+          } else if (payload.eventType === 'DELETE') {
+            setOrdens((prev) => prev.filter((item) => item.id === payload.old.id));
           }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(canal);
     };
-  }, []);
+  }, [buscarOrdens]);
 
   if (carregando) {
-    return <div className="p-6 text-gray-300">Carregando agendamentos...</div>;
+    return (
+      <div className="p-8 text-center text-gray-400 flex items-center justify-center gap-2">
+        <Loader2 className="animate-spin" size={20} /> Carregando pátio...
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 text-white w-full">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-xl font-bold">Ordens de Carregamento / Agendamentos</h2>
-          <p className="text-sm text-gray-400">Gerencie os veículos cadastrados pelas transportadoras</p>
-        </div>
-        <span className="bg-blue-600 text-xs font-bold px-3 py-1 rounded-full">
-          Total: {agendamentos.length}
-        </span>
-      </div>
-
-      {agendamentos.length === 0 ? (
-        <div className="bg-gray-800/50 border border-gray-700 p-8 rounded-xl text-center text-gray-400">
-          Nenhum agendamento encontrado na tabela <code className="text-blue-400">ordens_carregamento</code>.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agendamentos.map((item) => (
-            <div key={item.id} className="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-md flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs bg-blue-900/80 text-blue-300 border border-blue-700 px-2 py-0.5 rounded font-bold uppercase">
-                    {item.status || 'aguardando'}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(item.created_at).toLocaleDateString('pt-BR')} {new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-                
-                <h3 className="font-bold text-lg text-white mb-1">{item.transportadora || 'Transportadora não informada'}</h3>
-                <p className="text-sm text-gray-300"><strong>Motorista:</strong> {item.nome_motorista}</p>
-                <p className="text-sm text-gray-300"><strong>CPF:</strong> {item.cpf_motorista || 'N/A'}</p>
-                <p className="text-sm text-gray-300"><strong>Veículo:</strong> {item.tipo_veiculo}</p>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-gray-700 grid grid-cols-2 gap-2 text-xs text-gray-400">
-                <div>Cavalo: <strong className="text-white font-mono">{item.placa_cavalo}</strong></div>
-                <div>Carreta: <strong className="text-white font-mono">{item.placa_carreta || 'N/A'}</strong></div>
-              </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {COLUNAS_PATIO.map((coluna) => {
+        const ordensColuna = ordens.filter((o) => o.status === coluna.id);
+        return (
+          <div key={coluna.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-280px)] min-h-[450px]">
+            <div className={`flex justify-between items-center pb-3 mb-3 border-b-2 ${coluna.cor}`}>
+              <h2 className="font-bold text-xs uppercase tracking-wider">{coluna.titulo}</h2>
+              <span className="bg-[#1A2030] text-gray-300 text-xs font-bold px-2.5 py-0.5 rounded-full border border-white/10">
+                {ordensColuna.length}
+              </span>
             </div>
-          ))}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {ordensColuna.length === 0 ? (
+                <div className="text-center text-gray-500 text-xs py-8 border border-dashed border-white/5 rounded-lg">
+                  Nenhum veículo nesta etapa
+                </div>
+              ) : (
+                ordensColuna.map((ordem) => (
+                  <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md">
+                    <div className="flex justify-between text-xs font-bold text-blue-400 mb-1">
+                      <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
+                      <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
+                    </div>
+                    <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
+                    <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
+                    <div className="mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
+                      <div><strong>Cavalo:</strong> <span className="text-gray-200">{ordem.placa_cavalo}</span></div>
+                      <div><strong>Carreta:</strong> <span className="text-gray-200">{ordem.placa_carreta || 'N/A'}</span></div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-white/5">
+                      {ordem.status === 'aguardando' && (
+                        <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                          Aprovar Entrada
+                        </button>
+                      )}
+                      {ordem.status === 'em_patio' && (
+                        <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                          Iniciar Carregamento
+                        </button>
+                      )}
+                      {ordem.status === 'carregando' && (
+                        <button onClick={() => atualizarStatus(ordem.id, 'concluido')} className="w-full bg-green-600 hover:bg-green-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                          Finalizar e Liberar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function CadastroContratos() {
+  const [contratos, setContratos] = useState([]);
+  const [formData, setFormData] = useState({
+    numero_contrato: '',
+    cliente: '',
+    produto: '',
+    quantidade_disponivel: ''
+  });
+
+  useEffect(() => {
+    carregarContratos();
+  }, []);
+
+  async function carregarContratos() {
+    const { data, error } = await supabase
+      .from('contratos_embarque')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (!error) setContratos(data || []);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const { error } = await supabase.from('contratos_embarque').insert([formData]);
+    
+    if (error) {
+      alert('Erro ao cadastrar contrato: ' + error.message);
+    } else {
+      alert('Contrato cadastrado com sucesso!');
+      setFormData({ numero_contrato: '', cliente: '', produto: '', quantidade_disponivel: '' });
+      carregarContratos();
+    }
+  }
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <h2 className="text-xl font-bold mb-4">Cadastro de Contratos para Embarque</h2>
+      
+      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 bg-[#161B23] p-4 shadow rounded mb-6 border border-white/5">
+        <div>
+          <label className="block text-sm font-medium text-gray-300">Número do Contrato</label>
+          <input
+            type="text"
+            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
+            value={formData.numero_contrato}
+            onChange={e => setFormData({...formData, numero_contrato: e.target.value})}
+            required
+          />
         </div>
-      )}
+        <div>
+          <label className="block text-sm font-medium text-gray-300">Cliente</label>
+          <input
+            type="text"
+            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
+            value={formData.cliente}
+            onChange={e => setFormData({...formData, cliente: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300">Produto</label>
+          <input
+            type="text"
+            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
+            value={formData.produto}
+            onChange={e => setFormData({...formData, produto: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300">Quantidade Disponível (Ton)</label>
+          <input
+            type="number"
+            step="0.01"
+            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
+            value={formData.quantidade_disponivel}
+            onChange={e => setFormData({...formData, quantidade_disponivel: e.target.value})}
+            required
+          />
+        </div>
+        <div className="col-span-2">
+          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 cursor-pointer font-bold text-xs">
+            Salvar Contrato
+          </button>
+        </div>
+      </form>
+
+      <h3 className="text-lg font-semibold mb-2 text-gray-200">Contratos Cadastrados</h3>
+      <table className="w-full bg-[#161B23] shadow rounded overflow-hidden border border-white/5">
+        <thead className="bg-[#1A2030] text-left text-gray-300">
+          <tr>
+            <th className="p-3">Contrato</th>
+            <th className="p-3">Cliente</th>
+            <th className="p-3">Produto</th>
+            <th className="p-3">Qtd Disponível</th>
+            <th className="p-3">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {contratos.map(c => (
+            <tr key={c.id} className="hover:bg-white/[0.02]">
+              <td className="p-3 text-white">{c.numero_contrato}</td>
+              <td className="p-3 text-gray-300">{c.cliente}</td>
+              <td className="p-3 text-gray-300">{c.produto}</td>
+              <td className="p-3 text-gray-300">{c.quantidade_disponivel}</td>
+              <td className="p-3 text-blue-400 font-semibold">{c.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -279,7 +426,8 @@ export default function App() {
   const [fCaixaOperador, setFCaixaOperador] = useState("");
   const [fCaixaBusca, setFCaixaBusca] = useState("");
 
-  // Rota pública para pré-agendamento da transportadora
+  const [modalConcluidosAberto, setModalConcluidosAberto] = useState(false);
+
   const isPublicAgendamento = window.location.pathname === "/agendamento-transportadora" || window.location.search.includes("public=agendamento-transportadora");
 
   useEffect(() => {
@@ -482,8 +630,8 @@ export default function App() {
   const totalTroco = filt.reduce((a, b) => a + (Number(b.valor_troco) || 0), 0);
 
   const pesagensAbertas = useMemo(() => pesagens.filter(p => p.status_pagamento === 'ABERTO'), [pesagens]);
+  const carregamentosConcluidos = useMemo(() => pesagens.filter(p => p.status_pagamento === 'FECHADO'), [pesagens]);
 
-  // Se a Rota for pública para a transportadora, exibe o formulário sem solicitar login
   if (isPublicAgendamento) {
     return <FormularioTransportadora />;
   }
@@ -521,9 +669,14 @@ export default function App() {
             {userRole === 'motorista' ? 'MEU DIÁRIO / LOGÍSTICA' : 'LOGÍSTICA / DIÁRIO'}
           </button>
           {userRole !== 'motorista' && (
-            <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-              <CheckSquare size={14} /> CONTROLE DE PÁTIO
-            </button>
+            <>
+              <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                <CheckSquare size={14} /> CONTROLE DE PÁTIO
+              </button>
+              <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                <Package size={14} /> CADASTRO DE CONTRATOS
+              </button>
+            </>
           )}
         </nav>
         
@@ -825,10 +978,117 @@ export default function App() {
 
             {aba === "logistica" && <AbaLogistica session={session} userName={userName} />}
 
-            {aba === "patio" && <PainelControlePatio />}
+            {aba === "cad_contratos" && <CadastroContratos />}
+
+            {aba === "patio" && (
+              <div className="flex flex-col gap-6 max-w-7xl mx-auto">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400">
+                    <CheckSquare size={20} /> Controle de Pátio e Liberações em Tempo Real
+                  </h2>
+                </div>
+                
+                {/* Cards de Métricas / Pátio */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Veículos no Pátio / Abertos</p>
+                      <p className="text-2xl font-black text-amber-400 mt-1">{pesagensAbertas.length}</p>
+                    </div>
+                    <button 
+                      onClick={() => setAba("saida")} 
+                      className="mt-4 text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      Ver veículos aguardando saída &rarr;
+                    </button>
+                  </div>
+
+                  {/* Card de Carregamentos Concluídos clicável */}
+                  <div 
+                    onClick={() => setModalConcluidosAberto(true)}
+                    className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between cursor-pointer hover:border-blue-500/50 transition-all group"
+                  >
+                    <div>
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider group-hover:text-blue-400 transition-colors">Carregamentos Concluídos</p>
+                        <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">Clique para ver dados</span>
+                      </div>
+                      <p className="text-2xl font-black text-emerald-400 mt-1">{carregamentosConcluidos.length}</p>
+                    </div>
+                    <p className="mt-4 text-xs text-gray-500 group-hover:text-gray-300 transition-colors">
+                      Clique para abrir o relatório completo com todos os dados de carregamentos concluídos.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kanban do Pátio */}
+                <KanbanPatio />
+              </div>
+            )}
           </>
         )}
       </main>
+
+      {/* Modal / Visualização de Carregamentos Concluídos */}
+      {modalConcluidosAberto && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#161B23] border border-white/10 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1A2030]">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Package size={18} className="text-emerald-400" /> Relatório Completo - Carregamentos Concluídos ({carregamentosConcluidos.length})
+              </h3>
+              <button 
+                onClick={() => setModalConcluidosAberto(false)}
+                className="text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1 rounded-lg text-xs font-bold cursor-pointer"
+              >
+                FECHAR
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              {carregamentosConcluidos.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">Nenhum carregamento concluído registrado até o momento.</p>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-gray-400 border-b border-white/10 font-semibold uppercase tracking-wider text-[10px]">
+                      {["Data", "Comp.", "Placa", "Produto", "Peso Líq.", "Sacas", "Vlr Unit.", "Valor Total", "Forma Pag."].map(h => <th key={h} className="p-2.5">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {carregamentosConcluidos.map((p, i) => (
+                      <tr key={p.id || i} className="hover:bg-white/[0.02]">
+                        <td className="p-2.5 text-gray-300">{p.data}</td>
+                        <td className="p-2.5 font-medium text-white">{p.comprovante}</td>
+                        <td className="p-2.5 text-blue-400 font-bold">{p.placa}</td>
+                        <td className="p-2.5 text-gray-300">{p.produto}</td>
+                        <td className="p-2.5 text-gray-200">{Number(p.peso_liquido || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} kg</td>
+                        <td className="p-2.5 text-gray-300">{Number(p.sacas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                        <td className="p-2.5 text-gray-300">R$ {Number(p.valor_unitario || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                        <td className="p-2.5 text-emerald-400 font-bold">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                        <td className="p-2.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            {p.forma_pagamento}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-white/10 bg-[#1A2030] flex justify-end">
+              <button 
+                onClick={() => setModalConcluidosAberto(false)}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-xs cursor-pointer"
+              >
+                Voltar ao Painel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

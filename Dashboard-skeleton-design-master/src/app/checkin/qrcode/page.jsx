@@ -1,34 +1,109 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
-export default function QrCodePortariaPage() {
+export default function CheckinPortaria() {
+  const [placa, setPlaca] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [mensagem, setMensagem] = useState(null);
+  const [carregando, setCarregando] = useState(false);
+
+  const handleCheckin = async (e) => {
+    e.preventDefault();
+    setCarregando(true);
+    setMensagem(null);
+
+    const placaFormatada = placa.toUpperCase().trim();
+
+    // 1. Busca pré-agendamento ativo aguardando check-in no Supabase
+    const { data, error } = await supabase
+      .from('ordens_carregamento')
+      .select('*')
+      .eq('placa_cavalo', placaFormatada)
+      .eq('status', 'aguardando_checkin')
+      .single();
+
+    if (error || !data) {
+      setMensagem({
+        tipo: 'erro',
+        texto: 'Pré-agendamento não encontrado para esta placa ou check-in já realizado.'
+      });
+      setCarregando(false);
+      return;
+    }
+
+    // 2. Atualiza a ordem e move para o status em pátio aguardando liberação
+    const { error: updateError } = await supabase
+      .from('ordens_carregamento')
+      .update({
+        checkin_realizado: true,
+        data_chegada_portaria: new Date().toISOString(),
+        status: 'em_patio_aguardando_liberacao'
+      })
+      .eq('id', data.id);
+
+    if (updateError) {
+      setMensagem({ tipo: 'erro', texto: 'Falha ao registrar check-in. Tente novamente.' });
+    } else {
+      setMensagem({
+        tipo: 'sucesso',
+        texto: `Check-in realizado com sucesso! Veículo ${placaFormatada} registrado no pátio.`
+      });
+      setPlaca('');
+      setCpf('');
+    }
+    setCarregando(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
-      <div className="bg-gray-800 border border-gray-700 p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full">
-        <h1 className="text-xl font-bold text-sky-400 mb-2">CHECK-IN PORTARIA GRASEL</h1>
-        <p className="text-xs text-gray-400 mb-6">
-          Escaneie o QR Code abaixo para confirmar sua chegada no pátio
-        </p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="bg-white p-6 rounded-xl shadow-md max-w-md w-full">
+        <h1 className="text-xl font-bold text-gray-800 mb-1">Check-in na Portaria</h1>
+        <p className="text-sm text-gray-500 mb-4">Confirme sua chegada para entrar na fila do pátio</p>
 
-        <div className="bg-white p-4 rounded-xl inline-block mb-6 shadow-inner">
-          <img
-            src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://dashboard-grasel.vercel.app/checkin"
-            alt="QR Code Check-in Portaria"
-            className="w-64 h-64 mx-auto"
-          />
-        </div>
+        {mensagem && (
+          <div className={`p-3 rounded mb-4 text-sm font-medium ${
+            mensagem.tipo === 'sucesso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+            {mensagem.texto}
+          </div>
+        )}
 
-        <p className="text-sm font-semibold text-emerald-400 mb-6">
-          Aponte a câmera do seu celular
-        </p>
+        <form onSubmit={handleCheckin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Placa Cavalo</label>
+            <input
+              type="text"
+              required
+              maxLength={7}
+              placeholder="ABC1D23"
+              value={placa}
+              onChange={(e) => setPlaca(e.target.value.toUpperCase().trim())}
+              className="w-full p-2 border border-gray-300 rounded font-mono uppercase text-lg"
+            />
+          </div>
 
-        <button
-          onClick={() => window.print()}
-          className="w-full bg-sky-500 hover:bg-sky-400 text-gray-950 font-bold py-2.5 rounded-lg transition-colors print:hidden"
-        >
-          Imprimir Placa / QR Code
-        </button>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">CPF do Motorista</label>
+            <input
+              type="text"
+              required
+              placeholder="000.000.000-00"
+              value={cpf}
+              onChange={(e) => setCpf(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded text-lg"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={carregando}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded transition-colors"
+          >
+            {carregando ? 'Validando...' : 'Confirmar Chegada'}
+          </button>
+        </form>
       </div>
     </div>
   );

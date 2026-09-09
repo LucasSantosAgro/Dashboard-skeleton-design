@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function FormularioTransportadora() {
   const [form, setForm] = useState({
+    contrato_id: '',
     transportadora: '',
     nome_motorista: '',
     cpf_motorista: '',
@@ -12,8 +13,23 @@ export default function FormularioTransportadora() {
     tipo_veiculo: 'Bitrem'
   });
 
+  const [contratos, setContratos] = useState<any[]>([]);
   const [sucesso, setSucesso] = useState(false);
   const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    const carregarContratos = async () => {
+      const { data, error } = await supabase
+        .from('contratos_embarque')
+        .select('id, numero_contrato, cliente, produto')
+        .eq('status', 'Ativo');
+
+      if (!error && data) {
+        setContratos(data);
+      }
+    };
+    carregarContratos();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +51,7 @@ export default function FormularioTransportadora() {
     if (!error) {
       setSucesso(true);
       setForm({
+        contrato_id: '',
         transportadora: '',
         nome_motorista: '',
         cpf_motorista: '',
@@ -71,6 +88,25 @@ export default function FormularioTransportadora() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
+                Contrato de Embarque *
+              </label>
+              <select
+                required
+                value={form.contrato_id}
+                onChange={(e) => setForm({ ...form, contrato_id: e.target.value })}
+                className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Selecione um contrato...</option>
+                {contratos.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-[#0F172A] text-white">
+                    Contrato #{c.numero_contrato} - {c.cliente} ({c.produto})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
                 Transportadora
