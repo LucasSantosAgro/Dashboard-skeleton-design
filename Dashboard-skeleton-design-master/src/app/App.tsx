@@ -137,13 +137,22 @@ const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (Number(pesoSaida) < p.peso_entrada) {
+      alert("O peso de saída não pode ser menor que o peso de entrada!");
+      return;
+    }
+    onFinalizar(p, e, { pesoSaida, valorSaca, valorRecebido, formaPag, pesoLiquido, qtdSacas, valorTotal, troco });
+  };
+
   return (
-    <form onSubmit={(e) => onFinalizar(p, e, { pesoSaida, valorSaca, valorRecebido, formaPag, pesoLiquido, qtdSacas, valorTotal, troco })} className="bg-[#161B23] p-4 rounded-xl flex flex-col gap-3 border border-white/5 hover:border-blue-500/25 transition-all shadow-lg">
+    <form onSubmit={handleSubmit} className="bg-[#161B23] p-4 rounded-xl flex flex-col gap-3 border border-white/5 hover:border-blue-500/25 transition-all shadow-lg">
       <div className="flex justify-between text-xs font-bold text-blue-400">
         <span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada.toFixed(2)}kg</span>
       </div>
       <div className="flex gap-2">
-        <input name="peso_saida" type="number" step="0.01" placeholder="Peso Saída (ex: 5660)" value={pesoSaida} onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
+        <input name="peso_saida" type="number" step="10" min={p.peso_entrada} placeholder="Peso Saída (ex: 5660)" value={pesoSaida} onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
         <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" value={valorSaca} onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
         <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" value={valorRecebido} onChange={handleRecebidoChange} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
         <select name="pag" value={formaPag} onChange={(e) => setFormaPag(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
@@ -849,11 +858,16 @@ export default function App() {
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Produto</label>
-                    <input name="prod" placeholder="Ex: Milho, Soja, Trigo" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
+                    <select name="prod" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all">
+                      <option value="">Selecione o produto...</option>
+                      <option value="Milho ensacado">Milho ensacado</option>
+                      <option value="Milho Granel">Milho Granel</option>
+                      <option value="Quebradinho">Quebradinho</option>
+                    </select>
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Peso de Entrada (kg)</label>
-                    <input name="peso" type="number" step="0.01" placeholder="Ex: 15400" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
+                    <input name="peso" type="number" step="10" placeholder="Ex: 15400" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
                   </div>
                   <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-3 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 mt-2 cursor-pointer">
                     REGISTRAR ENTRADA
