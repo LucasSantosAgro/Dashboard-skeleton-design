@@ -5,12 +5,15 @@ export default function FormularioTransportadora() {
   const [form, setForm] = useState({
     contrato_id: '',
     transportadora: '',
+    cnpj_transportadora: '',
     nome_motorista: '',
     cpf_motorista: '',
     whatsapp_motorista: '',
     placa_cavalo: '',
     placa_carreta: '',
-    tipo_veiculo: 'Bitrem'
+    placa_carreta_2: '',
+    tipo_veiculo: 'Bitrem',
+    peso_carga: ''
   });
 
   const [contratos, setContratos] = useState<any[]>([]);
@@ -21,7 +24,7 @@ export default function FormularioTransportadora() {
     const carregarContratos = async () => {
       const { data, error } = await supabase
         .from('contratos_embarque')
-        .select('id, numero_contrato, cliente, produto')
+        .select('id, numero_contrato, cliente, produto, quantidade_disponivel, unidade_medida')
         .eq('status', 'Ativo');
 
       if (!error && data) {
@@ -31,24 +34,25 @@ export default function FormularioTransportadora() {
     carregarContratos();
   }, []);
 
+  const contratoSelecionado = contratos.find((c) => c.id === form.contrato_id);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCarregando(true);
 
-    // Trata contrato_id vazio como NULL e força caixa alta nos textos
-    const dadosEnvio = {
-      ...form,
-      contrato_id: form.contrato_id || null,
-      transportadora: form.transportadora.toUpperCase().trim(),
-      nome_motorista: form.nome_motorista.toUpperCase().trim(),
-      placa_cavalo: form.placa_cavalo.toUpperCase().trim(),
-      placa_carreta: form.placa_carreta ? form.placa_carreta.toUpperCase().trim() : null,
-      codigo_ordem: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
-      status: 'aguardando',
-      checkin_realizado: false
-    };
-
-    const { error } = await supabase.from('ordens_carregamento').insert([dadosEnvio]);
+    const { error } = await supabase.from('ordens_carregamento').insert([
+      {
+        ...form,
+        cnpj_transportadora: form.cnpj_transportadora.replace(/\D/g, ''),
+        placa_cavalo: form.placa_cavalo.toUpperCase().trim(),
+        placa_carreta: form.placa_carreta ? form.placa_carreta.toUpperCase().trim() : null,
+        placa_carreta_2: form.placa_carreta_2 ? form.placa_carreta_2.toUpperCase().trim() : null,
+        peso_carga: form.peso_carga ? Number(form.peso_carga) : null,
+        codigo_ordem: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
+        status: 'aguardando',
+        checkin_realizado: false
+      }
+    ]);
 
     setCarregando(false);
 
@@ -57,16 +61,18 @@ export default function FormularioTransportadora() {
       setForm({
         contrato_id: '',
         transportadora: '',
+        cnpj_transportadora: '',
         nome_motorista: '',
         cpf_motorista: '',
         whatsapp_motorista: '',
         placa_cavalo: '',
         placa_carreta: '',
-        tipo_veiculo: 'Bitrem'
+        placa_carreta_2: '',
+        tipo_veiculo: 'Bitrem',
+        peso_carga: ''
       });
     } else {
-      console.error('Erro Supabase:', error);
-      alert(`Erro ao salvar: ${error.message}`);
+      alert('Erro ao cadastrar agendamento. Verifique se o banco de dados aceita inserção pública (RLS) e se as colunas foram criadas.');
     }
   };
 
@@ -110,20 +116,41 @@ export default function FormularioTransportadora() {
                   </option>
                 ))}
               </select>
+              {contratoSelecionado && (
+                <p className="text-xs text-blue-400 mt-1 font-medium">
+                  Quantidade Disponível no Contrato: {contratoSelecionado.quantidade_disponivel} {contratoSelecionado.unidade_medida || 'TON'}
+                </p>
+              )}
             </div>
 
-            <div>
-              <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
-                Transportadora
-              </label>
-              <input
-                type="text"
-                required
-                value={form.transportadora}
-                onChange={(e) => setForm({ ...form, transportadora: e.target.value.toUpperCase() })}
-                className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white uppercase focus:outline-none focus:border-blue-500"
-                placeholder="NOME DA TRANSPORTADORA"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
+                  Transportadora
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.transportadora}
+                  onChange={(e) => setForm({ ...form, transportadora: e.target.value })}
+                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Nome da Transportadora"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
+                  CNPJ Transportadora
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.cnpj_transportadora}
+                  onChange={(e) => setForm({ ...form, cnpj_transportadora: e.target.value })}
+                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  placeholder="00.000.000/0000-00"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -135,9 +162,9 @@ export default function FormularioTransportadora() {
                   type="text"
                   required
                   value={form.nome_motorista}
-                  onChange={(e) => setForm({ ...form, nome_motorista: e.target.value.toUpperCase() })}
-                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white uppercase focus:outline-none focus:border-blue-500"
-                  placeholder="NOME COMPLETO"
+                  onChange={(e) => setForm({ ...form, nome_motorista: e.target.value })}
+                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Nome Completo"
                 />
               </div>
 
@@ -156,7 +183,7 @@ export default function FormularioTransportadora() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
                   Placa Cavalo
@@ -174,7 +201,7 @@ export default function FormularioTransportadora() {
 
               <div>
                 <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
-                  Placa Carreta
+                  Placa 1ª Carreta
                 </label>
                 <input
                   type="text"
@@ -185,9 +212,23 @@ export default function FormularioTransportadora() {
                   placeholder="XYZ9876"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
+                  Placa 2ª Carreta
+                </label>
+                <input
+                  type="text"
+                  maxLength={7}
+                  value={form.placa_carreta_2}
+                  onChange={(e) => setForm({ ...form, placa_carreta_2: e.target.value.toUpperCase() })}
+                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white font-mono uppercase focus:outline-none focus:border-blue-500"
+                  placeholder="XYZ5432"
+                />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
                   WhatsApp (Opcional)
@@ -214,7 +255,24 @@ export default function FormularioTransportadora() {
                   <option value="Bitrem">Bitrem</option>
                   <option value="Vanderléia">Vanderléia</option>
                   <option value="Rodotrem">Rodotrem</option>
+                  <option value="Carreta LS">Carreta LS</option>
+                  <option value="Carreta 4º Eixo">Carreta 4º Eixo</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-semibold text-slate-300 mb-1">
+                  Peso de Carga *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={form.peso_carga}
+                  onChange={(e) => setForm({ ...form, peso_carga: e.target.value })}
+                  className="w-full bg-[#0F172A] border border-slate-700 p-2.5 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Ex: 35000"
+                />
               </div>
             </div>
 
