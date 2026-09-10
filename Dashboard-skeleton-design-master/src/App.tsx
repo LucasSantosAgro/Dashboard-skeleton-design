@@ -437,7 +437,7 @@ export default function App() {
 
   const [modalConcluidosAberto, setModalConcluidosAberto] = useState(false);
 
-  const isPublicAgendamento = window.location.pathname === "/agendamento-transportadora" || window.location.search.includes("public=agendamento-transportadora");
+  const isPublicCheckin = window.location.pathname === "/checkin" || window.location.search.includes("public=checkin");
 
   useEffect(() => {
     document.title = "Grasel Cerealista";
@@ -476,7 +476,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isPublicAgendamento) {
+    if (isPublicCheckin) {
       setLoading(false);
       return;
     }
@@ -490,7 +490,7 @@ export default function App() {
       if (session) load(session.user.id); else setLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, [load, isPublicAgendamento]);
+  }, [load, isPublicCheckin]);
 
   const registrarMovimentacao = async (tipo, valor, motivo, novoSaldo) => {
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
@@ -641,7 +641,7 @@ export default function App() {
   const pesagensAbertas = useMemo(() => pesagens.filter(p => p.status_pagamento === 'ABERTO'), [pesagens]);
   const carregamentosConcluidos = useMemo(() => pesagens.filter(p => p.status_pagamento === 'FECHADO'), [pesagens]);
 
-  if (isPublicAgendamento) {
+  if (isPublicCheckin) {
     return <FormularioTransportadora />;
   }
 
