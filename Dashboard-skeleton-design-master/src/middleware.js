@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server';
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // 1. Libera a rota de check-in ANTES de qualquer validação de sessão
-  if (pathname.startsWith('/checkin')) {
+  // 1. Libera as rotas públicas ANTES de qualquer validação de sessão
+  if (pathname.startsWith('/checkin') || pathname.startsWith('/agendamento')) {
     return NextResponse.next();
   }
 
@@ -50,3 +50,4 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
+``` [source: 4]
