@@ -1,19 +1,51 @@
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // 1. Libera a rota de check-in para acesso público sem redirecionar para login
+  // 1. Libera a rota de check-in ANTES de qualquer validação de sessão
   if (pathname.startsWith('/checkin')) {
     return NextResponse.next();
   }
 
-  // 2. Permite o fluxo normal para as demais páginas do sistema
-  return NextResponse.next();
+  let response = NextResponse.next({
+    request: { headers: request.headers },
+  });
+
+  // Cria um cliente Supabase exclusivo para esta requisição capaz de manipular cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // 2. Redireciona para o login apenas se o usuário tentar acessar páginas do painel sem estar logado
+  if (!user && !pathname.startsWith('/login')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  return response;
 }
 
 export const config = {
-  // Executa o middleware em todas as rotas do app, exceto arquivos estáticos
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
