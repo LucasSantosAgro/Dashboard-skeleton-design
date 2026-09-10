@@ -6,7 +6,7 @@ import jsPDF from "jspdf";
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import AbaLogistica from './AbaLogistica.jsx';
-import FormularioTransportadora from './app/components/FormularioTransportadora.jsx';
+import CheckinPortaria from './app/(public)/checkin/page.jsx';
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
@@ -642,7 +642,7 @@ export default function App() {
   const carregamentosConcluidos = useMemo(() => pesagens.filter(p => p.status_pagamento === 'FECHADO'), [pesagens]);
 
   if (isPublicCheckin) {
-    return <FormularioTransportadora />;
+    return <CheckinPortaria />;
   }
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
