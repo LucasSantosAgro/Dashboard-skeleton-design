@@ -1002,7 +1002,6 @@ export default function App() {
                   </h2>
                 </div>
                 
-                {/* Cards de Métricas / Pátio */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between">
                     <div>
@@ -1017,7 +1016,6 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* Card de Carregamentos Concluídos clicável */}
                   <div 
                     onClick={() => setModalConcluidosAberto(true)}
                     className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between cursor-pointer hover:border-blue-500/50 transition-all group"
@@ -1035,7 +1033,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Kanban do Pátio */}
                 <KanbanPatio />
               </div>
             )}
@@ -1043,7 +1040,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal / Visualização de Carregamentos Concluídos */}
       {modalConcluidosAberto && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
