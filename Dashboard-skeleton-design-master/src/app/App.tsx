@@ -221,7 +221,7 @@ export function KanbanPatio() {
               prev.map((item) => (item.id === payload.new.id ? payload.new : item))
             );
           } else if (payload.eventType === 'DELETE') {
-            setOrdens((prev) => prev.filter((item) => item.id === payload.old.id));
+            setOrdens((prev) => prev.filter((item) => item.id !== payload.old.id));
           }
         }
       )
@@ -502,7 +502,7 @@ export default function App() {
       saldo_resultante: novoSaldo
     }]);
     setSaldoCaixa(novoSaldo);
-    load(session.user.id);
+    if (session?.user?.id) load(session.user.id);
   };
 
   const handleAdicionarTroco = async (e) => {
@@ -532,7 +532,7 @@ export default function App() {
   const excluirPesagem = async (id) => {
     if (window.confirm("Confirmar o cancelamento desta pesagem?")) {
       const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
-      if (!error) load(session.user.id);
+      if (!error && session?.user?.id) load(session.user.id);
     }
   };
 
@@ -554,7 +554,7 @@ export default function App() {
         status_pagamento: 'ABERTO', 
         operador_entrada: userName 
     }]);
-    if (error) alert(error.message); else { alert("Registrado com Sucesso: " + nextComp); e.target.reset(); load(session.user.id); }
+    if (error) alert(error.message); else { alert("Registrado com Sucesso: " + nextComp); e.target.reset(); if (session?.user?.id) load(session.user.id); }
   };
 
   const finalizarPesagem = async (p, e, calcData) => {
@@ -585,7 +585,7 @@ export default function App() {
     const { error } = await supabase.from('fat_pesagens').update(payload).eq('id', p.id);
 
     if (!error) {
-      load(session.user.id);
+      if (session?.user?.id) load(session.user.id);
       gerarPDF({ ...p, ...payload }, userName);
     }
   };
