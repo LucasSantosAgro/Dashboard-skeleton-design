@@ -303,9 +303,11 @@ export function CadastroContratos() {
   const [formData, setFormData] = useState({
     numero_contrato: '',
     cliente: '',
+    cnpj: '',
     produto: '',
     quantidade_disponivel: ''
   });
+  const [editandoId, setEditandoId] = useState(null);
 
   useEffect(() => {
     carregarContratos();
@@ -322,20 +324,64 @@ export function CadastroContratos() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const { error } = await supabase.from('contratos_embarque').insert([formData]);
-    
-    if (error) {
-      alert('Erro ao cadastrar contrato: ' + error.message);
+    if (editandoId) {
+      const { error } = await supabase
+        .from('contratos_embarque')
+        .update(formData)
+        .eq('id', editandoId);
+
+      if (error) {
+        alert('Erro ao atualizar contrato: ' + error.message);
+      } else {
+        alert('Contrato atualizado com sucesso!');
+        setFormData({ numero_contrato: '', cliente: '', cnpj: '', produto: '', quantidade_disponivel: '' });
+        setEditandoId(null);
+        carregarContratos();
+      }
     } else {
-      alert('Contrato cadastrado com sucesso!');
-      setFormData({ numero_contrato: '', cliente: '', produto: '', quantidade_disponivel: '' });
-      carregarContratos();
+      const { error } = await supabase.from('contratos_embarque').insert([formData]);
+      
+      if (error) {
+        alert('Erro ao cadastrar contrato: ' + error.message);
+      } else {
+        alert('Contrato cadastrado com sucesso!');
+        setFormData({ numero_contrato: '', cliente: '', cnpj: '', produto: '', quantidade_disponivel: '' });
+        carregarContratos();
+      }
+    }
+  }
+
+  function iniciarEdicao(c) {
+    setEditandoId(c.id);
+    setFormData({
+      numero_contrato: c.numero_contrato || '',
+      cliente: c.cliente || '',
+      cnpj: c.cnpj || '',
+      produto: c.produto || '',
+      quantidade_disponivel: c.quantidade_disponivel || ''
+    });
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setFormData({ numero_contrato: '', cliente: '', cnpj: '', produto: '', quantidade_disponivel: '' });
+  }
+
+  async function excluirContrato(id) {
+    if (window.confirm('Tem certeza que deseja excluir este contrato?')) {
+      const { error } = await supabase.from('contratos_embarque').delete().eq('id', id);
+      if (error) {
+        alert('Erro ao excluir contrato: ' + error.message);
+      } else {
+        alert('Contrato excluído com sucesso!');
+        carregarContratos();
+      }
     }
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h2 className="text-xl font-bold mb-4">Cadastro de Contratos para Embarque</h2>
+    <div className="p-6 max-w-5xl mx-auto">
+      <h2 className="text-xl font-bold mb-4">{editandoId ? 'Editar Contrato para Embarque' : 'Cadastro de Contratos para Embarque'}</h2>
       
       <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 bg-[#161B23] p-4 shadow rounded mb-6 border border-white/5">
         <div>
@@ -359,6 +405,17 @@ export function CadastroContratos() {
           />
         </div>
         <div>
+          <label className="block text-sm font-medium text-gray-300">CNPJ</label>
+          <input
+            type="text"
+            placeholder="00.000.000/0000-00"
+            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
+            value={formData.cnpj}
+            onChange={e => setFormData({...formData, cnpj: e.target.value})}
+            required
+          />
+        </div>
+        <div>
           <label className="block text-sm font-medium text-gray-300">Produto</label>
           <input
             type="text"
@@ -368,7 +425,7 @@ export function CadastroContratos() {
             required
           />
         </div>
-        <div>
+        <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-300">Quantidade Disponível (Ton)</label>
           <input
             type="number"
@@ -379,32 +436,48 @@ export function CadastroContratos() {
             required
           />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-2 flex gap-2">
           <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 cursor-pointer font-bold text-xs">
-            Salvar Contrato
+            {editandoId ? 'Atualizar Contrato' : 'Salvar Contrato'}
           </button>
+          {editandoId && (
+            <button type="button" onClick={cancelarEdicao} className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 cursor-pointer font-bold text-xs">
+              Cancelar
+            </button>
+          )}
         </div>
       </form>
 
       <h3 className="text-lg font-semibold mb-2 text-gray-200">Contratos Cadastrados</h3>
-      <table className="w-full bg-[#161B23] shadow rounded overflow-hidden border border-white/5">
+      <table className="w-full bg-[#161B23] shadow rounded overflow-hidden border border-white/5 text-sm">
         <thead className="bg-[#1A2030] text-left text-gray-300">
           <tr>
             <th className="p-3">Contrato</th>
             <th className="p-3">Cliente</th>
+            <th className="p-3">CNPJ</th>
             <th className="p-3">Produto</th>
             <th className="p-3">Qtd Disponível</th>
             <th className="p-3">Status</th>
+            <th className="p-3 text-center">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
           {contratos.map(c => (
             <tr key={c.id} className="hover:bg-white/[0.02]">
-              <td className="p-3 text-white">{c.numero_contrato}</td>
+              <td className="p-3 text-white font-medium">{c.numero_contrato}</td>
               <td className="p-3 text-gray-300">{c.cliente}</td>
+              <td className="p-3 text-gray-300">{c.cnpj || 'N/A'}</td>
               <td className="p-3 text-gray-300">{c.produto}</td>
               <td className="p-3 text-gray-300">{c.quantidade_disponivel}</td>
-              <td className="p-3 text-blue-400 font-semibold">{c.status}</td>
+              <td className="p-3 text-blue-400 font-semibold">{c.status || 'Ativo'}</td>
+              <td className="p-3 flex justify-center gap-2">
+                <button onClick={() => iniciarEdicao(c)} className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer">
+                  Editar
+                </button>
+                <button onClick={() => excluirContrato(c.id)} className="bg-red-600/20 hover:bg-red-600/40 text-red-400 px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer">
+                  Excluir
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
