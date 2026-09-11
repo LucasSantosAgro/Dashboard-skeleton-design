@@ -510,8 +510,6 @@ export default function App() {
 
   const [modalConcluidosAberto, setModalConcluidosAberto] = useState(false);
 
-  const isPublicCheckin = window.location.pathname === "/checkin" || window.location.pathname === "/agendamento" || window.location.search.includes("public=checkin");
-
   useEffect(() => {
     document.title = "Grasel Cerealista";
 
@@ -549,11 +547,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isPublicCheckin) {
-      setLoading(false);
-      return;
-    }
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) load(session.user.id); else setLoading(false);
@@ -563,7 +556,7 @@ export default function App() {
       if (session) load(session.user.id); else setLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, [load, isPublicCheckin]);
+  }, [load]);
 
   const registrarMovimentacao = async (tipo, valor, motivo, novoSaldo) => {
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
@@ -713,10 +706,6 @@ export default function App() {
 
   const pesagensAbertas = useMemo(() => pesagens.filter(p => p.status_pagamento === 'ABERTO'), [pesagens]);
   const carregamentosConcluidos = useMemo(() => pesagens.filter(p => p.status_pagamento === 'FECHADO'), [pesagens]);
-
-  if (isPublicCheckin) {
-    return <CheckinPortaria />;
-  }
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
 
