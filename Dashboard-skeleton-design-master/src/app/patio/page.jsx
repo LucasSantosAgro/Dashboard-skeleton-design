@@ -25,13 +25,20 @@ export default function KanbanPatio() {
   };
 
   const atualizarStatus = async (id, novoStatus) => {
+    const dadosUpdate = { status: novoStatus };
+    
+    // Se o veículo estiver entrando no pátio, registra o momento exato do check-in/entrada
+    if (novoStatus === 'em_patio') {
+      dadosUpdate.data_chegada_portaria = new Date().toISOString();
+    }
+
     setOrdens((prev) =>
-      prev.map((ordem) => (ordem.id === id ? { ...ordem, status: novoStatus } : ordem))
+      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdate } : ordem))
     );
 
     const { error } = await supabase
       .from('ordens_carregamento')
-      .update({ status: novoStatus })
+      .update(dadosUpdate)
       .eq('id', id);
 
     if (error) buscarOrdens();
@@ -52,6 +59,18 @@ export default function KanbanPatio() {
       alert('Erro ao registrar a conclusão.');
       buscarOrdens();
     }
+  };
+
+  const formatarDataHora = (dataIso) => {
+    if (!dataIso) return 'N/A';
+    const data = new Date(dataIso);
+    return data.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   useEffect(() => {
@@ -110,7 +129,15 @@ export default function KanbanPatio() {
                     </div>
                     <h3 className="font-bold text-gray-800">{ordem.transportadora}</h3>
                     <p className="text-sm text-gray-600">Mot: {ordem.nome_motorista}</p>
-                    <div className="mt-3 pt-2 border-t text-xs text-gray-500 grid grid-cols-2">
+
+                    {/* Exibe data e hora do check-in/entrada quando estiver no pátio ou nas etapas seguintes */}
+                    {ordem.data_chegada_portaria && (
+                      <div className="mt-2 pt-2 border-t text-[11px] text-blue-600 font-medium">
+                        ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
+                      </div>
+                    )}
+
+                    <div className="mt-2 pt-2 border-t text-xs text-gray-500 grid grid-cols-2">
                       <div><strong>Cavalo:</strong> {ordem.placa_cavalo}</div>
                       <div><strong>Carreta:</strong> {ordem.placa_carreta || 'N/A'}</div>
                     </div>
