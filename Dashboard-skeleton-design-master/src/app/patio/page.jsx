@@ -4,10 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 const COLUNAS = [
-  { id: 'aguardando_checkin', titulo: 'Pré-Agendado', cor: 'border-amber-500' },
-  { id: 'em_patio_aguardando_liberacao', titulo: 'No Pátio - Aguardando Liberação', cor: 'border-blue-500' },
+  { id: 'aguardando', titulo: 'Aguardando Chegada', cor: 'border-yellow-500' },
+  { id: 'em_patio', titulo: 'Em Pátio / Triagem', cor: 'border-blue-500' },
   { id: 'carregando', titulo: 'Carregando', cor: 'border-purple-500' },
-  { id: 'carregamento_concluido', titulo: 'Carregamento Concluído', cor: 'border-green-500' }
+  { id: 'concluido', titulo: 'Concluído / Saída', cor: 'border-green-500' }
 ];
 
 export default function KanbanPatio() {
@@ -37,6 +37,23 @@ export default function KanbanPatio() {
     if (error) buscarOrdens();
   };
 
+  const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado) => {
+    const { error } = await supabase
+      .from('ordens_carregamento')
+      .update({
+        status: 'concluido',
+        nota_fiscal: notaFiscal,
+        peso_carregado: pesoCarregado
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao finalizar carregamento:', error);
+      alert('Erro ao registrar a conclusão.');
+      buscarOrdens();
+    }
+  };
+
   useEffect(() => {
     buscarOrdens();
 
@@ -53,7 +70,7 @@ export default function KanbanPatio() {
               prev.map((item) => (item.id === payload.new.id ? payload.new : item))
             );
           } else if (payload.eventType === 'DELETE') {
-            setOrdens((prev) => prev.filter((item) => item.id === payload.old.id));
+            setOrdens((prev) => prev.filter((item) => item.id !== payload.old.id));
           }
         }
       )
@@ -98,21 +115,51 @@ export default function KanbanPatio() {
                       <div><strong>Carreta:</strong> {ordem.placa_carreta || 'N/A'}</div>
                     </div>
                     <div className="mt-3 pt-2 border-t">
-                      {ordem.status === 'em_patio_aguardando_liberacao' && (
-                        <button
-                          onClick={() => atualizarStatus(ordem.id, 'carregando')}
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded transition-colors"
-                        >
-                          Liberar para Carregamento
-                        </button>
+                      {ordem.status === 'aguardando' && (
+                        <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 text-white text-xs py-1.5 rounded font-semibold">Aprovar Entrada</button>
+                      )}
+                      {ordem.status === 'em_patio' && (
+                        <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 text-white text-xs py-1.5 rounded font-semibold">Iniciar Carregamento</button>
                       )}
                       {ordem.status === 'carregando' && (
-                        <button
-                          onClick={() => atualizarStatus(ordem.id, 'carregamento_concluido')}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 rounded transition-colors"
-                        >
-                          Finalizar Carregamento
-                        </button>
+                        <div className="mt-3 pt-2 border-t space-y-2">
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-gray-500">Nota Fiscal</label>
+                            <input
+                              type="text"
+                              placeholder="Número da NF"
+                              defaultValue={ordem.nota_fiscal || ''}
+                              id={`nf-${ordem.id}`}
+                              className="w-full p-1.5 text-xs bg-gray-50 border border-gray-300 text-gray-800 rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-gray-500">Peso Carregado (KG/Ton)</label>
+                            <input
+                              type="number"
+                              placeholder="Ex: 35000"
+                              defaultValue={ordem.peso_carregado || ''}
+                              id={`peso-${ordem.id}`}
+                              className="w-full p-1.5 text-xs bg-gray-50 border border-gray-300 text-gray-800 rounded"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              const nf = document.getElementById(`nf-${ordem.id}`).value;
+                              const peso = parseFloat(document.getElementById(`peso-${ordem.id}`).value) || 0;
+                              
+                              if (!nf || peso <= 0) {
+                                alert('Preencha a Nota Fiscal e o Peso Carregado corretamente!');
+                                return;
+                              }
+
+                              atualizarConclusaoCarregamento(ordem.id, nf, peso);
+                            }}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded mt-2 transition-colors"
+                          >
+                            Finalizar e Dar Baixa no Contrato
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -125,3 +172,4 @@ export default function KanbanPatio() {
     </div>
   );
 }
+```[cite: 9]
