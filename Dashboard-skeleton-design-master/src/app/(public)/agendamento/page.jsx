@@ -16,7 +16,7 @@ export default function FormularioTransportadora() {
     peso_carga: ''
   });
 
-  const [contratos, setContratos] = useState<any[]>([]);
+  const [contratos, setContratos] = useState([]);
   const [sucesso, setSucesso] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
@@ -36,7 +36,7 @@ export default function FormularioTransportadora() {
 
   const contratoSelecionado = contratos.find((c) => c.id === form.contrato_id);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setCarregando(true);
 

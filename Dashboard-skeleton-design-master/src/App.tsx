@@ -510,7 +510,7 @@ export default function App() {
 
   const [modalConcluidosAberto, setModalConcluidosAberto] = useState(false);
 
-  const isPublicCheckin = window.location.pathname === "/checkin" || window.location.search.includes("public=checkin");
+  const isPublicCheckin = window.location.pathname === "/checkin" || window.location.pathname === "/agendamento" || window.location.search.includes("public=checkin");
 
   useEffect(() => {
     document.title = "Grasel Cerealista";
