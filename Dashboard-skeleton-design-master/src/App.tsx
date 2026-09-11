@@ -7,6 +7,7 @@ import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import AbaLogistica from './AbaLogistica.jsx';
 import CheckinPortaria from './app/(public)/checkin/page.jsx';
+import AgendamentoPage from './app/(public)/agendamento/page.jsx';
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
@@ -510,6 +511,10 @@ export default function App() {
 
   const [modalConcluidosAberto, setModalConcluidosAberto] = useState(false);
 
+  const path = window.location.pathname;
+  const isPublicCheckin = path === "/checkin" || path.endsWith("/checkin") || window.location.search.includes("public=checkin");
+  const isPublicAgendamento = path === "/agendamento" || path.endsWith("/agendamento") || window.location.search.includes("public=agendamento");
+
   useEffect(() => {
     document.title = "Grasel Cerealista";
 
@@ -547,6 +552,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (isPublicCheckin || isPublicAgendamento) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) load(session.user.id); else setLoading(false);
@@ -556,7 +566,7 @@ export default function App() {
       if (session) load(session.user.id); else setLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, [load]);
+  }, [load, isPublicCheckin, isPublicAgendamento]);
 
   const registrarMovimentacao = async (tipo, valor, motivo, novoSaldo) => {
     await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
@@ -706,6 +716,14 @@ export default function App() {
 
   const pesagensAbertas = useMemo(() => pesagens.filter(p => p.status_pagamento === 'ABERTO'), [pesagens]);
   const carregamentosConcluidos = useMemo(() => pesagens.filter(p => p.status_pagamento === 'FECHADO'), [pesagens]);
+
+  if (isPublicCheckin) {
+    return <CheckinPortaria />;
+  }
+
+  if (isPublicAgendamento) {
+    return <AgendamentoPage />;
+  }
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-[#0B0F15] text-blue-500"><Loader2 className="animate-spin" size={40}/></div>;
 
