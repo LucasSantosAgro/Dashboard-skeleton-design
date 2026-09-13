@@ -196,7 +196,6 @@ export function KanbanPatio() {
   const atualizarStatus = async (id, novoStatus) => {
     const dadosUpdate = { status: novoStatus };
     
-    // Registra o momento exato do check-in/entrada no pátio[cite: 2]
     if (novoStatus === 'em_patio') {
       dadosUpdate.data_chegada_portaria = new Date().toISOString();
     }
