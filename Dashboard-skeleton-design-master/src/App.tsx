@@ -237,7 +237,7 @@ export function KanbanPatio() {
       return;
     }
 
-    // 2. Busca o contrato atual para calcular o novo saldo
+    // 2. Busca o saldo atual real do contrato no banco de dados
     const { data: contrato, error: erroBusca } = await supabase
       .from('contratos_embarque')
       .select('quantidade_disponivel, numero_contrato')
@@ -250,11 +250,12 @@ export function KanbanPatio() {
       return;
     }
 
-    // Garante que o saldo não fique negativo
+    // 3. Subtrai SOMENTE a quantidade carregada do saldo atual
     const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
-    const novoSaldo = Math.max(0, saldoAtual - Number(pesoCarregado));
+    const pesoCarregadoNum = Number(pesoCarregado) || 0;
+    const novoSaldo = saldoAtual - pesoCarregadoNum;
 
-    // 3. Atualiza o saldo no contrato
+    // 4. Atualiza o novo saldo no contrato
     const { error: erroAtualizacaoContrato } = await supabase
       .from('contratos_embarque')
       .update({ quantidade_disponivel: novoSaldo })
@@ -266,7 +267,17 @@ export function KanbanPatio() {
       return;
     }
 
-    alert(`Carregamento concluído! Saldo do contrato ${contrato.numero_contrato} atualizado para ${novoSaldo}.`);
+    // 5. Monta a mensagem e dispara o aviso se estiver abaixo de 100.000 Kg
+    let mensagem = `Carregamento concluído com sucesso!\n\n` +
+                   `• Contrato: ${contrato.numero_contrato}\n` +
+                   `• Baixa efetuada: -${pesoCarregadoNum.toLocaleString('pt-BR')} Kg\n` +
+                   `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
+
+    if (novoSaldo < 100000) {
+      mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
+    }
+
+    alert(mensagem);
 
     // Atualiza estado local e recarrega dados
     setOrdens((prev) =>
