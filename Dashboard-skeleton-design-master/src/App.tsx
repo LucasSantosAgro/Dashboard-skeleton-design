@@ -213,7 +213,12 @@ export function KanbanPatio() {
     if (error) buscarOrdens();
   };
 
-  const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
+ const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
+    if (!contratoId) {
+      alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
+      return;
+    }
+
     const dadosUpdateOrdem = {
       status: 'concluido',
       nota_fiscal: notaFiscal,
@@ -228,32 +233,40 @@ export function KanbanPatio() {
 
     if (erroOrdem) {
       console.error('Erro ao finalizar carregamento:', erroOrdem);
-      alert('Erro ao registrar a conclusão.');
+      alert('Erro ao registrar a conclusão da ordem.');
       return;
     }
 
-    // 2. Se houver contrato vinculado, desconta o peso carregado do saldo disponível
-    if (contratoId) {
-      const { data: contrato, error: erroBusca } = await supabase
-        .from('contratos_embarque')
-        .select('quantidade_disponivel')
-        .eq('id', contratoId)
-        .single();
+    // 2. Busca o contrato atual para calcular o novo saldo
+    const { data: contrato, error: erroBusca } = await supabase
+      .from('contratos_embarque')
+      .select('quantidade_disponivel, numero_contrato')
+      .eq('id', contratoId)
+      .single();
 
-      if (!erroBusca && contrato) {
-        // Garante que o saldo não fique negativo
-        const novoSaldo = Math.max(0, Number(contrato.quantidade_disponivel) - Number(pesoCarregado));
-
-        const { error: erroAtualizacaoContrato } = await supabase
-          .from('contratos_embarque')
-          .update({ quantidade_disponivel: novoSaldo })
-          .eq('id', contratoId);
-
-        if (erroAtualizacaoContrato) {
-          console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
-        }
-      }
+    if (erroBusca || !contrato) {
+      console.error('Erro ao buscar contrato:', erroBusca);
+      alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+      return;
     }
+
+    // Garante que o saldo não fique negativo
+    const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
+    const novoSaldo = Math.max(0, saldoAtual - Number(pesoCarregado));
+
+    // 3. Atualiza o saldo no contrato
+    const { error: erroAtualizacaoContrato } = await supabase
+      .from('contratos_embarque')
+      .update({ quantidade_disponivel: novoSaldo })
+      .eq('id', contratoId);
+
+    if (erroAtualizacaoContrato) {
+      console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
+      alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
+      return;
+    }
+
+    alert(`Carregamento concluído! Saldo do contrato ${contrato.numero_contrato} atualizado para ${novoSaldo}.`);
 
     // Atualiza estado local e recarrega dados
     setOrdens((prev) =>
