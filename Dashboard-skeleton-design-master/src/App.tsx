@@ -184,9 +184,10 @@ export function KanbanPatio() {
   const [carregando, setCarregando] = useState(true);
 
   const buscarOrdens = useCallback(async () => {
+    // Busca as ordens trazendo também os dados do contrato vinculado
     const { data, error } = await supabase
       .from('ordens_carregamento')
-      .select('*')
+      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel)')
       .order('created_at', { ascending: true });
 
     if (!error && data) setOrdens(data);
@@ -212,27 +213,53 @@ export function KanbanPatio() {
     if (error) buscarOrdens();
   };
 
-  const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado) => {
-    const dadosUpdate = {
+  const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
+    const dadosUpdateOrdem = {
       status: 'concluido',
       nota_fiscal: notaFiscal,
       peso_carregado: pesoCarregado
     };
 
-    setOrdens((prev) =>
-      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdate } : ordem))
-    );
-
-    const { error } = await supabase
+    // 1. Atualiza a ordem de carregamento para concluído
+    const { error: erroOrdem } = await supabase
       .from('ordens_carregamento')
-      .update(dadosUpdate)
+      .update(dadosUpdateOrdem)
       .eq('id', id);
 
-    if (error) {
-      console.error('Erro ao finalizar carregamento:', error);
+    if (erroOrdem) {
+      console.error('Erro ao finalizar carregamento:', erroOrdem);
       alert('Erro ao registrar a conclusão.');
-      buscarOrdens();
+      return;
     }
+
+    // 2. Se houver contrato vinculado, desconta o peso carregado do saldo disponível
+    if (contratoId) {
+      const { data: contrato, error: erroBusca } = await supabase
+        .from('contratos_embarque')
+        .select('quantidade_disponivel')
+        .eq('id', contratoId)
+        .single();
+
+      if (!erroBusca && contrato) {
+        // Garante que o saldo não fique negativo
+        const novoSaldo = Math.max(0, Number(contrato.quantidade_disponivel) - Number(pesoCarregado));
+
+        const { error: erroAtualizacaoContrato } = await supabase
+          .from('contratos_embarque')
+          .update({ quantidade_disponivel: novoSaldo })
+          .eq('id', contratoId);
+
+        if (erroAtualizacaoContrato) {
+          console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
+        }
+      }
+    }
+
+    // Atualiza estado local e recarrega dados
+    setOrdens((prev) =>
+      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
+    );
+    buscarOrdens();
   };
 
   const formatarDataHora = (dataIso) => {
@@ -257,10 +284,10 @@ export function KanbanPatio() {
         { event: '*', schema: 'public', table: 'ordens_carregamento' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setOrdens((prev) => [...prev, payload.new]);
+            buscarOrdens(); // Recarrega para trazer os vinculos de contrato corretos
           } else if (payload.eventType === 'UPDATE') {
             setOrdens((prev) =>
-              prev.map((item) => (item.id === payload.new.id ? payload.new : item))
+              prev.map((item) => (item.id === payload.new.id ? { ...item, ...payload.new } : item))
             );
           } else if (payload.eventType === 'DELETE') {
             setOrdens((prev) => prev.filter((item) => item.id !== payload.old.id));
@@ -306,6 +333,13 @@ export function KanbanPatio() {
                       <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
                       <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
                     </div>
+                    
+                    {ordem.contratos_embarque?.numero_contrato && (
+                      <div className="mb-2 text-[11px] bg-blue-950/40 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded font-medium inline-block">
+                        Contrato: {ordem.contratos_embarque.numero_contrato}
+                      </div>
+                    )}
+
                     <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
                     <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
 
@@ -364,11 +398,11 @@ export function KanbanPatio() {
                                 return;
                               }
 
-                              atualizarConclusaoCarregamento(ordem.id, nf, peso);
+                              atualizarConclusaoCarregamento(ordem.id, nf, peso, ordem.contrato_id);
                             }}
                             className="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded-lg mt-2 transition-colors cursor-pointer shadow-md shadow-green-900/20"
                           >
-                            Finalizar e Dar Baixa no Contrato
+                            Finalizar e Baixar do Contrato
                           </button>
                         </div>
                       )}
