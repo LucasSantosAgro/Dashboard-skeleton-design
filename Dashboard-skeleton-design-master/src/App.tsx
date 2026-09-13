@@ -194,16 +194,58 @@ export function KanbanPatio() {
   }, []);
 
   const atualizarStatus = async (id, novoStatus) => {
+    const dadosUpdate = { status: novoStatus };
+    
+    // Registra o momento exato do check-in/entrada no pátio[cite: 2]
+    if (novoStatus === 'em_patio') {
+      dadosUpdate.data_chegada_portaria = new Date().toISOString();
+    }
+
     setOrdens((prev) =>
-      prev.map((ordem) => (ordem.id === id ? { ...ordem, status: novoStatus } : ordem))
+      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdate } : ordem))
     );
 
     const { error } = await supabase
       .from('ordens_carregamento')
-      .update({ status: novoStatus })
+      .update(dadosUpdate)
       .eq('id', id);
 
     if (error) buscarOrdens();
+  };
+
+  const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado) => {
+    const dadosUpdate = {
+      status: 'concluido',
+      nota_fiscal: notaFiscal,
+      peso_carregado: pesoCarregado
+    };
+
+    setOrdens((prev) =>
+      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdate } : ordem))
+    );
+
+    const { error } = await supabase
+      .from('ordens_carregamento')
+      .update(dadosUpdate)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao finalizar carregamento:', error);
+      alert('Erro ao registrar a conclusão.');
+      buscarOrdens();
+    }
+  };
+
+  const formatarDataHora = (dataIso) => {
+    if (!dataIso) return 'N/A';
+    const data = new Date(dataIso);
+    return data.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   useEffect(() => {
@@ -267,6 +309,13 @@ export function KanbanPatio() {
                     </div>
                     <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
                     <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
+
+                    {ordem.data_chegada_portaria && (
+                      <div className="mt-2 pt-2 border-t border-white/5 text-[11px] text-blue-400 font-medium">
+                        ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
+                      </div>
+                    )}
+
                     <div className="mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
                       <div><strong>Cavalo:</strong> <span className="text-gray-200">{ordem.placa_cavalo}</span></div>
                       <div><strong>Carreta:</strong> <span className="text-gray-200">{ordem.placa_carreta || 'N/A'}</span></div>
@@ -283,9 +332,46 @@ export function KanbanPatio() {
                         </button>
                       )}
                       {ordem.status === 'carregando' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'concluido')} className="w-full bg-green-600 hover:bg-green-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
-                          Finalizar e Liberar
-                        </button>
+                        <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-gray-400">Nota Fiscal</label>
+                            <input
+                              type="text"
+                              placeholder="Número da NF"
+                              defaultValue={ordem.nota_fiscal || ''}
+                              id={`nf-${ordem.id}`}
+                              className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-gray-400">Peso Carregado (KG/Ton)</label>
+                            <input
+                              type="number"
+                              placeholder="Ex: 35000"
+                              defaultValue={ordem.peso_carregado || ''}
+                              id={`peso-${ordem.id}`}
+                              className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              const nfInput = document.getElementById(`nf-${ordem.id}`);
+                              const pesoInput = document.getElementById(`peso-${ordem.id}`);
+                              const nf = nfInput ? nfInput.value : '';
+                              const peso = pesoInput ? parseFloat(pesoInput.value) || 0 : 0;
+                              
+                              if (!nf || peso <= 0) {
+                                alert('Preencha a Nota Fiscal e o Peso Carregado corretamente!');
+                                return;
+                              }
+
+                              atualizarConclusaoCarregamento(ordem.id, nf, peso);
+                            }}
+                            className="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded-lg mt-2 transition-colors cursor-pointer shadow-md shadow-green-900/20"
+                          >
+                            Finalizar e Dar Baixa no Contrato
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -298,6 +384,7 @@ export function KanbanPatio() {
     </div>
   );
 }
+
 
 export function CadastroContratos() {
   const [contratos, setContratos] = useState([]);
