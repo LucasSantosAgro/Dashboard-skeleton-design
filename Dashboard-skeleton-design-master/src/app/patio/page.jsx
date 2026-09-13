@@ -4,11 +4,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Loader2 } from 'lucide-react';
 
-const COLUNAS = [
-  { id: 'aguardando', titulo: 'Aguardando Chegada', cor: 'border-yellow-500' },
-  { id: 'em_patio', titulo: 'Em Pátio / Triagem', cor: 'border-blue-500' },
-  { id: 'carregando', titulo: 'Carregando', cor: 'border-purple-500' },
-  { id: 'concluido', titulo: 'Concluído / Saída', cor: 'border-green-500' }
+const COLUNAS_PATIO = [
+  { id: 'aguardando', titulo: 'Aguardando Chegada', cor: 'border-yellow-500 text-yellow-400' },
+  { id: 'em_patio', titulo: 'Em Pátio / Triagem', cor: 'border-blue-500 text-blue-400' },
+  { id: 'carregando', titulo: 'Carregando', cor: 'border-purple-500 text-purple-400' },
+  { id: 'concluido', titulo: 'Concluído / Saída', cor: 'border-green-500 text-green-400' }
 ];
 
 export function KanbanPatio() {
@@ -16,7 +16,6 @@ export function KanbanPatio() {
   const [carregando, setCarregando] = useState(true);
 
   const buscarOrdens = useCallback(async () => {
-    // Busca as ordens trazendo também os dados do contrato vinculado[cite: 1]
     const { data, error } = await supabase
       .from('ordens_carregamento')
       .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel)')
@@ -45,9 +44,10 @@ export function KanbanPatio() {
     if (error) buscarOrdens();
   };
 
-  // Função segura para atualizar o saldo do contrato integrada com a conclusão do carregamento
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
-    if (!contratoId) {
+    const idContratoReal = contratoId || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
+
+    if (!idContratoReal) {
       alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
       return;
     }
@@ -55,10 +55,9 @@ export function KanbanPatio() {
     const dadosUpdateOrdem = {
       status: 'concluido',
       nota_fiscal: notaFiscal,
-      peso_carregado: pesoCarregado
+      peso_carregado: Number(pesoCarregado)
     };
 
-    // 1. Atualiza a ordem de carregamento para concluído
     const { error: erroOrdem } = await supabase
       .from('ordens_carregamento')
       .update(dadosUpdateOrdem)
@@ -70,11 +69,10 @@ export function KanbanPatio() {
       return;
     }
 
-    // 2. Busca o saldo atual fresco do banco de dados (evita estado obsoleto)
     const { data: contrato, error: erroBusca } = await supabase
       .from('contratos_embarque')
       .select('quantidade_disponivel, numero_contrato')
-      .eq('id', contratoId)
+      .eq('id', idContratoReal)
       .single();
 
     if (erroBusca || !contrato) {
@@ -85,23 +83,19 @@ export function KanbanPatio() {
 
     const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
     const baixaEfetiva = Number(pesoCarregado) || 0;
-
-    // 3. Subtração exata
     const novoSaldo = saldoAtual - baixaEfetiva;
 
-    // 4. Salva o novo saldo no Supabase de forma segura
-    const { error: erroUpdate } = await supabase
+    const { error: erroAtualizacaoContrato } = await supabase
       .from('contratos_embarque')
       .update({ quantidade_disponivel: novoSaldo })
-      .eq('id', contratoId);
+      .eq('id', idContratoReal);
 
-    if (erroUpdate) {
-      console.error('Erro ao atualizar saldo do contrato:', erroUpdate);
-      alert(`Erro do Supabase ao atualizar o contrato: ${erroUpdate.message}`);
+    if (erroAtualizacaoContrato) {
+      console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
+      alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
       return;
     }
 
-    // 5. Monta a mensagem e dispara o aviso se estiver abaixo de 100.000 Kg
     let mensagem = `Carregamento concluído com sucesso!\n\n` +
                    `• Contrato: ${contrato.numero_contrato}\n` +
                    `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
@@ -113,7 +107,6 @@ export function KanbanPatio() {
 
     alert(mensagem);
 
-    // Atualiza estado local e recarrega dados
     setOrdens((prev) =>
       prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
     );
@@ -169,7 +162,7 @@ export function KanbanPatio() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {COLUNAS.map((coluna) => {
+      {COLUNAS_PATIO.map((coluna) => {
         const ordensColuna = ordens.filter((o) => o.status === coluna.id);
         return (
           <div key={coluna.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-280px)] min-h-[450px]">

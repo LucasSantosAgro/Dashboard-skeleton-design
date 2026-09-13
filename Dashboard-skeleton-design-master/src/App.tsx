@@ -243,7 +243,7 @@ export function KanbanPatio() {
 
     if (erroBusca || !contrato) {
       console.error('Erro ao buscar contrato:', erroBusca);
-      alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+      alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
       return;
     }
 
@@ -645,11 +645,9 @@ export default function App() {
   const [fCaixaOperador, setFCaixaOperador] = useState("");
   const [fCaixaBusca, setFCaixaBusca] = useState("");
 
-  const [modalConcluidosAberto, setModalConcluidosAberto] = useState(false);
-
-  const path = window.location.pathname;
-  const isPublicCheckin = path === "/checkin" || path.endsWith("/checkin") || window.location.search.includes("public=checkin");
-  const isPublicAgendamento = path === "/agendamento" || path.endsWith("/agendamento") || window.location.search.includes("public=agendamento");
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isPublicCheckin = path === "/checkin" || path.endsWith("/checkin") || (typeof window !== 'undefined' && window.location.search.includes("public=checkin"));
+  const isPublicAgendamento = path === "/agendamento" || path.endsWith("/agendamento") || (typeof window !== 'undefined' && window.location.search.includes("public=agendamento"));
 
   useEffect(() => {
     document.title = "Grasel Cerealista";
@@ -851,7 +849,6 @@ export default function App() {
   const totalTroco = filt.reduce((a, b) => a + (Number(b.valor_troco) || 0), 0);
 
   const pesagensAbertas = useMemo(() => pesagens.filter(p => p.status_pagamento === 'ABERTO'), [pesagens]);
-  const carregamentosConcluidos = useMemo(() => pesagens.filter(p => p.status_pagamento === 'FECHADO'), [pesagens]);
 
   if (isPublicCheckin) {
     return <CheckinPortaria />;
@@ -1176,27 +1173,27 @@ export default function App() {
                     <tbody className="divide-y divide-white/5">
                       {movimentacoesFiltradas.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="text-center p-6 text-gray-500">Nenhuma movimentação encontrada com os filtros selecionados.</td>
+                          <td colSpan={6} className="p-4 text-center text-gray-500">Nenhuma movimentação encontrada.</td>
                         </tr>
                       ) : (
-                        movimentacoesFiltradas.map((m, i) => (
-                          <tr key={m.id || i} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="p-2.5 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                        movimentacoesFiltradas.map((m) => (
+                          <tr key={m.id} className="hover:bg-white/[0.02]">
+                            <td className="p-2.5 text-gray-300">{m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : 'N/A'}</td>
                             <td className="p-2.5">
                               <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                m.tipo === 'ENTRADA_TROCO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
-                                m.tipo === 'SAIDA_TROCO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 
+                                m.tipo === 'ENTRADA_TROCO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                m.tipo === 'SAIDA_TROCO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                 'bg-red-500/10 text-red-400 border border-red-500/20'
                               }`}>
-                                {m.tipo === 'ENTRADA_TROCO' ? 'ENTRADA TROCO' : m.tipo === 'SAIDA_TROCO' ? 'TROCO PAGO' : 'SANGRIA / GASTO'}
+                                {m.tipo}
                               </span>
                             </td>
-                            <td className="p-2.5 text-gray-200 font-medium">{m.motivo}</td>
+                            <td className="p-2.5 text-gray-300">{m.motivo}</td>
                             <td className={`p-2.5 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'}R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                             </td>
-                            <td className="p-2.5 font-medium text-gray-300">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                            <td className="p-2.5 text-gray-400">{m.operador}</td>
+                            <td className="p-2.5 font-medium text-gray-200">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td className="p-2.5 text-gray-300">{m.operador || 'N/A'}</td>
                           </tr>
                         ))
                       )}
@@ -1206,49 +1203,12 @@ export default function App() {
               </div>
             )}
 
-            {aba === "logistica" && <AbaLogistica session={session} userName={userName} />}
-
-            {aba === "cad_contratos" && <CadastroContratos />}
-
             {aba === "patio" && (
-              <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400">
-                    <CheckSquare size={20} /> Controle de Pátio e Liberações em Tempo Real
-                  </h2>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Veículos no Pátio / Abertos</p>
-                      <p className="text-2xl font-black text-amber-400 mt-1">{pesagensAbertas.length}</p>
-                    </div>
-                    <button 
-                      onClick={() => setAba("saida")} 
-                      className="mt-4 text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 cursor-pointer"
-                    >
-                      Ver veículos aguardando saída &rarr;
-                    </button>
-                  </div>
+              <KanbanPatio />
+            )}
 
-                  <div 
-                    onClick={() => setModalConcluidosAberto(true)}
-                    className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between cursor-pointer hover:border-blue-500/50 transition-all group"
-                  >
-                    <div>
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider group-hover:text-blue-400 transition-colors">Carregamentos Concluídos</p>
-                        <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">Clique para ver dados</span>
-                      </div>
-                      <p className="text-2xl font-black text-emerald-400 mt-1">{carregamentosConcluidos.length}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Renderização do Kanban de Pátio */}
-                <KanbanPatio />
-              </div>
+            {aba === "cad_contratos" && (
+              <CadastroContratos />
             )}
           </>
         )}
