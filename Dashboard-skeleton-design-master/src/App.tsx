@@ -1123,57 +1123,72 @@ export default function App() {
       {modalConcluidosAberto && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1A2030]">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Package size={18} className="text-emerald-400" /> Relatório Completo - Carregamentos Concluídos ({carregamentosConcluidos.length})
-              </h3>
+            <div className="flex justify-between items-center p-5 border-b border-white/5 bg-[#1A2030]">
+              <div className="flex items-center gap-2">
+                <Package className="text-emerald-400" size={20} />
+                <h3 className="text-base font-bold text-white">Relatório de Carregamentos Concluídos</h3>
+              </div>
               <button 
                 onClick={() => setModalConcluidosAberto(false)}
-                className="text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1 rounded-lg text-xs font-bold cursor-pointer"
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer text-lg font-bold"
               >
-                FECHAR
+                ✕
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto flex-1">
-              {carregamentosConcluidos.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">Nenhum carregamento concluído registrado até o momento.</p>
-              ) : (
-                <table className="w-full text-left text-xs">
+            <div className="p-5 flex-1 overflow-y-auto space-y-4">
+              <div className="flex justify-between items-center text-xs text-gray-400">
+                <span>Total de carregamentos concluídos: <b className="text-white">{carregamentosConcluidos.length}</b></span>
+                <span>Peso Líquido Acumulado: <b className="text-emerald-400">{carregamentosConcluidos.reduce((acc, p) => acc + (Number(p.peso_liquido) || 0), 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} kg</b></span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px]">
                   <thead>
-                    <tr className="text-gray-400 border-b border-white/10 font-semibold uppercase tracking-wider text-[10px]">
-                      {["Data", "Comp.", "Placa", "Produto", "Peso Líq.", "Sacas", "Vlr Unit.", "Valor Total", "Forma Pag."].map(h => <th key={h} className="p-2.5">{h}</th>)}
+                    <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px] bg-[#1A2030]/50">
+                      {["Data", "Comp.", "Placa", "Produto", "Peso Líquido", "Sacas", "Valor Total", "Pag.", "Operador Saída", "Ações"].map(h => <th key={h} className="p-3">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {carregamentosConcluidos.map((p, i) => (
-                      <tr key={p.id || i} className="hover:bg-white/[0.02]">
-                        <td className="p-2.5 text-gray-300">{p.data}</td>
-                        <td className="p-2.5 font-medium text-white">{p.comprovante}</td>
-                        <td className="p-2.5 text-blue-400 font-bold">{p.placa}</td>
-                        <td className="p-2.5 text-gray-300">{p.produto}</td>
-                        <td className="p-2.5 text-gray-200">{Number(p.peso_liquido || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} kg</td>
-                        <td className="p-2.5 text-gray-300">{Number(p.sacas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                        <td className="p-2.5 text-gray-300">R$ {Number(p.valor_unitario || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                        <td className="p-2.5 text-emerald-400 font-bold">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                        <td className="p-2.5">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            {p.forma_pagamento}
-                          </span>
-                        </td>
+                    {carregamentosConcluidos.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="text-center p-8 text-gray-500">Nenhum carregamento concluído registrado.</td>
                       </tr>
-                    ))}
+                    ) : (
+                      carregamentosConcluidos.map((p, i) => (
+                        <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="p-3 text-gray-300">{p.data}</td>
+                          <td className="p-3 font-medium text-blue-400">{p.comprovante}</td>
+                          <td className="p-3 text-white font-bold">{p.placa}</td>
+                          <td className="p-3 text-gray-300">{p.produto}</td>
+                          <td className="p-3 font-medium text-gray-200">{Number(p.peso_liquido || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
+                          <td className="p-3 text-gray-300">{Number(p.sacas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td className="p-3 font-bold text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.forma_pagamento === 'PIX' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                              {p.forma_pagamento}
+                            </span>
+                          </td>
+                          <td className="p-3 text-gray-400">{p.operador_saida || 'N/A'}</td>
+                          <td className="p-3">
+                            <button onClick={() => gerarPDF(p, p.operador_saida)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium cursor-pointer transition-colors bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20">
+                              <Printer size={12}/> PDF
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
-              )}
+              </div>
             </div>
 
-            <div className="p-4 border-t border-white/10 bg-[#1A2030] flex justify-end">
+            <div className="p-4 border-t border-white/5 bg-[#1A2030] flex justify-end">
               <button 
                 onClick={() => setModalConcluidosAberto(false)}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-xs cursor-pointer"
+                className="bg-gray-700 hover:bg-gray-600 text-white px-5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
               >
-                Voltar ao Painel
+                Fechar
               </button>
             </div>
           </div>
