@@ -10,11 +10,11 @@ const COLUNAS = [
   { id: 'concluido', titulo: 'Concluído / Saída', cor: 'border-green-500' }
 ];
 
-export default function KanbanPatio() {
+export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
 
-  const buscarOrdens = async () => {
+  const buscarOrdens = useCallback(async () => {
     const { data, error } = await supabase
       .from('ordens_carregamento')
       .select('*')
@@ -22,12 +22,11 @@ export default function KanbanPatio() {
 
     if (!error && data) setOrdens(data);
     setCarregando(false);
-  };
+  }, []);
 
   const atualizarStatus = async (id, novoStatus) => {
     const dadosUpdate = { status: novoStatus };
     
-    // Se o veículo estiver entrando no pátio, registra o momento exato do check-in/entrada
     if (novoStatus === 'em_patio') {
       dadosUpdate.data_chegada_portaria = new Date().toISOString();
     }
@@ -45,13 +44,19 @@ export default function KanbanPatio() {
   };
 
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado) => {
+    const dadosUpdate = {
+      status: 'concluido',
+      nota_fiscal: notaFiscal,
+      peso_carregado: pesoCarregado
+    };
+
+    setOrdens((prev) =>
+      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdate } : ordem))
+    );
+
     const { error } = await supabase
       .from('ordens_carregamento')
-      .update({
-        status: 'concluido',
-        nota_fiscal: notaFiscal,
-        peso_carregado: pesoCarregado
-      })
+      .update(dadosUpdate)
       .eq('id', id);
 
     if (error) {
@@ -98,82 +103,92 @@ export default function KanbanPatio() {
     return () => {
       supabase.removeChannel(canal);
     };
-  }, []);
+  }, [buscarOrdens]);
 
-  if (carregando) return <div className="p-8 text-center text-gray-500">Carregando pátio...</div>;
+  if (carregando) {
+    return (
+      <div className="p-8 text-center text-gray-400 flex items-center justify-center gap-2">
+        <Loader2 className="animate-spin" size={20} /> Carregando pátio...
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 font-sans">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Controle de Pátio</h1>
-          <p className="text-sm text-gray-500">Gestão de veículos em tempo real</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {COLUNAS.map((coluna) => {
-          const ordensColuna = ordens.filter((o) => o.status === coluna.id);
-          return (
-            <div key={coluna.id} className="bg-gray-50/50 rounded-xl p-4 border border-gray-200 flex flex-col h-[calc(100vh-180px)]">
-              <div className={`flex justify-between items-center pb-3 mb-3 border-b-2 ${coluna.cor}`}>
-                <h2 className="font-semibold text-gray-700 text-sm uppercase">{coluna.titulo}</h2>
-                <span className="bg-gray-200 text-gray-700 text-xs font-bold px-2 py-0.5 rounded-full">{ordensColuna.length}</span>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-3">
-                {ordensColuna.map((ordem) => (
-                  <div key={ordem.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <div className="flex justify-between text-xs font-bold text-indigo-600 mb-1">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {COLUNAS_PATIO.map((coluna) => {
+        const ordensColuna = ordens.filter((o) => o.status === coluna.id);
+        return (
+          <div key={coluna.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-280px)] min-h-[450px]">
+            <div className={`flex justify-between items-center pb-3 mb-3 border-b-2 ${coluna.cor}`}>
+              <h2 className="font-bold text-xs uppercase tracking-wider">{coluna.titulo}</h2>
+              <span className="bg-[#1A2030] text-gray-300 text-xs font-bold px-2.5 py-0.5 rounded-full border border-white/10">
+                {ordensColuna.length}
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {ordensColuna.length === 0 ? (
+                <div className="text-center text-gray-500 text-xs py-8 border border-dashed border-white/5 rounded-lg">
+                  Nenhum veículo nesta etapa
+                </div>
+              ) : (
+                ordensColuna.map((ordem) => (
+                  <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md">
+                    <div className="flex justify-between text-xs font-bold text-blue-400 mb-1">
                       <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
-                      <span className="text-gray-400">{ordem.tipo_veiculo}</span>
+                      <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
                     </div>
-                    <h3 className="font-bold text-gray-800">{ordem.transportadora}</h3>
-                    <p className="text-sm text-gray-600">Mot: {ordem.nome_motorista}</p>
+                    <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
+                    <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
 
-                    {/* Exibe data e hora do check-in/entrada quando estiver no pátio ou nas etapas seguintes */}
                     {ordem.data_chegada_portaria && (
-                      <div className="mt-2 pt-2 border-t text-[11px] text-blue-600 font-medium">
+                      <div className="mt-2 pt-2 border-t border-white/5 text-[11px] text-blue-400 font-medium">
                         ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
                       </div>
                     )}
 
-                    <div className="mt-2 pt-2 border-t text-xs text-gray-500 grid grid-cols-2">
-                      <div><strong>Cavalo:</strong> {ordem.placa_cavalo}</div>
-                      <div><strong>Carreta:</strong> {ordem.placa_carreta || 'N/A'}</div>
+                    <div className="mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
+                      <div><strong>Cavalo:</strong> <span className="text-gray-200">{ordem.placa_cavalo}</span></div>
+                      <div><strong>Carreta:</strong> <span className="text-gray-200">{ordem.placa_carreta || 'N/A'}</span></div>
                     </div>
-                    <div className="mt-3 pt-2 border-t">
+                    <div className="mt-3 pt-2 border-t border-white/5">
                       {ordem.status === 'aguardando' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 text-white text-xs py-1.5 rounded font-semibold">Aprovar Entrada</button>
+                        <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                          Aprovar Entrada
+                        </button>
                       )}
                       {ordem.status === 'em_patio' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 text-white text-xs py-1.5 rounded font-semibold">Iniciar Carregamento</button>
+                        <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                          Iniciar Carregamento
+                        </button>
                       )}
                       {ordem.status === 'carregando' && (
-                        <div className="mt-3 pt-2 border-t space-y-2">
+                        <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
                           <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500">Nota Fiscal</label>
+                            <label className="text-[10px] uppercase font-bold text-gray-400">Nota Fiscal</label>
                             <input
                               type="text"
                               placeholder="Número da NF"
                               defaultValue={ordem.nota_fiscal || ''}
                               id={`nf-${ordem.id}`}
-                              className="w-full p-1.5 text-xs bg-gray-50 border border-gray-300 text-gray-800 rounded"
+                              className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500">Peso Carregado (KG/Ton)</label>
+                            <label className="text-[10px] uppercase font-bold text-gray-400">Peso Carregado (KG/Ton)</label>
                             <input
                               type="number"
                               placeholder="Ex: 35000"
                               defaultValue={ordem.peso_carregado || ''}
                               id={`peso-${ordem.id}`}
-                              className="w-full p-1.5 text-xs bg-gray-50 border border-gray-300 text-gray-800 rounded"
+                              className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
                             />
                           </div>
                           <button
                             onClick={() => {
-                              const nf = document.getElementById(`nf-${ordem.id}`).value;
-                              const peso = parseFloat(document.getElementById(`peso-${ordem.id}`).value) || 0;
+                              const nfInput = document.getElementById(`nf-${ordem.id}`);
+                              const pesoInput = document.getElementById(`peso-${ordem.id}`);
+                              const nf = nfInput ? nfInput.value : '';
+                              const peso = pesoInput ? parseFloat(pesoInput.value) || 0 : 0;
                               
                               if (!nf || peso <= 0) {
                                 alert('Preencha a Nota Fiscal e o Peso Carregado corretamente!');
@@ -182,7 +197,7 @@ export default function KanbanPatio() {
 
                               atualizarConclusaoCarregamento(ordem.id, nf, peso);
                             }}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded mt-2 transition-colors"
+                            className="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded-lg mt-2 transition-colors cursor-pointer shadow-md shadow-green-900/20"
                           >
                             Finalizar e Dar Baixa no Contrato
                           </button>
@@ -190,13 +205,12 @@ export default function KanbanPatio() {
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
-```[cite: 9]
