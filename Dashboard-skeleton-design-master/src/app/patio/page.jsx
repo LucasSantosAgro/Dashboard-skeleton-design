@@ -13,9 +13,9 @@ const COLUNAS = [
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [processandoId, setProcessandoId] = useState(null); // Trava contra cliques duplos
 
   const buscarOrdens = useCallback(async () => {
-    // Busca as ordens trazendo também os dados do contrato vinculado
     const { data, error } = await supabase
       .from('ordens_carregamento')
       .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel)')
@@ -44,11 +44,15 @@ export function KanbanPatio() {
     if (error) buscarOrdens();
   };
 
-const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
+  const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
+    if (processandoId === id) return; // Impede cliques adicionais enquanto processa
+
     if (!contratoId) {
       alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
       return;
     }
+
+    setProcessandoId(id); // Ativa a trava de carregamento para este card
 
     const dadosUpdateOrdem = {
       status: 'concluido',
@@ -65,6 +69,7 @@ const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, con
     if (erroOrdem) {
       console.error('Erro ao finalizar carregamento:', erroOrdem);
       alert('Erro ao registrar a conclusão da ordem.');
+      setProcessandoId(null);
       return;
     }
 
@@ -78,15 +83,22 @@ const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, con
     if (erroBusca || !contrato) {
       console.error('Erro ao buscar contrato:', erroBusca);
       alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+      setProcessandoId(null);
       return;
     }
 
-    // 3. Subtrai SOMENTE a quantidade carregada do saldo atual
     const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
     const pesoCarregadoNum = Number(pesoCarregado) || 0;
-    const novoSaldo = saldoAtual - pesoCarregadoNum;
 
-    // 4. Atualiza o novo saldo no contrato
+    let avisoExtra = '';
+    if (pesoCarregadoNum > saldoAtual) {
+      avisoExtra = `\n\n⚠️ ATENÇÃO: O peso carregado (${pesoCarregadoNum.toLocaleString('pt-BR')} Kg) era maior que o saldo disponível (${saldoAtual.toLocaleString('pt-BR')} Kg). O saldo foi zerado para evitar números negativos.`;
+    }
+
+    // Subtrai SOMENTE a quantidade da carga, impedindo valores negativos
+    const novoSaldo = Math.max(0, saldoAtual - pesoCarregadoNum);
+
+    // 3. Atualiza o novo saldo no contrato
     const { error: erroAtualizacaoContrato } = await supabase
       .from('contratos_embarque')
       .update({ quantidade_disponivel: novoSaldo })
@@ -95,20 +107,25 @@ const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, con
     if (erroAtualizacaoContrato) {
       console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
       alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
+      setProcessandoId(null);
       return;
     }
 
-    // 5. Monta a mensagem e dispara o aviso se estiver abaixo de 100.000 Kg
+    // 4. Monta a mensagem
     let mensagem = `Carregamento concluído com sucesso!\n\n` +
                    `• Contrato: ${contrato.numero_contrato}\n` +
                    `• Baixa efetuada: -${pesoCarregadoNum.toLocaleString('pt-BR')} Kg\n` +
                    `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
 
-    if (novoSaldo < 100000) {
-      mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
+    if (novoSaldo > 0 && novoSaldo < 100000) {
+      mensagem += `\n\n⚠️ AVISO: O saldo deste contrato está abaixo de 100.000 Kg!`;
     }
 
+    mensagem += avisoExtra;
+
     alert(mensagem);
+
+    setProcessandoId(null); // Libera a trava
 
     // Atualiza estado local e recarrega dados
     setOrdens((prev) =>
@@ -139,7 +156,7 @@ const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, con
         { event: '*', schema: 'public', table: 'ordens_carregamento' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            buscarOrdens(); // Recarrega para trazer os vinculos de contrato corretos
+            buscarOrdens();
           } else if (payload.eventType === 'UPDATE') {
             setOrdens((prev) =>
               prev.map((item) => (item.id === payload.new.id ? { ...item, ...payload.new } : item))
@@ -182,88 +199,94 @@ const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, con
                   Nenhum veículo nesta etapa
                 </div>
               ) : (
-                ordensColuna.map((ordem) => (
-                  <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md">
-                    <div className="flex justify-between text-xs font-bold text-blue-400 mb-1">
-                      <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
-                      <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
-                    </div>
-                    
-                    {ordem.contratos_embarque?.numero_contrato && (
-                      <div className="mb-2 text-[11px] bg-blue-950/40 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded font-medium inline-block">
-                        Contrato: {ordem.contratos_embarque.numero_contrato}
+                ordensColuna.map((ordem) => {
+                  const estaProcessando = processandoId === ordem.id;
+                  return (
+                    <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md">
+                      <div className="flex justify-between text-xs font-bold text-blue-400 mb-1">
+                        <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
+                        <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
                       </div>
-                    )}
-
-                    <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
-                    <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
-
-                    {ordem.data_chegada_portaria && (
-                      <div className="mt-2 pt-2 border-t border-white/5 text-[11px] text-blue-400 font-medium">
-                        ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
-                      </div>
-                    )}
-
-                    <div className="mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
-                      <div><strong>Cavalo:</strong> <span className="text-gray-200">{ordem.placa_cavalo}</span></div>
-                      <div><strong>Carreta:</strong> <span className="text-gray-200">{ordem.placa_carreta || 'N/A'}</span></div>
-                    </div>
-                    <div className="mt-3 pt-2 border-t border-white/5">
-                      {ordem.status === 'aguardando' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
-                          Aprovar Entrada
-                        </button>
-                      )}
-                      {ordem.status === 'em_patio' && (
-                        <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
-                          Iniciar Carregamento
-                        </button>
-                      )}
-                      {ordem.status === 'carregando' && (
-                        <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
-                          <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-400">Nota Fiscal</label>
-                            <input
-                              type="text"
-                              placeholder="Número da NF"
-                              defaultValue={ordem.nota_fiscal || ''}
-                              id={`nf-${ordem.id}`}
-                              className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-400">Peso Carregado (KG/Ton)</label>
-                            <input
-                              type="number"
-                              placeholder="Ex: 35000"
-                              defaultValue={ordem.peso_carregado || ''}
-                              id={`peso-${ordem.id}`}
-                              className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
-                            />
-                          </div>
-                          <button
-                            onClick={() => {
-                              const nfInput = document.getElementById(`nf-${ordem.id}`);
-                              const pesoInput = document.getElementById(`peso-${ordem.id}`);
-                              const nf = nfInput ? nfInput.value : '';
-                              const peso = pesoInput ? parseFloat(pesoInput.value) || 0 : 0;
-                              
-                              if (!nf || peso <= 0) {
-                                alert('Preencha a Nota Fiscal e o Peso Carregado corretamente!');
-                                return;
-                              }
-
-                              atualizarConclusaoCarregamento(ordem.id, nf, peso, ordem.contrato_id);
-                            }}
-                            className="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded-lg mt-2 transition-colors cursor-pointer shadow-md shadow-green-900/20"
-                          >
-                            Finalizar e Baixar do Contrato
-                          </button>
+                      
+                      {ordem.contratos_embarque?.numero_contrato && (
+                        <div className="mb-2 text-[11px] bg-blue-950/40 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded font-medium inline-block">
+                          Contrato: {ordem.contratos_embarque.numero_contrato}
                         </div>
                       )}
+
+                      <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
+                      <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
+
+                      {ordem.data_chegada_portaria && (
+                        <div className="mt-2 pt-2 border-t border-white/5 text-[11px] text-blue-400 font-medium">
+                          ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
+                        </div>
+                      )}
+
+                      <div className="mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
+                        <div><strong>Cavalo:</strong> <span className="text-gray-200">{ordem.placa_cavalo}</span></div>
+                        <div><strong>Carreta:</strong> <span className="text-gray-200">{ordem.placa_carreta || 'N/A'}</span></div>
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-white/5">
+                        {ordem.status === 'aguardando' && (
+                          <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                            Aprovar Entrada
+                          </button>
+                        )}
+                        {ordem.status === 'em_patio' && (
+                          <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                            Iniciar Carregamento
+                          </button>
+                        )}
+                        {ordem.status === 'carregando' && (
+                          <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
+                            <div>
+                              <label className="text-[10px] uppercase font-bold text-gray-400">Nota Fiscal</label>
+                              <input
+                                type="text"
+                                placeholder="Número da NF"
+                                defaultValue={ordem.nota_fiscal || ''}
+                                id={`nf-${ordem.id}`}
+                                disabled={estaProcessando}
+                                className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500 disabled:opacity-50"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] uppercase font-bold text-gray-400">Peso Carregado (KG/Ton)</label>
+                              <input
+                                type="number"
+                                placeholder="Ex: 35000"
+                                defaultValue={ordem.peso_carregado || ''}
+                                id={`peso-${ordem.id}`}
+                                disabled={estaProcessando}
+                                className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500 disabled:opacity-50"
+                              />
+                            </div>
+                            <button
+                              onClick={() => {
+                                const nfInput = document.getElementById(`nf-${ordem.id}`);
+                                const pesoInput = document.getElementById(`peso-${ordem.id}`);
+                                const nf = nfInput ? nfInput.value : '';
+                                const peso = pesoInput ? parseFloat(pesoInput.value) || 0 : 0;
+                                
+                                if (!nf || peso <= 0) {
+                                  alert('Preencha a Nota Fiscal e o Peso Carregado corretamente!');
+                                  return;
+                                }
+
+                                atualizarConclusaoCarregamento(ordem.id, nf, peso, ordem.contrato_id);
+                              }}
+                              disabled={estaProcessando}
+                              className="w-full bg-green-600 hover:bg-green-500 disabled:bg-green-800/50 text-white text-xs font-bold py-2 rounded-lg mt-2 transition-colors cursor-pointer shadow-md shadow-green-900/20 flex items-center justify-center gap-2"
+                            >
+                              {estaProcessando ? 'Processando baixa...' : 'Finalizar e Baixar do Contrato'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
