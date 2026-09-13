@@ -182,7 +182,8 @@ const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [processandoId, setProcessandoId] = useState(null); // Trava contra cliques duplos
+  const [processandoId, setProcessandoId] = useState(null); // Mantido apenas para o visual do botão
+  const processandoRef = useRef({}); // Trava síncrona instantânea contra múltiplos cliques
 
   const buscarOrdens = useCallback(async () => {
     const { data, error } = await supabase
@@ -214,7 +215,9 @@ export function KanbanPatio() {
   };
 
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
-    if (processandoId === id) return; // Evita execução duplicada se já estiver processando
+    // Trava síncrona instantânea (evita condição de corrida por cliques múltiplos)
+    if (processandoRef.current[id]) return;
+    processandoRef.current[id] = true;
     setProcessandoId(id);
 
     try {
@@ -285,6 +288,7 @@ export function KanbanPatio() {
       );
       buscarOrdens();
     } finally {
+      processandoRef.current[id] = false;
       setProcessandoId(null);
     }
   };
@@ -400,7 +404,7 @@ export function KanbanPatio() {
                               placeholder="Número da NF"
                               defaultValue={ordem.nota_fiscal || ''}
                               id={`nf-${ordem.id}`}
-                              disabled={processandoId === ordens.id}
+                              disabled={processandoId === ordem.id}
                               className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
                             />
                           </div>
