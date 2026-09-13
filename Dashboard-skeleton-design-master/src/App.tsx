@@ -182,6 +182,7 @@ const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [processandoId, setProcessandoId] = useState(null); // Trava contra cliques duplos
 
   const buscarOrdens = useCallback(async () => {
     const { data, error } = await supabase
@@ -213,70 +214,79 @@ export function KanbanPatio() {
   };
 
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
-    if (!contratoId) {
-      alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
-      return;
+    if (processandoId === id) return; // Evita execução duplicada se já estiver processando
+    setProcessandoId(id);
+
+    try {
+      const idContratoReal = contratoId || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
+
+      if (!idContratoReal) {
+        alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
+        return;
+      }
+
+      const dadosUpdateOrdem = {
+        status: 'concluido',
+        nota_fiscal: notaFiscal,
+        peso_carregado: Number(pesoCarregado)
+      };
+
+      const { error: erroOrdem } = await supabase
+        .from('ordens_carregamento')
+        .update(dadosUpdateOrdem)
+        .eq('id', id);
+
+      if (erroOrdem) {
+        console.error('Erro ao finalizar carregamento:', erroOrdem);
+        alert('Erro ao registrar a conclusão da ordem.');
+        return;
+      }
+
+      const { data: contrato, error: erroBusca } = await supabase
+        .from('contratos_embarque')
+        .select('quantidade_disponivel, numero_contrato')
+        .eq('id', idContratoReal)
+        .single();
+
+      if (erroBusca || !contrato) {
+        console.error('Erro ao buscar contrato:', erroBusca);
+        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        return;
+      }
+
+      const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
+      const baixaEfetiva = Number(pesoCarregado) || 0;
+      const novoSaldo = saldoAtual - baixaEfetiva;
+
+      const { error: erroAtualizacaoContrato } = await supabase
+        .from('contratos_embarque')
+        .update({ quantidade_disponivel: novoSaldo })
+        .eq('id', idContratoReal);
+
+      if (erroAtualizacaoContrato) {
+        console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
+        alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
+        return;
+      }
+
+      let mensagem = `Carregamento concluído com sucesso!\n\n` +
+                     `• Contrato: ${contrato.numero_contrato}\n` +
+                     `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
+                     `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
+
+      if (novoSaldo < 100000) {
+        mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
+      }
+
+      alert(mensagem);
+
+      setOrdens((prev) =>
+        prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
+      );
+      buscarOrdens();
+    } finally {
+      setProcessandoId(null);
     }
-
-    const dadosUpdateOrdem = {
-      status: 'concluido',
-      nota_fiscal: notaFiscal,
-      peso_carregado: pesoCarregado
-    };
-
-    const { error: erroOrdem } = await supabase
-      .from('ordens_carregamento')
-      .update(dadosUpdateOrdem)
-      .eq('id', id);
-
-    if (erroOrdem) {
-      console.error('Erro ao finalizar carregamento:', erroOrdem);
-      alert('Erro ao registrar a conclusão da ordem.');
-      return;
-    }
-
-    const { data: contrato, error: erroBusca } = await supabase
-      .from('contratos_embarque')
-      .select('quantidade_disponivel, numero_contrato')
-      .eq('id', contratoId)
-      .single();
-
-    if (erroBusca || !contrato) {
-      console.error('Erro ao buscar contrato:', erroBusca);
-      alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
-      return;
-    }
-
-    const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
-    const baixaEfetiva = Number(pesoCarregado) || 0;
-    const novoSaldo = saldoAtual - baixaEfetiva;
-
-    const { error: erroUpdate } = await supabase
-      .from('contratos_embarque')
-      .update({ quantidade_disponivel: novoSaldo })
-      .eq('id', contratoId);
-
-    if (erroUpdate) {
-      console.error('Erro ao atualizar saldo do contrato:', erroUpdate);
-      alert(`Erro do Supabase ao atualizar o contrato: ${erroUpdate.message}`);
-      return;
-    }
-
-    let mensagem = `Carregamento concluído com sucesso!\n\n` +
-                   `• Contrato: ${contrato.numero_contrato}\n` +
-                   `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
-                   `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
-
-    if (novoSaldo < 100000) {
-      mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
-    }
-
-    alert(mensagem);
-
-    setOrdens((prev) =>
-      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
-    );
-    buscarOrdens();
   };
 
   const formatarDataHora = (dataIso) => {
@@ -390,6 +400,7 @@ export function KanbanPatio() {
                               placeholder="Número da NF"
                               defaultValue={ordem.nota_fiscal || ''}
                               id={`nf-${ordem.id}`}
+                              disabled={processandoId === ordens.id}
                               className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
                             />
                           </div>
@@ -400,10 +411,12 @@ export function KanbanPatio() {
                               placeholder="Ex: 35000"
                               defaultValue={ordem.peso_carregado || ''}
                               id={`peso-${ordem.id}`}
+                              disabled={processandoId === ordem.id}
                               className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
                             />
                           </div>
                           <button
+                            disabled={processandoId === ordem.id}
                             onClick={() => {
                               const nfInput = document.getElementById(`nf-${ordem.id}`);
                               const pesoInput = document.getElementById(`peso-${ordem.id}`);
@@ -417,9 +430,19 @@ export function KanbanPatio() {
 
                               atualizarConclusaoCarregamento(ordem.id, nf, peso, ordem.contrato_id || ordem.contratos_embarque?.id);
                             }}
-                            className="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded-lg mt-2 transition-colors cursor-pointer shadow-md shadow-green-900/20"
+                            className={`w-full text-xs font-bold py-2 rounded-lg mt-2 transition-colors shadow-md flex items-center justify-center gap-2 ${
+                              processandoId === ordem.id 
+                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed' 
+                                : 'bg-green-600 hover:bg-green-500 text-white cursor-pointer shadow-green-900/20'
+                            }`}
                           >
-                            Finalizar e Baixar do Contrato
+                            {processandoId === ordem.id ? (
+                              <>
+                                <Loader2 className="animate-spin" size={14} /> Processando baixa...
+                              </>
+                            ) : (
+                              'Finalizar e Baixar do Contrato'
+                            )}
                           </button>
                         </div>
                       )}
@@ -431,194 +454,6 @@ export function KanbanPatio() {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-export function CadastroContratos() {
-  const [contratos, setContratos] = useState([]);
-  const [formData, setFormData] = useState({
-    numero_contrato: '',
-    cliente: '',
-    cnpj: '',
-    produto: '',
-    quantidade_disponivel: ''
-  });
-  const [editandoId, setEditandoId] = useState(null);
-
-  useEffect(() => {
-    carregarContratos();
-  }, []);
-
-  async function carregarContratos() {
-    const { data, error } = await supabase
-      .from('contratos_embarque')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (!error) setContratos(data || []);
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (editandoId) {
-      const { error } = await supabase
-        .from('contratos_embarque')
-        .update(formData)
-        .eq('id', editandoId);
-
-      if (error) {
-        alert('Erro ao atualizar contrato: ' + error.message);
-      } else {
-        alert('Contrato atualizado com sucesso!');
-        setFormData({ numero_contrato: '', cliente: '', cnpj: '', produto: '', quantidade_disponivel: '' });
-        setEditandoId(null);
-        carregarContratos();
-      }
-    } else {
-      const { error } = await supabase.from('contratos_embarque').insert([formData]);
-      
-      if (error) {
-        alert('Erro ao cadastrar contrato: ' + error.message);
-      } else {
-        alert('Contrato cadastrado com sucesso!');
-        setFormData({ numero_contrato: '', cliente: '', cnpj: '', produto: '', quantidade_disponivel: '' });
-        carregarContratos();
-      }
-    }
-  }
-
-  function iniciarEdicao(c) {
-    setEditandoId(c.id);
-    setFormData({
-      numero_contrato: c.numero_contrato || '',
-      cliente: c.cliente || '',
-      cnpj: c.cnpj || '',
-      produto: c.produto || '',
-      quantidade_disponivel: c.quantidade_disponivel || ''
-    });
-  }
-
-  function cancelarEdicao() {
-    setEditandoId(null);
-    setFormData({ numero_contrato: '', cliente: '', cnpj: '', produto: '', quantidade_disponivel: '' });
-  }
-
-  async function excluirContrato(id) {
-    if (window.confirm('Tem certeza que deseja excluir este contrato?')) {
-      const { error } = await supabase.from('contratos_embarque').delete().eq('id', id);
-      if (error) {
-        alert('Erro ao excluir contrato: ' + error.message);
-      } else {
-        alert('Contrato excluído com sucesso!');
-        carregarContratos();
-      }
-    }
-  }
-
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h2 className="text-xl font-bold mb-4">{editandoId ? 'Editar Contrato para Embarque' : 'Cadastro de Contratos para Embarque'}</h2>
-      
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 bg-[#161B23] p-4 shadow rounded mb-6 border border-white/5">
-        <div>
-          <label className="block text-sm font-medium text-gray-300">Número do Contrato</label>
-          <input
-            type="text"
-            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
-            value={formData.numero_contrato}
-            onChange={e => setFormData({...formData, numero_contrato: e.target.value})}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-300">Cliente</label>
-          <input
-            type="text"
-            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
-            value={formData.cliente}
-            onChange={e => setFormData({...formData, cliente: e.target.value})}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-300">CNPJ</label>
-          <input
-            type="text"
-            placeholder="00.000.000/0000-00"
-            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
-            value={formData.cnpj}
-            onChange={e => setFormData({...formData, cnpj: e.target.value})}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-300">Produto</label>
-          <input
-            type="text"
-            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
-            value={formData.produto}
-            onChange={e => setFormData({...formData, produto: e.target.value})}
-            required
-          />
-        </div>
-        <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-300">Quantidade Disponível (Ton)</label>
-          <input
-            type="number"
-            step="0.01"
-            className="w-full bg-[#1A2030] border border-white/10 p-2 rounded text-white"
-            value={formData.quantidade_disponivel}
-            onChange={e => setFormData({...formData, quantidade_disponivel: e.target.value})}
-            required
-          />
-        </div>
-        <div className="col-span-2 flex gap-2">
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 cursor-pointer font-bold text-xs">
-            {editandoId ? 'Atualizar Contrato' : 'Salvar Contrato'}
-          </button>
-          {editandoId && (
-            <button type="button" onClick={cancelarEdicao} className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 cursor-pointer font-bold text-xs">
-              Cancelar
-            </button>
-          )}
-        </div>
-      </form>
-
-      <h3 className="text-lg font-semibold mb-2 text-gray-200">Contratos Cadastrados</h3>
-      <table className="w-full bg-[#161B23] shadow rounded overflow-hidden border border-white/5 text-sm">
-        <thead className="bg-[#1A2030] text-left text-gray-300">
-          <tr>
-            <th className="p-3">Contrato</th>
-            <th className="p-3">Cliente</th>
-            <th className="p-3">CNPJ</th>
-            <th className="p-3">Produto</th>
-            <th className="p-3">Qtd Disponível</th>
-            <th className="p-3">Status</th>
-            <th className="p-3 text-center">Ações</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
-          {contratos.map(c => (
-            <tr key={c.id} className="hover:bg-white/[0.02]">
-              <td className="p-3 text-white font-medium">{c.numero_contrato}</td>
-              <td className="p-3 text-gray-300">{c.cliente}</td>
-              <td className="p-3 text-gray-300">{c.cnpj || 'N/A'}</td>
-              <td className="p-3 text-gray-300">{c.produto}</td>
-              <td className="p-3 text-gray-300">{c.quantidade_disponivel}</td>
-              <td className="p-3 text-blue-400 font-semibold">{c.status || 'Ativo'}</td>
-              <td className="p-3 flex justify-center gap-2">
-                <button onClick={() => iniciarEdicao(c)} className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer">
-                  Editar
-                </button>
-                <button onClick={() => excluirContrato(c.id)} className="bg-red-600/20 hover:bg-red-600/40 text-red-400 px-3 py-1 rounded text-xs font-semibold transition-colors cursor-pointer">
-                  Excluir
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

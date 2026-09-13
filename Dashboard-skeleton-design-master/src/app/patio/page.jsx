@@ -14,6 +14,7 @@ const COLUNAS_PATIO = [
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [processandoId, setProcessandoId] = useState(null); // Trava contra cliques duplos
 
   const buscarOrdens = useCallback(async () => {
     const { data, error } = await supabase
@@ -45,72 +46,79 @@ export function KanbanPatio() {
   };
 
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
-    const idContratoReal = contratoId || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
+    if (processandoId === id) return; // Evita execução duplicada se já estiver processando
+    setProcessandoId(id);
 
-    if (!idContratoReal) {
-      alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
-      return;
+    try {
+      const idContratoReal = contratoId || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
+
+      if (!idContratoReal) {
+        alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
+        return;
+      }
+
+      const dadosUpdateOrdem = {
+        status: 'concluido',
+        nota_fiscal: notaFiscal,
+        peso_carregado: Number(pesoCarregado)
+      };
+
+      const { error: erroOrdem } = await supabase
+        .from('ordens_carregamento')
+        .update(dadosUpdateOrdem)
+        .eq('id', id);
+
+      if (erroOrdem) {
+        console.error('Erro ao finalizar carregamento:', erroOrdem);
+        alert('Erro ao registrar a conclusão da ordem.');
+        return;
+      }
+
+      const { data: contrato, error: erroBusca } = await supabase
+        .from('contratos_embarque')
+        .select('quantidade_disponivel, numero_contrato')
+        .eq('id', idContratoReal)
+        .single();
+
+      if (erroBusca || !contrato) {
+        console.error('Erro ao buscar contrato:', erroBusca);
+        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        return;
+      }
+
+      const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
+      const baixaEfetiva = Number(pesoCarregado) || 0;
+      const novoSaldo = saldoAtual - baixaEfetiva;
+
+      const { error: erroAtualizacaoContrato } = await supabase
+        .from('contratos_embarque')
+        .update({ quantidade_disponivel: novoSaldo })
+        .eq('id', idContratoReal);
+
+      if (erroAtualizacaoContrato) {
+        console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
+        alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
+        return;
+      }
+
+      let mensagem = `Carregamento concluído com sucesso!\n\n` +
+                     `• Contrato: ${contrato.numero_contrato}\n` +
+                     `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
+                     `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
+
+      if (novoSaldo < 100000) {
+        mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
+      }
+
+      alert(mensagem);
+
+      setOrdens((prev) =>
+        prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
+      );
+      buscarOrdens();
+    } finally {
+      setProcessandoId(null);
     }
-
-    const dadosUpdateOrdem = {
-      status: 'concluido',
-      nota_fiscal: notaFiscal,
-      peso_carregado: Number(pesoCarregado)
-    };
-
-    const { error: erroOrdem } = await supabase
-      .from('ordens_carregamento')
-      .update(dadosUpdateOrdem)
-      .eq('id', id);
-
-    if (erroOrdem) {
-      console.error('Erro ao finalizar carregamento:', erroOrdem);
-      alert('Erro ao registrar a conclusão da ordem.');
-      return;
-    }
-
-    const { data: contrato, error: erroBusca } = await supabase
-      .from('contratos_embarque')
-      .select('quantidade_disponivel, numero_contrato')
-      .eq('id', idContratoReal)
-      .single();
-
-    if (erroBusca || !contrato) {
-      console.error('Erro ao buscar contrato:', erroBusca);
-      alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
-      return;
-    }
-
-    const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
-    const baixaEfetiva = Number(pesoCarregado) || 0;
-    const novoSaldo = saldoAtual - baixaEfetiva;
-
-    const { error: erroAtualizacaoContrato } = await supabase
-      .from('contratos_embarque')
-      .update({ quantidade_disponivel: novoSaldo })
-      .eq('id', idContratoReal);
-
-    if (erroAtualizacaoContrato) {
-      console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
-      alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
-      return;
-    }
-
-    let mensagem = `Carregamento concluído com sucesso!\n\n` +
-                   `• Contrato: ${contrato.numero_contrato}\n` +
-                   `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
-                   `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
-
-    if (novoSaldo < 100000) {
-      mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
-    }
-
-    alert(mensagem);
-
-    setOrdens((prev) =>
-      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
-    );
-    buscarOrdens();
   };
 
   const formatarDataHora = (dataIso) => {
@@ -224,6 +232,7 @@ export function KanbanPatio() {
                               placeholder="Número da NF"
                               defaultValue={ordem.nota_fiscal || ''}
                               id={`nf-${ordem.id}`}
+                              disabled={processandoId === ordens.id}
                               className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
                             />
                           </div>
@@ -234,10 +243,12 @@ export function KanbanPatio() {
                               placeholder="Ex: 35000"
                               defaultValue={ordem.peso_carregado || ''}
                               id={`peso-${ordem.id}`}
+                              disabled={processandoId === ordem.id}
                               className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
                             />
                           </div>
                           <button
+                            disabled={processandoId === ordem.id}
                             onClick={() => {
                               const nfInput = document.getElementById(`nf-${ordem.id}`);
                               const pesoInput = document.getElementById(`peso-${ordem.id}`);
@@ -251,9 +262,19 @@ export function KanbanPatio() {
 
                               atualizarConclusaoCarregamento(ordem.id, nf, peso, ordem.contrato_id || ordem.contratos_embarque?.id);
                             }}
-                            className="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded-lg mt-2 transition-colors cursor-pointer shadow-md shadow-green-900/20"
+                            className={`w-full text-xs font-bold py-2 rounded-lg mt-2 transition-colors shadow-md flex items-center justify-center gap-2 ${
+                              processandoId === ordem.id 
+                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed' 
+                                : 'bg-green-600 hover:bg-green-500 text-white cursor-pointer shadow-green-900/20'
+                            }`}
                           >
-                            Finalizar e Baixar do Contrato
+                            {processandoId === ordem.id ? (
+                              <>
+                                <Loader2 className="animate-spin" size={14} /> Processando baixa...
+                              </>
+                            ) : (
+                              'Finalizar e Baixar do Contrato'
+                            )}
                           </button>
                         </div>
                       )}
