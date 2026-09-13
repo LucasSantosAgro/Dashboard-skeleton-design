@@ -220,7 +220,7 @@ export function KanbanPatio() {
     setProcessandoId(id);
 
     try {
-      // Validação de segurança: verifica no banco se a ordem já foi concluída ou baixada anteriormente
+      // 1. Busca rigorosa do estado atual no banco de dados antes de tomar qualquer ação
       const { data: ordemAtual, error: erroBuscaOrdem } = await supabase
         .from('ordens_carregamento')
         .select('status, peso_carregado, contrato_id')
@@ -232,8 +232,10 @@ export function KanbanPatio() {
         return;
       }
 
-      if (ordemAtual.status === 'concluido' || (ordemAtual.peso_carregado && Number(ordemAtual.peso_carregado) > 0)) {
-        alert('Esta ordem de carregamento já foi concluída e a baixa no contrato já foi efetuada anteriormente.');
+      // Validação restrita: Se já estiver concluída ou já possuir peso carregado gravado, bloqueia imediatamente
+      if (ordemAtual.status === 'concluido' || (ordemAtual.peso_carregado !== null && Number(ordemAtual.peso_carregado) > 0)) {
+        alert('⚠️ Ação bloqueada: Esta ordem de carregamento já foi finalizada anteriormente e o saldo do contrato já sofreu a baixa.');
+        buscarOrdens(); // Atualiza a tela para sumir com o botão
         return;
       }
 
@@ -244,23 +246,28 @@ export function KanbanPatio() {
         return;
       }
 
+      const pesoNumerico = Number(pesoCarregado) || 0;
       const dadosUpdateOrdem = {
         status: 'concluido',
         nota_fiscal: notaFiscal,
-        peso_carregado: Number(pesoCarregado)
+        peso_carregado: pesoNumerico
       };
 
-      const { error: erroOrdem } = await supabase
+      // 2. Atualiza a ordem com restrição estrita: só atualiza se o status ainda for 'carregando' (Evita concorrência/duplo clique)
+      const { data: ordemAtualizada, error: erroOrdem } = await supabase
         .from('ordens_carregamento')
         .update(dadosUpdateOrdem)
-        .eq('id', id);
+        .eq('id', id)
+        .eq('status', 'carregando')
+        .select();
 
-      if (erroOrdem) {
-        console.error('Erro ao finalizar carregamento:', erroOrdem);
-        alert('Erro ao registrar a conclusão da ordem.');
+      if (erroOrdem || !ordemAtualizada || ordemAtualizada.length === 0) {
+        alert('Erro ou conflito: Esta ordem pode já ter sido processada em outra aba ou dispositivo.');
+        buscarOrdens();
         return;
       }
 
+      // 3. Busca o contrato atual para calcular o saldo com precisão
       const { data: contrato, error: erroBusca } = await supabase
         .from('contratos_embarque')
         .select('quantidade_disponivel, numero_contrato')
@@ -274,9 +281,9 @@ export function KanbanPatio() {
       }
 
       const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
-      const baixaEfetiva = Number(pesoCarregado) || 0;
-      const novoSaldo = saldoAtual - baixaEfetiva;
+      const novoSaldo = saldoAtual - pesoNumerico;
 
+      // 4. Efetua a baixa única no contrato de embarque
       const { error: erroAtualizacaoContrato } = await supabase
         .from('contratos_embarque')
         .update({ quantidade_disponivel: novoSaldo })
@@ -284,13 +291,13 @@ export function KanbanPatio() {
 
       if (erroAtualizacaoContrato) {
         console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
-        alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
+        alert(`Erro ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
         return;
       }
 
       let mensagem = `Carregamento concluído com sucesso!\n\n` +
                      `• Contrato: ${contrato.numero_contrato}\n` +
-                     `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
+                     `• Baixa efetuada: -${pesoNumerico.toLocaleString('pt-BR')} Kg\n` +
                      `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
 
       if (novoSaldo < 100000) {
