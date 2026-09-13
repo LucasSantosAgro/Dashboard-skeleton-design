@@ -14,8 +14,8 @@ const COLUNAS_PATIO = [
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [processandoId, setProcessandoId] = useState(null); // Mantido apenas para o visual do botão
-  const processandoRef = useRef({}); // Trava síncrona instantânea contra múltiplos cliques
+  const [processandoId, setProcessandoId] = useState(null);
+  const processandoRef = useRef({});
 
   const buscarOrdens = useCallback(async () => {
     const { data, error } = await supabase
@@ -47,13 +47,29 @@ export function KanbanPatio() {
   };
 
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
-    // Trava síncrona instantânea (evita condição de corrida por cliques múltiplos)
     if (processandoRef.current[id]) return;
     processandoRef.current[id] = true;
     setProcessandoId(id);
 
     try {
-      const idContratoReal = contratoId || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
+      // Validação de segurança: verifica no banco se a ordem já foi concluída ou baixada anteriormente
+      const { data: ordemAtual, error: erroBuscaOrdem } = await supabase
+        .from('ordens_carregamento')
+        .select('status, peso_carregado, contrato_id')
+        .eq('id', id)
+        .single();
+
+      if (erroBuscaOrdem || !ordemAtual) {
+        alert('Erro ao localizar a ordem de carregamento.');
+        return;
+      }
+
+      if (ordemAtual.status === 'concluido' || (ordemAtual.peso_carregado && Number(ordemAtual.peso_carregado) > 0)) {
+        alert('Esta ordem de carregamento já foi concluída e a baixa no contrato já foi efetuada anteriormente.');
+        return;
+      }
+
+      const idContratoReal = contratoId || ordemAtual.contrato_id || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
 
       if (!idContratoReal) {
         alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');

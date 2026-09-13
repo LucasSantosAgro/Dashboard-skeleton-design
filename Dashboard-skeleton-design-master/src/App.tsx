@@ -220,7 +220,24 @@ export function KanbanPatio() {
     setProcessandoId(id);
 
     try {
-      const idContratoReal = contratoId || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
+      // Validação de segurança: verifica no banco se a ordem já foi concluída ou baixada anteriormente
+      const { data: ordemAtual, error: erroBuscaOrdem } = await supabase
+        .from('ordens_carregamento')
+        .select('status, peso_carregado, contrato_id')
+        .eq('id', id)
+        .single();
+
+      if (erroBuscaOrdem || !ordemAtual) {
+        alert('Erro ao localizar a ordem de carregamento.');
+        return;
+      }
+
+      if (ordemAtual.status === 'concluido' || (ordemAtual.peso_carregado && Number(ordemAtual.peso_carregado) > 0)) {
+        alert('Esta ordem de carregamento já foi concluída e a baixa no contrato já foi efetuada anteriormente.');
+        return;
+      }
+
+      const idContratoReal = contratoId || ordemAtual.contrato_id || ordens.find(o => o.id === id)?.contrato_id || ordens.find(o => o.id === id)?.contratos_embarque?.id;
 
       if (!idContratoReal) {
         alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
