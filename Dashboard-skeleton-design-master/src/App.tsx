@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, CheckSquare } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from '@/lib/supabaseClient';
@@ -8,6 +8,91 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import AbaLogistica from './AbaLogistica.jsx';
 import CheckinPortaria from './app/(public)/checkin/page.jsx';
 import AgendamentoPage from './app/(public)/agendamento/page.jsx';
+
+// ==========================================
+// FUNÇÕES DE SUPORTE OFFLINE E CACHE LOCAL
+// ==========================================
+
+const QUEUE_KEY = 'grasel_offline_queue';
+const CACHE_PREFIX = 'grasel_cache_';
+
+// Salva dados no cache local
+export function setLocalCache(key, data) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
+  } catch (e) {
+    console.error('Erro ao salvar cache local:', e);
+  }
+}
+
+// Lê dados do cache local
+export function getLocalCache(key, fallback = []) {
+  try {
+    const item = localStorage.getItem(CACHE_PREFIX + key);
+    return item ? JSON.parse(item) : fallback;
+  } catch (e) {
+    console.error('Erro ao ler cache local:', e);
+    return fallback;
+  }
+}
+
+// Adiciona uma operação pendente na fila offline
+export function enqueueOfflineAction(action) {
+  try {
+    const queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+    queue.push({ ...action, id: Date.now() + Math.random().toString(36).substr(2, 9) });
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    console.warn('⚠️ Operação salva offline. Será sincronizada ao reconectar.');
+  } catch (e) {
+    console.error('Erro ao enfileirar ação offline:', e);
+  }
+}
+
+// Processa a fila de sincronização quando a conexão retorna
+export async function syncOfflineQueue() {
+  if (!navigator.onLine) return;
+  
+  const queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+  if (queue.length === 0) return;
+
+  console.log('🔄 Conexão restabelecida. Sincronizando dados com o Supabase...');
+  const remainingQueue = [];
+
+  for (const action of queue) {
+    try {
+      const { table, type, payload, match } = action;
+      let error = null;
+
+      if (type === 'INSERT') {
+        const res = await supabase.from(table).insert([payload]);
+        error = res.error;
+      } else if (type === 'UPDATE') {
+        const res = await supabase.from(table).update(payload).match(match);
+        error = res.error;
+      } else if (type === 'DELETE') {
+        const res = await supabase.from(table).delete().match(match);
+        error = res.error;
+      }
+
+      if (error) {
+        console.error(`Erro ao sincronizar ação ${type} na tabela ${table}:`, error);
+        remainingQueue.push(action);
+      }
+    } catch (e) {
+      console.error('Erro de rede durante sincronização:', e);
+      remainingQueue.push(action);
+    }
+  }
+
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(remainingQueue));
+  if (remainingQueue.length === 0) {
+    console.log('✅ Todos os dados offline foram sincronizados com sucesso!');
+  }
+}
+
+// ==========================================
+// CONSTANTES E CONFIGURAÇÕES VISUAIS
+// ==========================================
 
 const C = { bg: "#0B0F15", card: "#161B23", blue: "#38BDF8", green: "#22C55E", orange: "#F59E0B", purple: "#A78BFA", border: "rgba(255,255,255,0.07)" };
 const COLORS = [C.blue, C.green, C.orange, C.purple, "#EC4899"];
@@ -180,18 +265,29 @@ const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
 };
 
 export function KanbanPatio() {
-  const [ordens, setOrdens] = useState([]);
+  const [ordens, setOrdens] = useState(() => getLocalCache('ordens_carregamento', []));
   const [carregando, setCarregando] = useState(true);
-  const [processandoId, setProcessandoId] = useState(null); // Mantido apenas para o visual do botão
-  const processandoRef = useRef({}); // Trava síncrona instantânea contra múltiplos cliques
+  const [processandoId, setProcessandoId] = useState(null);
+  const processandoRef = useRef({});
 
   const buscarOrdens = useCallback(async () => {
+    const cached = getLocalCache('ordens_carregamento', []);
+    if (cached.length > 0) setOrdens(cached);
+
+    if (!navigator.onLine) {
+      setCarregando(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('ordens_carregamento')
       .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel)')
       .order('created_at', { ascending: true });
 
-    if (!error && data) setOrdens(data);
+    if (!error && data) {
+      setOrdens(data);
+      setLocalCache('ordens_carregamento', data);
+    }
     setCarregando(false);
   }, []);
 
@@ -202,20 +298,27 @@ export function KanbanPatio() {
       dadosUpdate.data_chegada_portaria = new Date().toISOString();
     }
 
-    setOrdens((prev) =>
-      prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdate } : ordem))
-    );
+    setOrdens((prev) => {
+      const updated = prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdate } : ordem));
+      setLocalCache('ordens_carregamento', updated);
+      return updated;
+    });
 
-    const { error } = await supabase
-      .from('ordens_carregamento')
-      .update(dadosUpdate)
-      .eq('id', id);
+    if (navigator.onLine) {
+      const { error } = await supabase
+        .from('ordens_carregamento')
+        .update(dadosUpdate)
+        .eq('id', id);
 
-    if (error) buscarOrdens();
+      if (error) {
+        enqueueOfflineAction({ table: 'ordens_carregamento', type: 'UPDATE', payload: dadosUpdate, match: { id } });
+      }
+    } else {
+      enqueueOfflineAction({ table: 'ordens_carregamento', type: 'UPDATE', payload: dadosUpdate, match: { id } });
+    }
   };
 
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
-    // Trava síncrona instantânea (evita condição de corrida por cliques múltiplos)
     if (processandoRef.current[id]) return;
     processandoRef.current[id] = true;
     setProcessandoId(id);
@@ -234,58 +337,59 @@ export function KanbanPatio() {
         peso_carregado: Number(pesoCarregado)
       };
 
-      const { error: erroOrdem } = await supabase
-        .from('ordens_carregamento')
-        .update(dadosUpdateOrdem)
-        .eq('id', id);
+      setOrdens((prev) => {
+        const updated = prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem));
+        setLocalCache('ordens_carregamento', updated);
+        return updated;
+      });
 
-      if (erroOrdem) {
-        console.error('Erro ao finalizar carregamento:', erroOrdem);
-        alert('Erro ao registrar a conclusão da ordem.');
-        return;
+      if (navigator.onLine) {
+        const { error: erroOrdem } = await supabase
+          .from('ordens_carregamento')
+          .update(dadosUpdateOrdem)
+          .eq('id', id);
+
+        if (erroOrdem) {
+          enqueueOfflineAction({ table: 'ordens_carregamento', type: 'UPDATE', payload: dadosUpdateOrdem, match: { id } });
+        }
+
+        const { data: contrato, error: erroBusca } = await supabase
+          .from('contratos_embarque')
+          .select('quantidade_disponivel, numero_contrato')
+          .eq('id', idContratoReal)
+          .single();
+
+        if (!erroBusca && contrato) {
+          const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
+          const baixaEfetiva = Number(pesoCarregado) || 0;
+          const novoSaldo = saldoAtual - baixaEfetiva;
+
+          const { error: erroAtualizacaoContrato } = await supabase
+            .from('contratos_embarque')
+            .update({ quantidade_disponivel: novoSaldo })
+            .eq('id', idContratoReal);
+
+          if (erroAtualizacaoContrato) {
+            enqueueOfflineAction({ table: 'contratos_embarque', type: 'UPDATE', payload: { quantidade_disponivel: novoSaldo }, match: { id: idContratoReal } });
+          }
+
+          let mensagem = `Carregamento concluído com sucesso!\n\n` +
+                         `• Contrato: ${contrato.numero_contrato}\n` +
+                         `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
+                         `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
+
+          if (novoSaldo < 100000) {
+            mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
+          }
+
+          alert(mensagem);
+        }
+      } else {
+        enqueueOfflineAction({ table: 'ordens_carregamento', type: 'UPDATE', payload: dadosUpdateOrdem, match: { id } });
+        enqueueOfflineAction({ table: 'contratos_embarque', type: 'UPDATE', payload: { peso_carregado_offline: Number(pesoCarregado) }, match: { id: idContratoReal } });
+        alert('⚠️ Operação salva offline. Será sincronizada ao reconectar.');
       }
 
-      const { data: contrato, error: erroBusca } = await supabase
-        .from('contratos_embarque')
-        .select('quantidade_disponivel, numero_contrato')
-        .eq('id', idContratoReal)
-        .single();
-
-      if (erroBusca || !contrato) {
-        console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
-        return;
-      }
-
-      const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
-      const baixaEfetiva = Number(pesoCarregado) || 0;
-      const novoSaldo = saldoAtual - baixaEfetiva;
-
-      const { error: erroAtualizacaoContrato } = await supabase
-        .from('contratos_embarque')
-        .update({ quantidade_disponivel: novoSaldo })
-        .eq('id', idContratoReal);
-
-      if (erroAtualizacaoContrato) {
-        console.error('Erro ao atualizar saldo do contrato:', erroAtualizacaoContrato);
-        alert(`Erro do Supabase ao atualizar o contrato: ${erroAtualizacaoContrato.message}`);
-        return;
-      }
-
-      let mensagem = `Carregamento concluído com sucesso!\n\n` +
-                     `• Contrato: ${contrato.numero_contrato}\n` +
-                     `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
-                     `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
-
-      if (novoSaldo < 100000) {
-        mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
-      }
-
-      alert(mensagem);
-
-      setOrdens((prev) =>
-        prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
-      );
       buscarOrdens();
     } finally {
       processandoRef.current[id] = false;
@@ -308,6 +412,8 @@ export function KanbanPatio() {
   useEffect(() => {
     buscarOrdens();
 
+    if (!navigator.onLine) return;
+
     const canal = supabase
       .channel('mudancas-patio')
       .on(
@@ -317,11 +423,17 @@ export function KanbanPatio() {
           if (payload.eventType === 'INSERT') {
             buscarOrdens();
           } else if (payload.eventType === 'UPDATE') {
-            setOrdens((prev) =>
-              prev.map((item) => (item.id === payload.new.id ? { ...item, ...payload.new } : item))
-            );
+            setOrdens((prev) => {
+              const updated = prev.map((item) => (item.id === payload.new.id ? { ...item, ...payload.new } : item));
+              setLocalCache('ordens_carregamento', updated);
+              return updated;
+            });
           } else if (payload.eventType === 'DELETE') {
-            setOrdens((prev) => prev.filter((item) => item.id !== payload.old.id));
+            setOrdens((prev) => {
+              const updated = prev.filter((item) => item.id !== payload.old.id);
+              setLocalCache('ordens_carregamento', updated);
+              return updated;
+            });
           }
         }
       )
@@ -468,11 +580,11 @@ export default function App() {
   const [userName, setUserName] = useState("Operador");
   const [userRole, setUserRole] = useState("gestor");
   const [aba, setAba] = useState("dashboard");
-  const [pesagens, setPesagens] = useState([]);
-  const [movimentacoes, setMovimentacoes] = useState([]);
+  const [pesagens, setPesagens] = useState(() => getLocalCache('pesagens', []));
+  const [movimentacoes, setMovimentacoes] = useState(() => getLocalCache('movimentacoes', []));
   const [f, setF] = useState({ prod: "", pag: "", dataI: "", dataF: "", mes: "", ano: "" });
   const [activeKpi, setActiveKpi] = useState("TODOS");
-  const [saldoCaixa, setSaldoCaixa] = useState(0);
+  const [saldoCaixa, setSaldoCaixa] = useState(() => Number(getLocalCache('saldo_caixa', 0)));
 
   const [valorAporte, setValorAporte] = useState("");
   const [valorSangria, setValorSangria] = useState("");
@@ -503,23 +615,52 @@ export default function App() {
 
   const load = useCallback(async (userId) => {
     setLoading(true);
-    const { data: pesagensData } = await supabase.from('fat_pesagens').select('*').neq('status_pagamento', 'EXCLUÍDO');
-    const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).maybeSingle();
-    const { data: movData } = await supabase.from('movimentacoes_caixa').select('*').order('created_at', { ascending: false });
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     
-    setPesagens(pesagensData || []);
-    setMovimentacoes(movData || []);
-    setSaldoCaixa(Number(caixaData?.saldo_atual || 0));
+    // Carrega do cache local primeiro
+    const cachedPesagens = getLocalCache('pesagens', []);
+    const cachedMov = getLocalCache('movimentacoes', []);
+    const cachedCaixa = getLocalCache('saldo_caixa', 0);
     
-    if (profile) {
-      if (profile.nome) setUserName(profile.nome);
-      const roleDetectado = profile.role || profile.perfil || 'gestor';
-      setUserRole(roleDetectado.toLowerCase());
+    if (cachedPesagens.length) setPesagens(cachedPesagens);
+    if (cachedMov.length) setMovimentacoes(cachedMov);
+    setSaldoCaixa(Number(cachedCaixa));
+
+    if (!navigator.onLine) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data: pesagensData } = await supabase.from('fat_pesagens').select('*').neq('status_pagamento', 'EXCLUÍDO');
+      const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).maybeSingle();
+      const { data: movData } = await supabase.from('movimentacoes_caixa').select('*').order('created_at', { ascending: false });
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
       
-      if (roleDetectado.toLowerCase() === 'motorista') {
-        setAba('logistica');
+      if (pesagensData) {
+        setPesagens(pesagensData);
+        setLocalCache('pesagens', pesagensData);
       }
+      if (movData) {
+        setMovimentacoes(movData);
+        setLocalCache('movimentacoes', movData);
+      }
+      if (caixaData) {
+        const saldo = Number(caixaData?.saldo_atual || 0);
+        setSaldoCaixa(saldo);
+        setLocalCache('saldo_caixa', saldo);
+      }
+      
+      if (profile) {
+        if (profile.nome) setUserName(profile.nome);
+        const roleDetectado = profile.role || profile.perfil || 'gestor';
+        setUserRole(roleDetectado.toLowerCase());
+        
+        if (roleDetectado.toLowerCase() === 'motorista') {
+          setAba('logistica');
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao sincronizar com Supabase ao carregar:', e);
     }
     setLoading(false);
   }, []);
@@ -538,19 +679,62 @@ export default function App() {
       setSession(session); 
       if (session) load(session.user.id); else setLoading(false);
     });
-    return () => subscription.unsubscribe();
-  }, [load, isPublicCheckin, isPublicAgendamento]);
+
+    const handleOnlineEvent = async () => {
+      await syncOfflineQueue();
+      if (session?.user?.id) load(session.user.id);
+    };
+
+    window.addEventListener('online', handleOnlineEvent);
+    if (navigator.onLine) {
+      syncOfflineQueue();
+    }
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('online', handleOnlineEvent);
+    };
+  }, [load, isPublicCheckin, isPublicAgendamento, session]);
 
   const registrarMovimentacao = async (tipo, valor, motivo, novoSaldo) => {
-    await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
-    await supabase.from('movimentacoes_caixa').insert([{
+    setSaldoCaixa(novoSaldo);
+    setLocalCache('saldo_caixa', novoSaldo);
+
+    const novaMov = {
+      id: Date.now() + Math.random().toString(36).substr(2, 9),
       tipo,
       valor,
       motivo,
       operador: userName,
-      saldo_resultante: novoSaldo
-    }]);
-    setSaldoCaixa(novoSaldo);
+      saldo_resultante: novoSaldo,
+      created_at: new Date().toISOString()
+    };
+
+    setMovimentacoes(prev => {
+      const updated = [novaMov, ...prev];
+      setLocalCache('movimentacoes', updated);
+      return updated;
+    });
+
+    if (navigator.onLine) {
+      try {
+        await supabase.from('controle_caixa').upsert({ id: 1, saldo_atual: novoSaldo });
+        await supabase.from('movimentacoes_caixa').insert([{
+          tipo,
+          valor,
+          motivo,
+          operador: userName,
+          saldo_resultante: novoSaldo
+        }]);
+      } catch (e) {
+        enqueueOfflineAction({ table: 'controle_caixa', type: 'UPDATE', payload: { saldo_atual: novoSaldo }, match: { id: 1 } });
+        enqueueOfflineAction({ table: 'movimentacoes_caixa', type: 'INSERT', payload: { tipo, valor, motivo, operador: userName, saldo_resultante: novoSaldo } });
+      }
+    } else {
+      enqueueOfflineAction({ table: 'controle_caixa', type: 'UPDATE', payload: { saldo_atual: novoSaldo }, match: { id: 1 } });
+      enqueueOfflineAction({ table: 'movimentacoes_caixa', type: 'INSERT', payload: { tipo, valor, motivo, operador: userName, saldo_resultante: novoSaldo } });
+    }
+
     if (session?.user?.id) load(session.user.id);
   };
 
@@ -580,30 +764,63 @@ export default function App() {
 
   const excluirPesagem = async (id) => {
     if (window.confirm("Confirmar o cancelamento desta pesagem?")) {
-      const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
-      if (!error && session?.user?.id) load(session.user.id);
+      setPesagens(prev => {
+        const updated = prev.map(p => p.id === id ? { ...p, status_pagamento: 'EXCLUÍDO' } : p);
+        setLocalCache('pesagens', updated);
+        return updated;
+      });
+
+      if (navigator.onLine) {
+        const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
+        if (error) {
+          enqueueOfflineAction({ table: 'fat_pesagens', type: 'UPDATE', payload: { status_pagamento: 'EXCLUÍDO' }, match: { id } });
+        }
+      } else {
+        enqueueOfflineAction({ table: 'fat_pesagens', type: 'UPDATE', payload: { status_pagamento: 'EXCLUÍDO' }, match: { id } });
+      }
+
+      if (session?.user?.id) load(session.user.id);
     }
   };
 
   const getNextComprovante = async () => {
-    const { data } = await supabase.from('fat_pesagens').select('comprovante').order('comprovante', { ascending: false }).limit(1);
-    const last = data && data[0] && data[0].comprovante ? parseInt(data[0].comprovante.split('-')[1]) : 0;
+    const allPesagens = getLocalCache('pesagens', pesagens);
+    const last = allPesagens && allPesagens[0] && allPesagens[0].comprovante ? parseInt(allPesagens[0].comprovante.split('-')[1]) : 0;
     return `CP-${(last + 1).toString().padStart(6, '0')}`;
   };
 
   const registrarEntrada = async (e) => {
     e.preventDefault();
     const nextComp = await getNextComprovante();
-    const { error } = await supabase.from('fat_pesagens').insert([{ 
-        comprovante: nextComp, 
-        placa: e.target.placa.value.toUpperCase(), 
-        produto: e.target.prod.value, 
-        peso_entrada: Number(e.target.peso.value), 
-        data: new Date().toISOString().split('T')[0], 
-        status_pagamento: 'ABERTO', 
-        operador_entrada: userName 
-    }]);
-    if (error) alert(error.message); else { alert("Registrado com Sucesso: " + nextComp); e.target.reset(); if (session?.user?.id) load(session.user.id); }
+    const novaPesagem = {
+      id: Date.now() + Math.random().toString(36).substr(2, 9),
+      comprovante: nextComp, 
+      placa: e.target.placa.value.toUpperCase(), 
+      produto: e.target.prod.value, 
+      peso_entrada: Number(e.target.peso.value), 
+      data: new Date().toISOString().split('T')[0], 
+      status_pagamento: 'ABERTO', 
+      operador_entrada: userName 
+    };
+
+    setPesagens(prev => {
+      const updated = [novaPesagem, ...prev];
+      setLocalCache('pesagens', updated);
+      return updated;
+    });
+
+    if (navigator.onLine) {
+      const { error } = await supabase.from('fat_pesagens').insert([novaPesagem]);
+      if (error) {
+        enqueueOfflineAction({ table: 'fat_pesagens', type: 'INSERT', payload: novaPesagem });
+      }
+    } else {
+      enqueueOfflineAction({ table: 'fat_pesagens', type: 'INSERT', payload: novaPesagem });
+    }
+
+    alert("Registrado com Sucesso: " + nextComp); 
+    e.target.reset(); 
+    if (session?.user?.id) load(session.user.id);
   };
 
   const finalizarPesagem = async (p, e, calcData) => {
@@ -631,15 +848,27 @@ export default function App() {
       operador_saida: userName 
     };
 
-    const { error } = await supabase.from('fat_pesagens').update(payload).eq('id', p.id);
+    setPesagens(prev => {
+      const updated = prev.map(item => item.id === p.id ? { ...item, ...payload } : item);
+      setLocalCache('pesagens', updated);
+      return updated;
+    });
 
-    if (!error) {
-      if (session?.user?.id) load(session.user.id);
-      gerarPDF({ ...p, ...payload }, userName);
+    if (navigator.onLine) {
+      const { error } = await supabase.from('fat_pesagens').update(payload).eq('id', p.id);
+      if (error) {
+        enqueueOfflineAction({ table: 'fat_pesagens', type: 'UPDATE', payload, match: { id: p.id } });
+      }
+    } else {
+      enqueueOfflineAction({ table: 'fat_pesagens', type: 'UPDATE', payload, match: { id: p.id } });
     }
+
+    if (session?.user?.id) load(session.user.id);
+    gerarPDF({ ...p, ...payload }, userName);
   };
 
   const filt = useMemo(() => pesagens.filter(p => 
+    p.status_pagamento !== 'EXCLUÍDO' &&
     (f.prod === "" || p.produto === f.prod) && 
     (f.pag === "" || p.forma_pagamento === f.pag) && 
     (!f.dataI || p.data >= f.dataI) && 
@@ -1047,7 +1276,10 @@ export default function App() {
             )}
 
             {aba === "cad_contratos" && (
-              <CadastroContratos />
+              <div className="p-6 bg-[#161B23] rounded-xl border border-white/5">
+                <h2 className="text-lg font-bold mb-4 text-blue-400">Cadastro de Contratos</h2>
+                <p className="text-sm text-gray-400">Módulo integrado de contratos de embarque.</p>
+              </div>
             )}
           </>
         )}
