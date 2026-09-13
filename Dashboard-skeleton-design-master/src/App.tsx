@@ -184,7 +184,6 @@ export function KanbanPatio() {
   const [carregando, setCarregando] = useState(true);
 
   const buscarOrdens = useCallback(async () => {
-    // Busca as ordens trazendo também os dados do contrato vinculado[cite: 1]
     const { data, error } = await supabase
       .from('ordens_carregamento')
       .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel)')
@@ -213,7 +212,6 @@ export function KanbanPatio() {
     if (error) buscarOrdens();
   };
 
-  // Função segura para atualizar o saldo do contrato integrada com a conclusão do carregamento
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
     if (!contratoId) {
       alert('Aviso: Esta ordem de carregamento não possui nenhum contrato vinculado! O saldo não pode ser abatido.');
@@ -226,7 +224,6 @@ export function KanbanPatio() {
       peso_carregado: pesoCarregado
     };
 
-    // 1. Atualiza a ordem de carregamento para concluído
     const { error: erroOrdem } = await supabase
       .from('ordens_carregamento')
       .update(dadosUpdateOrdem)
@@ -238,7 +235,6 @@ export function KanbanPatio() {
       return;
     }
 
-    // 2. Busca o saldo atual fresco do banco de dados (evita estado obsoleto)
     const { data: contrato, error: erroBusca } = await supabase
       .from('contratos_embarque')
       .select('quantidade_disponivel, numero_contrato')
@@ -253,11 +249,8 @@ export function KanbanPatio() {
 
     const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
     const baixaEfetiva = Number(pesoCarregado) || 0;
-
-    // 3. Subtração exata
     const novoSaldo = saldoAtual - baixaEfetiva;
 
-    // 4. Salva o novo saldo no Supabase de forma segura
     const { error: erroUpdate } = await supabase
       .from('contratos_embarque')
       .update({ quantidade_disponivel: novoSaldo })
@@ -269,7 +262,6 @@ export function KanbanPatio() {
       return;
     }
 
-    // 5. Monta a mensagem e dispara o aviso se estiver abaixo de 100.000 Kg
     let mensagem = `Carregamento concluído com sucesso!\n\n` +
                    `• Contrato: ${contrato.numero_contrato}\n` +
                    `• Baixa efetuada: -${baixaEfetiva.toLocaleString('pt-BR')} Kg\n` +
@@ -281,7 +273,6 @@ export function KanbanPatio() {
 
     alert(mensagem);
 
-    // Atualiza estado local e recarrega dados
     setOrdens((prev) =>
       prev.map((ordem) => (ordem.id === id ? { ...ordem, ...dadosUpdateOrdem } : ordem))
     );
@@ -337,7 +328,7 @@ export function KanbanPatio() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {COLUNAS.map((coluna) => {
+      {COLUNAS_PATIO.map((coluna) => {
         const ordensColuna = ordens.filter((o) => o.status === coluna.id);
         return (
           <div key={coluna.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-280px)] min-h-[450px]">
@@ -443,7 +434,6 @@ export function KanbanPatio() {
     </div>
   );
 }
-
 
 export function CadastroContratos() {
   const [contratos, setContratos] = useState([]);
@@ -1253,93 +1243,16 @@ export default function App() {
                       </div>
                       <p className="text-2xl font-black text-emerald-400 mt-1">{carregamentosConcluidos.length}</p>
                     </div>
-                    <p className="mt-4 text-xs text-gray-500 group-hover:text-gray-300 transition-colors">
-                      Clique para abrir o relatório completo com todos os dados de carregamentos concluídos.
-                    </p>
                   </div>
                 </div>
 
+                {/* Renderização do Kanban de Pátio */}
                 <KanbanPatio />
               </div>
             )}
           </>
         )}
       </main>
-
-      {modalConcluidosAberto && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#161B23] border border-white/10 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-white/5 bg-[#1A2030]">
-              <div className="flex items-center gap-2">
-                <Package className="text-emerald-400" size={20} />
-                <h3 className="text-base font-bold text-white">Relatório de Carregamentos Concluídos</h3>
-              </div>
-              <button 
-                onClick={() => setModalConcluidosAberto(false)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div className="p-5 flex-1 overflow-y-auto space-y-4">
-              <div className="flex justify-between items-center text-xs text-gray-400">
-                <span>Total de carregamentos concluídos: <b className="text-white">{carregamentosConcluidos.length}</b></span>
-                <span>Peso Líquido Acumulado: <b className="text-emerald-400">{carregamentosConcluidos.reduce((acc, p) => acc + (Number(p.peso_liquido) || 0), 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} kg</b></span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[11px]">
-                  <thead>
-                    <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px] bg-[#1A2030]/50">
-                      {["Data", "Comp.", "Placa", "Produto", "Peso Líquido", "Sacas", "Valor Total", "Pag.", "Operador Saída", "Ações"].map(h => <th key={h} className="p-3">{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {carregamentosConcluidos.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="text-center p-8 text-gray-500">Nenhum carregamento concluído registrado.</td>
-                      </tr>
-                    ) : (
-                      carregamentosConcluidos.map((p, i) => (
-                        <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="p-3 text-gray-300">{p.data}</td>
-                          <td className="p-3 font-medium text-blue-400">{p.comprovante}</td>
-                          <td className="p-3 text-white font-bold">{p.placa}</td>
-                          <td className="p-3 text-gray-300">{p.produto}</td>
-                          <td className="p-3 font-medium text-gray-200">{Number(p.peso_liquido || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
-                          <td className="p-3 text-gray-300">{Number(p.sacas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-3 font-bold text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.forma_pagamento === 'PIX' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                              {p.forma_pagamento}
-                            </span>
-                          </td>
-                          <td className="p-3 text-gray-400">{p.operador_saida || 'N/A'}</td>
-                          <td className="p-3">
-                            <button onClick={() => gerarPDF(p, p.operador_saida)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium cursor-pointer transition-colors bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20">
-                              <Printer size={12}/> PDF
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-white/5 bg-[#1A2030] flex justify-end">
-              <button 
-                onClick={() => setModalConcluidosAberto(false)}
-                className="bg-gray-700 hover:bg-gray-600 text-white px-5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
