@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, CheckSquare, BarChart3, CheckCircle2, Clock, X } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, CheckSquare, BarChart3, CheckCircle2, Clock, X, Edit2 } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from '@/lib/supabaseClient';
 import jsPDF from "jspdf";
@@ -121,8 +121,10 @@ export function CadastroContratos() {
   const [carregando, setCarregando] = useState(true);
   const [numeroContrato, setNumeroContrato] = useState('');
   const [cliente, setCliente] = useState('');
+  const [cnpj, setCnpj] = useState('');
   const [produto, setProduto] = useState('Milho');
   const [quantidadeDisponivel, setQuantidadeDisponivel] = useState('');
+  const [contratoEditandoId, setContratoEditandoId] = useState(null);
 
   const buscarContratos = async () => {
     setCarregando(true);
@@ -138,31 +140,68 @@ export function CadastroContratos() {
     buscarContratos();
   }, []);
 
-  const cadastrarContrato = async (e) => {
+  const salvarContrato = async (e) => {
     e.preventDefault();
     if (!numeroContrato || !cliente || !quantidadeDisponivel) {
       alert('Preencha todos os campos obrigatórios.');
       return;
     }
 
-    const { error } = await supabase.from('contratos_embarque').insert([{
-      numero_contrato: numeroContrato,
-      cliente,
-      produto,
-      quantidade_disponivel: Number(quantidadeDisponivel),
-      status: 'Ativo'
-    }]);
+    if (contratoEditandoId) {
+      const { error } = await supabase
+        .from('contratos_embarque')
+        .update({
+          numero_contrato: numeroContrato,
+          cliente,
+          cnpj_cliente: cnpj,
+          produto,
+          quantidade_disponivel: Number(quantidadeDisponivel)
+        })
+        .eq('id', contratoEditandoId);
 
-    if (error) {
-      alert(`Erro ao cadastrar contrato: ${error.message}`);
+      if (error) {
+        alert(`Erro ao atualizar contrato: ${error.message}`);
+      } else {
+        alert('Contrato atualizado com sucesso!');
+        cancelarEdicao();
+        buscarContratos();
+      }
     } else {
-      alert('Contrato cadastrado com sucesso!');
-      setNumeroContrato('');
-      setCliente('');
-      setQuantidadeDisponivel('');
-      setProduto('Milho');
-      buscarContratos();
+      const { error } = await supabase.from('contratos_embarque').insert([{
+        numero_contrato: numeroContrato,
+        cliente,
+        cnpj_cliente: cnpj,
+        produto,
+        quantidade_disponivel: Number(quantidadeDisponivel),
+        status: 'Ativo'
+      }]);
+
+      if (error) {
+        alert(`Erro ao cadastrar contrato: ${error.message}`);
+      } else {
+        alert('Contrato cadastrado com sucesso!');
+        cancelarEdicao();
+        buscarContratos();
+      }
     }
+  };
+
+  const iniciarEdicao = (c) => {
+    setContratoEditandoId(c.id);
+    setNumeroContrato(c.numero_contrato || '');
+    setCliente(c.cliente || '');
+    setCnpj(c.cnpj_cliente || c.cnpj || '');
+    setProduto(c.produto || 'Milho');
+    setQuantidadeDisponivel(c.quantidade_disponivel ?? '');
+  };
+
+  const cancelarEdicao = () => {
+    setContratoEditandoId(null);
+    setNumeroContrato('');
+    setCliente('');
+    setCnpj('');
+    setQuantidadeDisponivel('');
+    setProduto('Milho');
   };
 
   const finalizarContratoManual = async (id) => {
@@ -180,13 +219,30 @@ export function CadastroContratos() {
     }
   };
 
+  const excluirContrato = async (id) => {
+    if (window.confirm('Deseja realmente excluir este contrato? Esta ação não pode ser desfeita.')) {
+      const { error } = await supabase
+        .from('contratos_embarque')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert(`Erro ao excluir contrato: ${error.message}`);
+      } else {
+        alert('Contrato excluído com sucesso!');
+        buscarContratos();
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
         <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Package className="text-blue-400" size={18} /> Cadastrar Novo Contrato de Embarque
+          <Package className="text-blue-400" size={18} /> 
+          {contratoEditandoId ? 'Editar Contrato de Embarque' : 'Cadastrar Novo Contrato de Embarque'}
         </h3>
-        <form onSubmit={cadastrarContrato} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+        <form onSubmit={salvarContrato} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div>
             <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nº Contrato</label>
             <input 
@@ -207,6 +263,16 @@ export function CadastroContratos() {
               onChange={e => setCliente(e.target.value)} 
               className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
               required 
+            />
+          </div>
+          <div>
+            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">CNPJ do Cliente</label>
+            <input 
+              type="text" 
+              placeholder="00.000.000/0000-00" 
+              value={cnpj} 
+              onChange={e => setCnpj(e.target.value)} 
+              className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
             />
           </div>
           <div>
@@ -232,10 +298,15 @@ export function CadastroContratos() {
               required 
             />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end gap-1">
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-2 rounded-lg transition-colors cursor-pointer shadow-md">
-              Salvar Contrato
+              {contratoEditandoId ? 'Atualizar' : 'Salvar'}
             </button>
+            {contratoEditandoId && (
+              <button type="button" onClick={cancelarEdicao} className="bg-gray-700 hover:bg-gray-600 text-white font-bold text-xs p-2 rounded-lg transition-colors cursor-pointer">
+                Cancelar
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -257,6 +328,7 @@ export function CadastroContratos() {
                 <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
                   <th className="p-2.5">Contrato</th>
                   <th className="p-2.5">Cliente</th>
+                  <th className="p-2.5">CNPJ</th>
                   <th className="p-2.5">Produto</th>
                   <th className="p-2.5">Disponível (Kg)</th>
                   <th className="p-2.5">Status</th>
@@ -268,6 +340,7 @@ export function CadastroContratos() {
                   <tr key={c.id} className="hover:bg-white/[0.02]">
                     <td className="p-2.5 font-bold text-blue-400">{c.numero_contrato}</td>
                     <td className="p-2.5 text-gray-300">{c.cliente}</td>
+                    <td className="p-2.5 text-gray-400">{c.cnpj_cliente || c.cnpj || 'N/A'}</td>
                     <td className="p-2.5 text-gray-300">{c.produto}</td>
                     <td className="p-2.5 font-semibold text-green-400">{Number(c.quantidade_disponivel || 0).toLocaleString('pt-BR')} Kg</td>
                     <td className="p-2.5">
@@ -275,15 +348,31 @@ export function CadastroContratos() {
                         {c.status || 'Ativo'}
                       </span>
                     </td>
-                    <td className="p-2.5 text-right">
+                    <td className="p-2.5 text-right space-x-1.5">
                       {c.status !== 'Finalizado' && (
-                        <button 
-                          onClick={() => finalizarContratoManual(c.id)} 
-                          className="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer border border-amber-500/30"
-                        >
-                          Finalizar Contrato
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => iniciarEdicao(c)} 
+                            className="bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer border border-blue-500/30"
+                            title="Editar Contrato"
+                          >
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => finalizarContratoManual(c.id)} 
+                            className="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer border border-amber-500/30"
+                          >
+                            Finalizar
+                          </button>
+                        </>
                       )}
+                      <button 
+                        onClick={() => excluirContrato(c.id)} 
+                        className="bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer border border-red-500/30"
+                        title="Excluir Contrato"
+                      >
+                        Excluir
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -315,7 +404,7 @@ export function KanbanPatio() {
   const buscarDados = useCallback(async () => {
     const { data: ordensData, error: erroOrdens } = await supabase
       .from('ordens_carregamento')
-      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente)')
+      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj_cliente)')
       .order('created_at', { ascending: true });
 
     if (!erroOrdens && ordensData) setOrdens(ordensData);
@@ -406,7 +495,7 @@ export function KanbanPatio() {
 
       if (erroBusca || !contrato) {
         console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
         return;
       }
 
@@ -839,6 +928,7 @@ export function KanbanPatio() {
                         <span className="bg-blue-950/60 text-blue-300 border border-blue-500/20 text-[10px] px-2 py-0.5 rounded font-medium">{c.produto}</span>
                       </div>
                       <p className="text-xs text-gray-300 mt-1">Cliente: <strong className="text-white">{c.cliente}</strong></p>
+                      {c.cnpj_cliente && <p className="text-xs text-gray-400">CNPJ: {c.cnpj_cliente}</p>}
                       <p className="text-xs text-green-400 mt-0.5">Disponível: <strong>{Number(c.quantidade_disponivel).toLocaleString('pt-BR')} Kg</strong></p>
                     </div>
                     <button
@@ -879,6 +969,7 @@ export function KanbanPatio() {
                         <span className="bg-green-950/60 text-green-300 border border-green-500/20 text-[10px] px-2 py-0.5 rounded font-medium">{c.produto}</span>
                       </div>
                       <p className="text-xs text-gray-300 mt-1">Cliente: <strong className="text-white">{c.cliente}</strong></p>
+                      {c.cnpj_cliente && <p className="text-xs text-gray-400">CNPJ: {c.cnpj_cliente}</p>}
                       <p className="text-xs text-gray-400 mt-0.5">Saldo Final: <strong>{Number(c.quantidade_disponivel).toLocaleString('pt-BR')} Kg</strong></p>
                     </div>
                     <button
