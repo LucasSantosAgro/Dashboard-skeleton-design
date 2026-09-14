@@ -184,7 +184,6 @@ export function KanbanPatio() {
   const [carregando, setCarregando] = useState(true);
   const [processandoId, setProcessandoId] = useState(null);
   
-  // Estados para os filtros da coluna de concluídos
   const [filtroCnpj, setFiltroCnpj] = useState('');
   const [filtroContrato, setFiltroContrato] = useState('');
   const [filtroProduto, setFiltroProduto] = useState('');
@@ -278,7 +277,7 @@ export function KanbanPatio() {
 
       if (erroBusca || !contrato) {
         console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
         return;
       }
 
@@ -369,7 +368,6 @@ export function KanbanPatio() {
       {COLUNAS_PATIO.map((coluna) => {
         let ordensColuna = ordens.filter((o) => o.status === coluna.id);
 
-        // Aplicação dos filtros restritivos apenas na coluna de Concluídos
         if (coluna.id === 'concluido') {
           if (filtroCnpj) {
             ordensColuna = ordensColuna.filter((o) => 
@@ -398,7 +396,6 @@ export function KanbanPatio() {
               </span>
             </div>
 
-            {/* Painel de Filtros dedicado na coluna de Concluídos */}
             {coluna.id === 'concluido' && (
               <div className="mb-3 p-2.5 bg-[#1A2030] rounded-lg border border-white/10 space-y-2">
                 <div className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Filtros de Concluídos</div>
@@ -1143,8 +1140,8 @@ export default function App() {
               <KanbanPatio />
             )}
 
-            {aba === "cad_contratos" && (
-              <CadastroContratos />
+            {aba === "logistica" && (
+              <AbaLogistica session={session} userName={userName} />
             )}
           </>
         )}
