@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, CheckSquare } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, CheckSquare, BarChart3, CheckCircle2, Clock, X } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from '@/lib/supabaseClient';
 import jsPDF from "jspdf";
@@ -185,12 +185,10 @@ export function KanbanPatio() {
   const [carregando, setCarregando] = useState(true);
   const [processandoId, setProcessandoId] = useState(null);
   
-  // Estados para os filtros da coluna de concluídos
   const [filtroCnpj, setFiltroCnpj] = useState('');
   const [filtroContrato, setFiltroContrato] = useState('');
   const [filtroProduto, setFiltroProduto] = useState('');
 
-  // Estados para os Modais de KPIs e Filtro de Contrato
   const [modalAtivosAberto, setModalAtivosAberto] = useState(false);
   const [modalFinalizadosAberto, setModalFinalizadosAberto] = useState(false);
   const [contratoSelecionadoFiltro, setContratoSelecionadoFiltro] = useState(null);
@@ -198,7 +196,6 @@ export function KanbanPatio() {
   const processandoRef = useRef({});
 
   const buscarDados = useCallback(async () => {
-    // Buscar ordens de carregamento
     const { data: ordensData, error: erroOrdens } = await supabase
       .from('ordens_carregamento')
       .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente)')
@@ -206,7 +203,6 @@ export function KanbanPatio() {
 
     if (!erroOrdens && ordensData) setOrdens(ordensData);
 
-    // Buscar todos os contratos de embarque para os KPIs
     const { data: contratosData, error: erroContratos } = await supabase
       .from('contratos_embarque')
       .select('*');
@@ -375,11 +371,9 @@ export function KanbanPatio() {
     };
   }, [buscarDados]);
 
-  // Contratos Ativos e Finalizados
   const contratosAtivos = contratos.filter(c => c.status === 'Ativo' || Number(c.quantidade_disponivel) > 0);
   const contratosFinalizados = contratos.filter(c => c.status === 'Finalizado' || Number(c.quantidade_disponivel) <= 0);
 
-  // Filtragem de ordens para o gráfico e Kanban conforme contrato selecionado nos KPIs ou filtros de Concluídos
   const ordensFiltradasParaGrafico = ordens.filter(ordem => {
     if (contratoSelecionadoFiltro) {
       const matchContrato = 
@@ -402,7 +396,6 @@ export function KanbanPatio() {
     return true;
   });
 
-  // Agrupamento de produtos embarcados para o gráfico
   const dadosGraficoProdutos = {};
   ordensFiltradasParaGrafico.forEach(ordem => {
     if (ordem.status === 'concluido' && ordem.peso_carregado) {
@@ -429,9 +422,7 @@ export function KanbanPatio() {
 
   return (
     <div className="space-y-6">
-      {/* Seção de KPIs de Contratos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* KPI Contratos Ativos */}
         <div 
           onClick={() => setModalAtivosAberto(true)}
           className="bg-[#161B23] p-4 rounded-xl border border-white/5 hover:border-blue-500/50 transition-all cursor-pointer shadow-md flex items-center justify-between"
@@ -446,7 +437,6 @@ export function KanbanPatio() {
           </div>
         </div>
 
-        {/* KPI Contratos Finalizados */}
         <div 
           onClick={() => setModalFinalizadosAberto(true)}
           className="bg-[#161B23] p-4 rounded-xl border border-white/5 hover:border-green-500/50 transition-all cursor-pointer shadow-md flex items-center justify-between"
@@ -462,7 +452,6 @@ export function KanbanPatio() {
         </div>
       </div>
 
-      {/* Indicador de Filtro Ativo por Contrato */}
       {contratoSelecionadoFiltro && (
         <div className="bg-blue-950/30 border border-blue-500/30 p-3 rounded-xl flex items-center justify-between text-xs text-blue-200">
           <div className="flex items-center gap-2">
@@ -478,7 +467,6 @@ export function KanbanPatio() {
         </div>
       )}
 
-      {/* Gráfico de Quantidade de Produtos Embarcados */}
       <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md space-y-4">
         <div className="flex justify-between items-center border-b border-white/5 pb-3">
           <div className="flex items-center gap-2">
@@ -515,19 +503,16 @@ export function KanbanPatio() {
         )}
       </div>
 
-      {/* Kanban de Ordens de Carregamento */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {COLUNAS_PATIO.map((coluna) => {
           let ordensColuna = ordens.filter((o) => o.status === coluna.id);
 
-          // Aplicar filtro de contrato global se selecionado
           if (contratoSelecionadoFiltro) {
             ordensColuna = ordensColuna.filter((o) => 
               o.contratos_embarque?.id === contratoSelecionadoFiltro || o.contrato_id === contratoSelecionadoFiltro
             );
           }
 
-          // Aplicação dos filtros restritivos apenas na coluna de Concluídos
           if (coluna.id === 'concluido') {
             if (filtroCnpj) {
               ordensColuna = ordensColuna.filter((o) => 
@@ -556,7 +541,6 @@ export function KanbanPatio() {
                 </span>
               </div>
 
-              {/* Painel de Filtros dedicado na coluna de Concluídos */}
               {coluna.id === 'concluido' && (
                 <div className="mb-3 p-2.5 bg-[#1A2030] rounded-lg border border-white/10 space-y-2">
                   <div className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Filtros de Concluídos</div>
@@ -715,7 +699,6 @@ export function KanbanPatio() {
         })}
       </div>
 
-      {/* Modal de Contratos Ativos */}
       {modalAtivosAberto && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
@@ -756,7 +739,6 @@ export function KanbanPatio() {
         </div>
       )}
 
-      {/* Modal de Contratos Finalizados */}
       {modalFinalizadosAberto && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
