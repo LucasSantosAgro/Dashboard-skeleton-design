@@ -116,68 +116,185 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
-const PesagemItem = ({ p, onFinalizar, onExcluir, saldoCaixa }) => {
-  const [pesoSaida, setPesoSaida] = useState("");
-  const [valorSaca, setValorSaca] = useState("");
-  const [valorRecebido, setValorRecebido] = useState("");
-  const [formaPag, setFormaPag] = useState("PIX");
-  
-  const pesoLiquido = Math.max(0, Number(pesoSaida) - p.peso_entrada);
-  const qtdSacas = pesoLiquido / 60;
-  const valorTotal = qtdSacas * Number(valorSaca);
-  const troco = formaPag === "DINHEIRO" ? Math.max(0, Number(valorRecebido) - valorTotal) : 0;
-  const trocoInvalido = formaPag === "DINHEIRO" && troco > saldoCaixa;
+export function CadastroContratos() {
+  const [contratos, setContratos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [numeroContrato, setNumeroContrato] = useState('');
+  const [cliente, setCliente] = useState('');
+  const [produto, setProduto] = useState('Milho');
+  const [quantidadeDisponivel, setQuantidadeDisponivel] = useState('');
 
-  const handleRecebidoChange = (e) => {
-    const val = e.target.value;
-    setValorRecebido(val);
-    if (Number(val) > 0) {
-      setFormaPag("DINHEIRO");
+  const buscarContratos = async () => {
+    setCarregando(true);
+    const { data, error } = await supabase
+      .from('contratos_embarque')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (!error && data) setContratos(data);
+    setCarregando(false);
+  };
+
+  useEffect(() => {
+    buscarContratos();
+  }, []);
+
+  const cadastrarContrato = async (e) => {
+    e.preventDefault();
+    if (!numeroContrato || !cliente || !quantidadeDisponivel) {
+      alert('Preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    const { error } = await supabase.from('contratos_embarque').insert([{
+      numero_contrato: numeroContrato,
+      cliente,
+      produto,
+      quantidade_disponivel: Number(quantidadeDisponivel),
+      status: 'Ativo'
+    }]);
+
+    if (error) {
+      alert(`Erro ao cadastrar contrato: ${error.message}`);
     } else {
-      setFormaPag("PIX");
+      alert('Contrato cadastrado com sucesso!');
+      setNumeroContrato('');
+      setCliente('');
+      setQuantidadeDisponivel('');
+      setProduto('Milho');
+      buscarContratos();
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (Number(pesoSaida) < p.peso_entrada) {
-      alert("O peso de saída não pode ser menor que o peso de entrada!");
-      return;
+  const finalizarContratoManual = async (id) => {
+    if (window.confirm('Deseja realmente finalizar este contrato manualmente?')) {
+      const { error } = await supabase
+        .from('contratos_embarque')
+        .update({ status: 'Finalizado' })
+        .eq('id', id);
+
+      if (error) {
+        alert(`Erro ao finalizar contrato: ${error.message}`);
+      } else {
+        buscarContratos();
+      }
     }
-    onFinalizar(p, e, { pesoSaida, valorSaca, valorRecebido, formaPag, pesoLiquido, qtdSacas, valorTotal, troco });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-[#161B23] p-4 rounded-xl flex flex-col gap-3 border border-white/5 hover:border-blue-500/25 transition-all shadow-lg">
-      <div className="flex justify-between text-xs font-bold text-blue-400">
-        <span>Placa: {p.placa}</span> <span>Produto: {p.produto}</span> <span>Entrada: {p.peso_entrada.toFixed(2)}kg</span>
+    <div className="space-y-6">
+      <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
+        <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Package className="text-blue-400" size={18} /> Cadastrar Novo Contrato de Embarque
+        </h3>
+        <form onSubmit={cadastrarContrato} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <div>
+            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nº Contrato</label>
+            <input 
+              type="text" 
+              placeholder="Ex: CT-2026/001" 
+              value={numeroContrato} 
+              onChange={e => setNumeroContrato(e.target.value)} 
+              className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+              required 
+            />
+          </div>
+          <div>
+            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Cliente</label>
+            <input 
+              type="text" 
+              placeholder="Nome do cliente" 
+              value={cliente} 
+              onChange={e => setCliente(e.target.value)} 
+              className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+              required 
+            />
+          </div>
+          <div>
+            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Produto</label>
+            <select 
+              value={produto} 
+              onChange={e => setProduto(e.target.value)} 
+              className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500"
+            >
+              <option value="Milho">Milho</option>
+              <option value="Soja">Soja</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Qtd Disponível (Kg)</label>
+            <input 
+              type="number" 
+              step="0.01" 
+              placeholder="Ex: 50000" 
+              value={quantidadeDisponivel} 
+              onChange={e => setQuantidadeDisponivel(e.target.value)} 
+              className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+              required 
+            />
+          </div>
+          <div className="flex items-end">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-2 rounded-lg transition-colors cursor-pointer shadow-md">
+              Salvar Contrato
+            </button>
+          </div>
+        </form>
       </div>
-      <div className="flex gap-2">
-        <input name="peso_saida" type="number" step="10" min={p.peso_entrada} placeholder="Peso Saída (ex: 5660)" value={pesoSaida} onChange={(e) => setPesoSaida(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
-        <input name="valor_saca" type="number" step="0.01" placeholder="R$ Saca" value={valorSaca} onChange={(e) => setValorSaca(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" required />
-        <input name="recebido" type="number" step="0.01" placeholder="Vlr Recebido" value={valorRecebido} onChange={handleRecebidoChange} className="bg-[#1A2030] p-2 rounded-lg flex-1 text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
-        <select name="pag" value={formaPag} onChange={(e) => setFormaPag(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500"><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-        <button disabled={trocoInvalido} className={`p-2 px-5 rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-md ${trocoInvalido ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white shadow-green-900/20'}`}>FINALIZAR</button>
-        <button type="button" onClick={() => onExcluir(p.id)} className="bg-red-900/40 hover:bg-red-800 p-2 px-3 rounded-lg cursor-pointer transition-colors"><Trash2 size={16} color="#EF4444"/></button>
-      </div>
-      <div className="flex gap-6 text-[11px] text-gray-400 border-t border-white/5 pt-2 font-medium items-center justify-between">
-        <div className="flex gap-6">
-          <span>Líquido: <b className="text-white">{pesoLiquido.toFixed(2)}kg</b></span>
-          <span>Sacas: <b className="text-white">{qtdSacas.toFixed(2)}</b></span>
-          <span>Total: <b className="text-green-400">R$ {valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-          {formaPag === "DINHEIRO" && (
-             <span>Troco: <b className={trocoInvalido ? "text-red-400 font-bold" : "text-amber-400"}>R$ {troco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-          )}
-        </div>
-        {trocoInvalido && (
-          <span className="text-red-400 text-[10px] font-bold flex items-center gap-1">
-            <AlertTriangle size={12} /> Saldo de caixa insuficiente para troco!
-          </span>
+
+      <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
+        <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-3">Lista de Contratos Cadastrados</h3>
+        {carregando ? (
+          <div className="text-center py-6 text-gray-400 text-xs flex items-center justify-center gap-2">
+            <Loader2 className="animate-spin" size={16} /> Carregando contratos...
+          </div>
+        ) : contratos.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 text-xs border border-dashed border-white/5 rounded-lg">
+            Nenhum contrato cadastrado.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
+                  <th className="p-2.5">Contrato</th>
+                  <th className="p-2.5">Cliente</th>
+                  <th className="p-2.5">Produto</th>
+                  <th className="p-2.5">Disponível (Kg)</th>
+                  <th className="p-2.5">Status</th>
+                  <th className="p-2.5 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {contratos.map(c => (
+                  <tr key={c.id} className="hover:bg-white/[0.02]">
+                    <td className="p-2.5 font-bold text-blue-400">{c.numero_contrato}</td>
+                    <td className="p-2.5 text-gray-300">{c.cliente}</td>
+                    <td className="p-2.5 text-gray-300">{c.produto}</td>
+                    <td className="p-2.5 font-semibold text-green-400">{Number(c.quantidade_disponivel || 0).toLocaleString('pt-BR')} Kg</td>
+                    <td className="p-2.5">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${c.status === 'Ativo' ? 'bg-blue-950/60 text-blue-300 border border-blue-500/20' : 'bg-gray-800 text-gray-400'}`}>
+                        {c.status || 'Ativo'}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-right">
+                      {c.status !== 'Finalizado' && (
+                        <button 
+                          onClick={() => finalizarContratoManual(c.id)} 
+                          className="bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer border border-amber-500/30"
+                        >
+                          Finalizar Contrato
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-    </form>
+    </div>
   );
-};
+}
 
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
@@ -316,7 +433,9 @@ export function KanbanPatio() {
                      `• Baixa efetuada: -${pesoNumerico.toLocaleString('pt-BR')} Kg\n` +
                      `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
 
-      if (novoSaldo < 100000) {
+      if (novoSaldo <= 0) {
+        mensagem += `\n\n🔒 CONTRATO FINALIZADO AUTOMATICAMENTE!`;
+      } else if (novoSaldo < 100000) {
         mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
       }
 
@@ -1205,10 +1324,9 @@ export default function App() {
                               {p.forma_pagamento}
                             </span>
                           </td>
-                          <td className="p-2.5">
-                             <button onClick={() => gerarPDF(p, p.operador_saida)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium cursor-pointer transition-colors">
-                               <Printer size={13}/> Imprimir
-                             </button>
+                          <td className="p-2.5 flex items-center gap-2">
+                            <button onClick={() => gerarPDF(p, userName)} className="p-1 hover:bg-white/10 rounded cursor-pointer text-gray-300" title="Imprimir PDF"><Printer size={14}/></button>
+                            <button onClick={() => excluirPesagem(p.id)} className="p-1 hover:bg-red-500/20 rounded cursor-pointer text-red-400" title="Excluir"><Trash2 size={14}/></button>
                           </td>
                         </tr>
                       ))}
@@ -1219,44 +1337,34 @@ export default function App() {
             )}
 
             {aba === "entrada" && (
-              <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-2xl border border-white/5 shadow-2xl">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-blue-400">
-                  <Truck size={20} /> Registrar Entrada de Veículo
-                </h2>
-                <form onSubmit={registrarEntrada} className="flex flex-col gap-4">
+              <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-xl border border-white/5 shadow-xl">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Registrar Nova Entrada (Balança)</h2>
+                <form onSubmit={registrarEntrada} className="space-y-4">
                   <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Placa do Veículo</label>
-                    <input name="placa" placeholder="Ex: ABC-1234" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 uppercase transition-all" />
+                    <label className="text-xs text-gray-400 font-bold uppercase">Placa do Veículo</label>
+                    <input name="placa" type="text" placeholder="EX: ABC1D23" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm uppercase outline-none border border-white/10 text-white focus:border-blue-500" required />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Produto</label>
-                    <select name="prod" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all">
-                      <option value="">Selecione o produto...</option>
-                      <option value="Milho ensacado">Milho ensacado</option>
-                      <option value="Milho Granel">Milho Granel</option>
-                      <option value="Quebradinho">Quebradinho</option>
+                    <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
+                    <select name="prod" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm outline-none border border-white/10 text-white focus:border-blue-500">
+                      <option value="Milho">Milho</option>
+                      <option value="Soja">Soja</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Peso de Entrada (kg)</label>
-                    <input name="peso" type="number" step="10" placeholder="Ex: 15400" required className="w-full bg-[#1A2030] p-3 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500 transition-all" />
+                    <label className="text-xs text-gray-400 font-bold uppercase">Peso de Entrada (kg)</label>
+                    <input name="peso" type="number" step="10" placeholder="Ex: 15400" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm outline-none border border-white/10 text-white focus:border-blue-500" required />
                   </div>
-                  <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-3 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 mt-2 cursor-pointer">
-                    REGISTRAR ENTRADA
-                  </button>
+                  <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-3 rounded-lg transition-colors cursor-pointer shadow-lg">REGISTRAR ENTRADA</button>
                 </form>
               </div>
             )}
 
             {aba === "saida" && (
-              <div className="flex flex-col gap-4 max-w-4xl mx-auto">
-                <h2 className="text-lg font-bold flex items-center gap-2 text-blue-400 mb-2">
-                  <Truck size={20} /> Pesagens em Aberto ({pesagensAbertas.length})
-                </h2>
+              <div className="space-y-4">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider">Veículos em Aberto / Aguardando Saída</h2>
                 {pesagensAbertas.length === 0 ? (
-                  <div className="bg-[#161B23] p-8 rounded-xl text-center text-gray-500 border border-white/5">
-                    Nenhum veículo aguardando saída no momento.
-                  </div>
+                  <div className="text-center text-gray-500 py-12 text-xs bg-[#161B23] rounded-xl border border-white/5">Nenhum veículo aguardando finalização.</div>
                 ) : (
                   pesagensAbertas.map(p => (
                     <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
@@ -1266,108 +1374,136 @@ export default function App() {
             )}
 
             {aba === "caixa" && (
-              <div className="flex flex-col gap-6">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between">
                     <div>
-                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Saldo Atual de Troco</p>
-                      <p className="text-2xl font-black text-emerald-400">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                      <span className="text-xs font-bold uppercase tracking-wider text-green-400">Saldo Atual em Caixa (Troco)</span>
+                      <h2 className="text-3xl font-extrabold text-white mt-1">
+                        R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                      </h2>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-white/5 flex justify-between text-[11px] text-gray-400">
-                      <span>Aportes: <b className="text-emerald-400">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-                      <span>Saídas: <b className="text-red-400">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></span>
-                    </div>
+                    <form onSubmit={handleAdicionarTroco} className="mt-4 pt-4 border-t border-white/5 flex gap-2">
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="Valor do Aporte / Troco" 
+                        value={valorAporte} 
+                        onChange={e => setValorAporte(e.target.value)} 
+                        className="bg-[#1A2030] p-2 rounded-lg text-xs flex-1 outline-none border border-white/10 text-white focus:border-green-500" 
+                      />
+                      <button type="submit" className="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1">
+                        <PlusCircle size={14}/> Adicionar Troco
+                      </button>
+                    </form>
                   </div>
 
-                  <form onSubmit={handleAdicionarTroco} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col justify-between gap-2">
-                    <p className="text-xs font-bold text-blue-400 flex items-center gap-1.5"><PlusCircle size={16}/> ADICIONAR TROCO (APORTE)</p>
-                    <input type="number" step="0.01" placeholder="Valor R$" value={valorAporte} onChange={e => setValorAporte(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-blue-500" required />
-                    <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">INSERIR TROCO</button>
-                  </form>
-
-                  <form onSubmit={handleSangriaGasto} className="bg-[#161B23] p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-2">
-                    <p className="text-xs font-bold text-red-400 flex items-center gap-1.5"><MinusCircle size={16}/> RETIRADA / SANGRIA / GASTO</p>
-                    <input type="number" step="0.01" placeholder="Valor R$" value={valorSangria} onChange={e => setValorSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-red-500" required />
-                    <input type="text" placeholder="Motivo da retirada" value={motivoSangria} onChange={e => setMotivoSangria(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-sm outline-none border border-transparent focus:border-red-500" required />
-                    <button className="bg-red-600 hover:bg-red-500 text-white font-bold p-2 rounded-lg text-xs transition-colors cursor-pointer">REGISTRAR SAÍDA</button>
-                  </form>
+                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-red-400">Retirada / Sangria de Caixa</span>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Retire valores para despesas ou acertos</p>
+                    </div>
+                    <form onSubmit={handleSangriaGasto} className="mt-3 space-y-2">
+                      <div className="flex gap-2">
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          placeholder="Valor" 
+                          value={valorSangria} 
+                          onChange={e => setValorSangria(e.target.value)} 
+                          className="bg-[#1A2030] p-2 rounded-lg text-xs w-1/3 outline-none border border-white/10 text-white focus:border-red-500" 
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="Motivo da retirada (obrigatório)" 
+                          value={motivoSangria} 
+                          onChange={e => setMotivoSangria(e.target.value)} 
+                          className="bg-[#1A2030] p-2 rounded-lg text-xs flex-1 outline-none border border-white/10 text-white focus:border-red-500" 
+                        />
+                      </div>
+                      <button type="submit" className="w-full bg-red-900/40 hover:bg-red-800 text-red-300 hover:text-white text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 border border-red-500/30">
+                        <MinusCircle size={14}/> Realizar Retirada / Sangria
+                      </button>
+                    </form>
+                  </div>
                 </div>
 
-                <div className="bg-[#161B23] p-4 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                    <h3 className="text-sm font-bold flex items-center gap-2 text-gray-200">
-                      <History size={16}/> Histórico de Movimentações de Caixa
+                <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-white/5 pb-3">
+                    <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
+                      <History size={16} className="text-blue-400"/> Histórico de Movimentações de Caixa
                     </h3>
-                    <div className="flex items-center gap-2">
-                      <Filter size={14} className="text-gray-400"/>
-                      <span className="text-xs text-gray-400 font-semibold">Filtros Avançados</span>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none">
+                        <option value="">Todos os Tipos</option>
+                        <option value="ENTRADA_TROCO">Entrada de Troco</option>
+                        <option value="SAIDA_TROCO">Saída de Troco (Vendas)</option>
+                        <option value="SANGRIA_GASTO">Sangria / Gasto</option>
+                      </select>
+                      <input type="date" value={fCaixaDataI} onChange={e => setFCaixaDataI(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none" />
+                      <input type="date" value={fCaixaDataF} onChange={e => setFCaixaDataF(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none" />
+                      <select value={fCaixaOperador} onChange={e => setFCaixaOperador(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none">
+                        <option value="">Todos Operadores</option>
+                        {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
+                      </select>
+                      <input type="text" placeholder="Buscar motivo..." value={fCaixaBusca} onChange={e => setFCaixaBusca(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none" />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-5 gap-2">
-                    <div className="relative">
-                      <Search size={14} className="absolute left-2.5 top-3 text-gray-500"/>
-                      <input type="text" placeholder="Buscar motivo..." value={fCaixaBusca} onChange={e => setFCaixaBusca(e.target.value)} className="w-full bg-[#1A2030] pl-8 pr-2 py-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"/>
-                    </div>
-                    <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500">
-                      <option value="">Todos os Tipos</option>
-                      <option value="ENTRADA_TROCO">Entrada (Aporte)</option>
-                      <option value="SAIDA_TROCO">Saída (Troco Pago)</option>
-                      <option value="SANGRIA_GASTO">Sangria / Gasto</option>
-                    </select>
-                    <input type="date" value={fCaixaDataI} onChange={e => setFCaixaDataI(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs text-gray-300 outline-none border border-transparent focus:border-blue-500"/>
-                    <input type="date" value={fCaixaDataF} onChange={e => setFCaixaDataF(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs text-gray-300 outline-none border border-transparent focus:border-blue-500"/>
-                    <select value={fCaixaOperador} onChange={e => setFCaixaOperador(e.target.value)} className="bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-transparent focus:border-blue-500">
-                      <option value="">Todos Operadores</option>
-                      {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
-                    </select>
+                  <div className="flex gap-4 text-xs text-gray-400">
+                    <span>Total Aportes Filtrados: <strong className="text-green-400">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
+                    <span>Total Saídas/Retiradas Filtradas: <strong className="text-red-400">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
                   </div>
 
-                  <table className="w-full text-left text-[11px] mt-2">
-                    <thead>
-                      <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
-                        {["Data/Hora", "Tipo", "Motivo / Descrição", "Valor", "Saldo Resultante", "Operador"].map(h => <th key={h} className="p-2.5">{h}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {movimentacoesFiltradas.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="p-4 text-center text-gray-500">Nenhuma movimentação encontrada.</td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
+                          {["Data/Hora", "Tipo", "Motivo", "Operador", "Valor", "Saldo Resultante"].map(h => <th key={h} className="p-2.5">{h}</th>)}
                         </tr>
-                      ) : (
-                        movimentacoesFiltradas.map((m) => (
-                          <tr key={m.id} className="hover:bg-white/[0.02]">
-                            <td className="p-2.5 text-gray-300">{m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : 'N/A'}</td>
-                            <td className="p-2.5">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                m.tipo === 'ENTRADA_TROCO' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                m.tipo === 'SAIDA_TROCO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                                'bg-red-500/10 text-red-400 border border-red-500/20'
-                              }`}>
-                                {m.tipo}
-                              </span>
-                            </td>
-                            <td className="p-2.5 text-gray-300">{m.motivo}</td>
-                            <td className={`p-2.5 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'}R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                            </td>
-                            <td className="p-2.5 font-medium text-gray-200">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                            <td className="p-2.5 text-gray-300">{m.operador || 'N/A'}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {movimentacoesFiltradas.length === 0 ? (
+                          <tr><td colSpan="6" className="text-center py-6 text-gray-500">Nenhuma movimentação encontrada com os filtros atuais.</td></tr>
+                        ) : (
+                          movimentacoesFiltradas.map(m => (
+                            <tr key={m.id} className="hover:bg-white/[0.02]">
+                              <td className="p-2.5 text-gray-300">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                              <td className="p-2.5">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  m.tipo === 'ENTRADA_TROCO' ? 'bg-green-950/60 text-green-300 border border-green-500/20' :
+                                  m.tipo === 'SAIDA_TROCO' ? 'bg-amber-950/60 text-amber-300 border border-amber-500/20' :
+                                  'bg-red-950/60 text-red-300 border border-red-500/20'
+                                }`}>
+                                  {m.tipo}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-gray-200">{m.motivo}</td>
+                              <td className="p-2.5 text-gray-300">{m.operador || 'N/A'}</td>
+                              <td className={`p-2.5 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-green-400' : 'text-red-400'}`}>
+                                {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                              </td>
+                              <td className="p-2.5 font-semibold text-white">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
+            )}
+
+            {aba === "logistica" && (
+              <AbaLogistica session={session} userName={userName} />
             )}
 
             {aba === "patio" && (
               <KanbanPatio />
             )}
 
-            {aba === "logistica" && (
-              <AbaLogistica session={session} userName={userName} />
+            {aba === "cad_contratos" && (
+              <CadastroContratos />
             )}
           </>
         )}
