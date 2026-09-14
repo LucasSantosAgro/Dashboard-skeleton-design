@@ -153,6 +153,7 @@ export function CadastroContratos() {
         .update({
           numero_contrato: numeroContrato,
           cliente,
+          cnpj: cnpj,
           cnpj_cliente: cnpj,
           produto,
           quantidade_disponivel: Number(quantidadeDisponivel)
@@ -170,6 +171,7 @@ export function CadastroContratos() {
       const { error } = await supabase.from('contratos_embarque').insert([{
         numero_contrato: numeroContrato,
         cliente,
+        cnpj: cnpj,
         cnpj_cliente: cnpj,
         produto,
         quantidade_disponivel: Number(quantidadeDisponivel),
@@ -190,7 +192,7 @@ export function CadastroContratos() {
     setContratoEditandoId(c.id);
     setNumeroContrato(c.numero_contrato || '');
     setCliente(c.cliente || '');
-    setCnpj(c.cnpj_cliente || c.cnpj || '');
+    setCnpj(c.cnpj || c.cnpj_cliente || '');
     setProduto(c.produto || 'Milho');
     setQuantidadeDisponivel(c.quantidade_disponivel ?? '');
   };
@@ -312,7 +314,7 @@ export function CadastroContratos() {
       </div>
 
       <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
-        <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-3">Lista de Contratos Cadastrados[cite: 1]</h3>
+        <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-3">Lista de Contratos Cadastrados</h3>
         {carregando ? (
           <div className="text-center py-6 text-gray-400 text-xs flex items-center justify-center gap-2">
             <Loader2 className="animate-spin" size={16} /> Carregando contratos...
@@ -340,7 +342,7 @@ export function CadastroContratos() {
                   <tr key={c.id} className="hover:bg-white/[0.02]">
                     <td className="p-2.5 font-bold text-blue-400">{c.numero_contrato}</td>
                     <td className="p-2.5 text-gray-300">{c.cliente}</td>
-                    <td className="p-2.5 text-gray-400">{c.cnpj_cliente || c.cnpj || 'N/A'}</td>
+                    <td className="p-2.5 text-gray-400">{c.cnpj || c.cnpj_cliente || 'N/A'}</td>
                     <td className="p-2.5 text-gray-300">{c.produto}</td>
                     <td className="p-2.5 font-semibold text-green-400">{Number(c.quantidade_disponivel || 0).toLocaleString('pt-BR')} Kg</td>
                     <td className="p-2.5">
@@ -404,7 +406,7 @@ export function KanbanPatio() {
   const buscarDados = useCallback(async () => {
     const { data: ordensData, error: erroOrdens } = await supabase
       .from('ordens_carregamento')
-      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj_cliente)')
+      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj, cnpj_cliente)')
       .order('created_at', { ascending: true });
 
     if (!erroOrdens && ordensData) setOrdens(ordensData);
@@ -579,10 +581,9 @@ export function KanbanPatio() {
     };
   }, [buscarDados]);
 
-  const contratosAtivos = contratos.filter(c => c.status !== 'Finalizado' && Number(c.quantidade_disponivel) > 0);
+  const contratosAtivos = contratos.filter(c => (c.status === 'Ativo' || !c.status) && Number(c.quantidade_disponivel) > 0);
   const contratosFinalizados = contratos.filter(c => c.status === 'Finalizado' || Number(c.quantidade_disponivel) <= 0);
 
-  // Garantindo que os filtros, gráficos e KPIs considerem cargas concluídas de contratos Ativo ou Finalizado[cite: 1]
   const ordensFiltradasParaGrafico = ordens.filter(ordem => {
     if (contratoSelecionadoFiltro) {
       const matchContrato = 
@@ -592,10 +593,11 @@ export function KanbanPatio() {
     }
 
     if (ordem.status === 'concluido') {
-      const statusContrato = ordem.contratos_embarque?.status;
-      // Garante que aceita tanto contratos Ativos quanto Finalizados para as cargas concluídas
-      if (statusContrato && statusContrato !== 'Ativo' && statusContrato !== 'Finalizado') {
-        return false;
+      if (ordem.contratos_embarque) {
+        const stContrato = ordem.contratos_embarque.status;
+        if (stContrato && stContrato !== 'Ativo' && stContrato !== 'Finalizado') {
+          return false;
+        }
       }
 
       if (filtroCnpj && !((ordem.cnpj_transportadora || '').toLowerCase().includes(filtroCnpj.toLowerCase()) || (ordem.transportadora || '').toLowerCase().includes(filtroCnpj.toLowerCase()))) {
@@ -643,7 +645,7 @@ export function KanbanPatio() {
           className="bg-[#161B23] p-4 rounded-xl border border-white/5 hover:border-blue-500/50 transition-all cursor-pointer shadow-md flex items-center justify-between"
         >
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Contratos Ativos[cite: 1]</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Contratos Ativos</span>
             <h2 className="text-2xl font-extrabold text-white mt-1">{contratosAtivos.length}</h2>
             <p className="text-[11px] text-gray-400 mt-0.5">Clique para ver dados e filtrar</p>
           </div>
@@ -657,7 +659,7 @@ export function KanbanPatio() {
           className="bg-[#161B23] p-4 rounded-xl border border-white/5 hover:border-green-500/50 transition-all cursor-pointer shadow-md flex items-center justify-between"
         >
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-green-400">Contratos Finalizados[cite: 1]</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-green-400">Contratos Finalizados</span>
             <h2 className="text-2xl font-extrabold text-white mt-1">{contratosFinalizados.length}</h2>
             <p className="text-[11px] text-gray-400 mt-0.5">Clique para ver dados e filtrar</p>
           </div>
@@ -686,9 +688,9 @@ export function KanbanPatio() {
         <div className="flex justify-between items-center border-b border-white/5 pb-3">
           <div className="flex items-center gap-2">
             <BarChart3 className="text-blue-400" size={18} />
-            <h3 className="font-bold text-white text-sm uppercase tracking-wider">Quantidade de Produtos Embarcados (Kg)[cite: 1]</h3>
+            <h3 className="font-bold text-white text-sm uppercase tracking-wider">Quantidade de Produtos Embarcados (Kg) - Contratos Ativos ou Finalizados</h3>
           </div>
-          <span className="text-xs text-gray-400">Ajusta-se conforme filtros e contratos selecionados (Ativos e Finalizados)</span>
+          <span className="text-xs text-gray-400">Ajusta-se conforme filtros e contratos selecionados</span>
         </div>
 
         {produtosArrayGrafico.length === 0 ? (
@@ -729,10 +731,13 @@ export function KanbanPatio() {
           }
 
           if (coluna.id === 'concluido') {
-            // Garante que a coluna de concluídos inclua cargas de contratos com status Ativo ou Finalizado[cite: 1]
-            ordensColuna = ordensColuna.filter((o) => {
-              const st = o.contratos_embarque?.status;
-              if (st && st !== 'Ativo' && st !== 'Finalizado') return false;
+            ordensColuna = ordensColuna.filter(o => {
+              if (o.contratos_embarque) {
+                const stContrato = o.contratos_embarque.status;
+                if (stContrato && stContrato !== 'Ativo' && stContrato !== 'Finalizado') {
+                  return false;
+                }
+              }
               return true;
             });
 
@@ -765,7 +770,7 @@ export function KanbanPatio() {
 
               {coluna.id === 'concluido' && (
                 <div className="mb-3 p-2.5 bg-[#1A2030] rounded-lg border border-white/10 space-y-2">
-                  <div className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Filtros de Concluídos (Ativos/Finalizados)[cite: 1]</div>
+                  <div className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Filtros de Concluídos (Ativo/Finalizado)</div>
                   <input
                     type="text"
                     placeholder="Filtrar por CNPJ / Transportadora"
@@ -813,7 +818,7 @@ export function KanbanPatio() {
                       
                       {ordem.contratos_embarque?.numero_contrato && (
                         <div className="mb-2 text-[11px] bg-blue-950/40 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded font-medium inline-block">
-                          Contrato: {ordem.contratos_embarque.numero_contrato} ({ordem.contratos_embarque?.status || 'Ativo'})
+                          Contrato: {ordem.contratos_embarque.numero_contrato} ({ordem.contratos_embarque.status || 'Ativo'})
                         </div>
                       )}
 
@@ -925,7 +930,7 @@ export function KanbanPatio() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex justify-between items-center pb-3 border-b border-white/10 mb-4">
-              <h3 className="font-bold text-white text-base">Contratos Ativos ({contratosAtivos.length})[cite: 1]</h3>
+              <h3 className="font-bold text-white text-base">Contratos Ativos ({contratosAtivos.length})</h3>
               <button onClick={() => setModalAtivosAberto(false)} className="text-gray-400 hover:text-white cursor-pointer">
                 <X size={20} />
               </button>
@@ -942,7 +947,7 @@ export function KanbanPatio() {
                         <span className="bg-blue-950/60 text-blue-300 border border-blue-500/20 text-[10px] px-2 py-0.5 rounded font-medium">{c.produto}</span>
                       </div>
                       <p className="text-xs text-gray-300 mt-1">Cliente: <strong className="text-white">{c.cliente}</strong></p>
-                      {c.cnpj_cliente && <p className="text-xs text-gray-400">CNPJ: {c.cnpj_cliente}</p>}
+                      {c.cnpj && <p className="text-xs text-gray-400">CNPJ: {c.cnpj}</p>}
                       <p className="text-xs text-green-400 mt-0.5">Disponível: <strong>{Number(c.quantidade_disponivel).toLocaleString('pt-BR')} Kg</strong></p>
                     </div>
                     <button
@@ -966,7 +971,7 @@ export function KanbanPatio() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex justify-between items-center pb-3 border-b border-white/10 mb-4">
-              <h3 className="font-bold text-white text-base">Contratos Finalizados ({contratosFinalizados.length})[cite: 1]</h3>
+              <h3 className="font-bold text-white text-base">Contratos Finalizados ({contratosFinalizados.length})</h3>
               <button onClick={() => setModalFinalizadosAberto(false)} className="text-gray-400 hover:text-white cursor-pointer">
                 <X size={20} />
               </button>
@@ -983,7 +988,7 @@ export function KanbanPatio() {
                         <span className="bg-green-950/60 text-green-300 border border-green-500/20 text-[10px] px-2 py-0.5 rounded font-medium">{c.produto}</span>
                       </div>
                       <p className="text-xs text-gray-300 mt-1">Cliente: <strong className="text-white">{c.cliente}</strong></p>
-                      {c.cnpj_cliente && <p className="text-xs text-gray-400">CNPJ: {c.cnpj_cliente}</p>}
+                      {c.cnpj && <p className="text-xs text-gray-400">CNPJ: {c.cnpj}</p>}
                       <p className="text-xs text-gray-400 mt-0.5">Saldo Final: <strong>{Number(c.quantidade_disponivel).toLocaleString('pt-BR')} Kg</strong></p>
                     </div>
                     <button
@@ -1276,7 +1281,7 @@ export default function App() {
           {userRole !== 'motorista' && (
             <>
               <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-                <CheckSquare size={14} /> CONTROLE DE PÁTIO[cite: 1]
+                <CheckSquare size={14} /> CONTROLE DE PÁTIO
               </button>
               <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
                 <Package size={14} /> CADASTRO DE CONTRATOS
