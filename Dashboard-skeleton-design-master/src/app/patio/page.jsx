@@ -15,12 +15,18 @@ export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [processandoId, setProcessandoId] = useState(null);
+  
+  // Estados para os filtros da coluna de concluídos
+  const [filtroCnpj, setFiltroCnpj] = useState('');
+  const [filtroContrato, setFiltroContrato] = useState('');
+  const [filtroProduto, setFiltroProduto] = useState('');
+
   const processandoRef = useRef({});
 
   const buscarOrdens = useCallback(async () => {
     const { data, error } = await supabase
       .from('ordens_carregamento')
-      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel)')
+      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto)')
       .order('created_at', { ascending: true });
 
     if (!error && data) setOrdens(data);
@@ -52,7 +58,6 @@ export function KanbanPatio() {
     setProcessandoId(id);
 
     try {
-      // 1. Busca rigorosa do estado atual no banco de dados antes de tomar qualquer ação
       const { data: ordemAtual, error: erroBuscaOrdem } = await supabase
         .from('ordens_carregamento')
         .select('status, peso_carregado, contrato_id')
@@ -64,10 +69,9 @@ export function KanbanPatio() {
         return;
       }
 
-      // Validação restrita: Se já estiver concluída ou já possuir peso carregado gravado, bloqueia imediatamente
       if (ordemAtual.status === 'concluido' || (ordemAtual.peso_carregado !== null && Number(ordemAtual.peso_carregado) > 0)) {
         alert('⚠️ Ação bloqueada: Esta ordem de carregamento já foi finalizada anteriormente e o saldo do contrato já sofreu a baixa.');
-        buscarOrdens(); // Atualiza a tela para sumir com o botão
+        buscarOrdens();
         return;
       }
 
@@ -85,7 +89,6 @@ export function KanbanPatio() {
         peso_carregado: pesoNumerico
       };
 
-      // 2. Atualiza a ordem com restrição estrita: só atualiza se o status ainda for 'carregando' (Evita concorrência/duplo clique)
       const { data: ordemAtualizada, error: erroOrdem } = await supabase
         .from('ordens_carregamento')
         .update(dadosUpdateOrdem)
@@ -99,7 +102,6 @@ export function KanbanPatio() {
         return;
       }
 
-      // 3. Busca o contrato atual para calcular o saldo com precisão
       const { data: contrato, error: erroBusca } = await supabase
         .from('contratos_embarque')
         .select('quantidade_disponivel, numero_contrato')
@@ -115,7 +117,6 @@ export function KanbanPatio() {
       const saldoAtual = Number(contrato.quantidade_disponivel) || 0;
       const novoSaldo = saldoAtual - pesoNumerico;
 
-      // 4. Efetua a baixa única no contrato de embarque
       const { error: erroAtualizacaoContrato } = await supabase
         .from('contratos_embarque')
         .update({ quantidade_disponivel: novoSaldo })
@@ -198,7 +199,28 @@ export function KanbanPatio() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {COLUNAS_PATIO.map((coluna) => {
-        const ordensColuna = ordens.filter((o) => o.status === coluna.id);
+        let ordensColuna = ordens.filter((o) => o.status === coluna.id);
+
+        // Aplicação dos filtros restritivos apenas na coluna de Concluídos
+        if (coluna.id === 'concluido') {
+          if (filtroCnpj) {
+            ordensColuna = ordensColuna.filter((o) => 
+              (o.cnpj_transportadora || '').toLowerCase().includes(filtroCnpj.toLowerCase()) ||
+              (o.transportadora || '').toLowerCase().includes(filtroCnpj.toLowerCase())
+            );
+          }
+          if (filtroContrato) {
+            ordensColuna = ordensColuna.filter((o) => 
+              (o.contratos_embarque?.numero_contrato || '').toLowerCase().includes(filtroContrato.toLowerCase())
+            );
+          }
+          if (filtroProduto) {
+            ordensColuna = ordensColuna.filter((o) => 
+              (o.contratos_embarque?.produto || '').toLowerCase().includes(filtroProduto.toLowerCase())
+            );
+          }
+        }
+
         return (
           <div key={coluna.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-280px)] min-h-[450px]">
             <div className={`flex justify-between items-center pb-3 mb-3 border-b-2 ${coluna.cor}`}>
@@ -207,6 +229,43 @@ export function KanbanPatio() {
                 {ordensColuna.length}
               </span>
             </div>
+
+            {/* Painel de Filtros dedicado na coluna de Concluídos */}
+            {coluna.id === 'concluido' && (
+              <div className="mb-3 p-2.5 bg-[#1A2030] rounded-lg border border-white/10 space-y-2">
+                <div className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Filtros de Concluídos</div>
+                <input
+                  type="text"
+                  placeholder="Filtrar por CNPJ / Transportadora"
+                  value={filtroCnpj}
+                  onChange={(e) => setFiltroCnpj(e.target.value)}
+                  className="w-full p-1.5 text-xs bg-[#161B23] border border-white/10 text-white rounded outline-none focus:border-green-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Filtrar por Contrato"
+                  value={filtroContrato}
+                  onChange={(e) => setFiltroContrato(e.target.value)}
+                  className="w-full p-1.5 text-xs bg-[#161B23] border border-white/10 text-white rounded outline-none focus:border-green-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Filtrar por Produto"
+                  value={filtroProduto}
+                  onChange={(e) => setFiltroProduto(e.target.value)}
+                  className="w-full p-1.5 text-xs bg-[#161B23] border border-white/10 text-white rounded outline-none focus:border-green-500"
+                />
+                {(filtroCnpj || filtroContrato || filtroProduto) && (
+                  <button
+                    onClick={() => { setFiltroCnpj(''); setFiltroContrato(''); setFiltroProduto(''); }}
+                    className="w-full text-[11px] text-gray-400 hover:text-white py-0.5 transition-colors cursor-pointer"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto space-y-3 pr-1">
               {ordensColuna.length === 0 ? (
                 <div className="text-center text-gray-500 text-xs py-8 border border-dashed border-white/5 rounded-lg">
@@ -226,12 +285,27 @@ export function KanbanPatio() {
                       </div>
                     )}
 
+                    {ordem.contratos_embarque?.produto && (
+                      <div className="mb-2 ml-1 text-[11px] bg-purple-950/40 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded font-medium inline-block">
+                        Produto: {ordem.contratos_embarque.produto}
+                      </div>
+                    )}
+
                     <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
+                    {ordem.cnpj_transportadora && (
+                      <p className="text-[11px] text-gray-400">CNPJ: {ordem.cnpj_transportadora}</p>
+                    )}
                     <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
 
                     {ordem.data_chegada_portaria && (
                       <div className="mt-2 pt-2 border-t border-white/5 text-[11px] text-blue-400 font-medium">
                         ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
+                      </div>
+                    )}
+
+                    {ordem.peso_carregado && (
+                      <div className="mt-1 text-[11px] text-green-400 font-medium">
+                        ⚖️ Carregado: {Number(ordem.peso_carregado).toLocaleString('pt-BR')} Kg {ordem.nota_fiscal ? `| NF: ${ordem.nota_fiscal}` : ''}
                       </div>
                     )}
 
