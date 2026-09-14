@@ -27,13 +27,17 @@ export function KanbanPatio() {
 
   const processandoRef = useRef({});
 
-  const buscarDados = useCallback(async () => {
-    const { data: ordensData, error: erroOrdens } = await supabase
+  const buscarOrdens = async () => {
+    const { data, error } = await supabase
       .from('ordens_carregamento')
       .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj_cliente)')
       .order('created_at', { ascending: true });
 
-    if (!erroOrdens && ordensData) setOrdens(ordensData);
+    if (!error && data) setOrdens(data);
+  };
+
+  const buscarDados = useCallback(async () => {
+    await buscarOrdens();
 
     const { data: contratosData, error: erroContratos } = await supabase
       .from('contratos_embarque')
@@ -254,6 +258,13 @@ export function KanbanPatio() {
     );
   }
 
+  const COLUNAS = [
+    { id: 'aguardando', titulo: 'Aguardando Chegada' },
+    { id: 'em_patio', titulo: 'Em Pátio / Triagem' },
+    { id: 'carregando', titulo: 'Carregando' },
+    { id: 'concluido', titulo: 'Concluído / Saída' }
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -338,8 +349,9 @@ export function KanbanPatio() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {COLUNAS_PATIO.map((coluna) => {
-          let ordensColuna = ordens.filter((o) => o.status === coluna.id);
+        {COLUNAS_PATIO.map((colunaPatio) => {
+          const colunaConfig = COLUNAS.find(c => c.id === colunaPatio.id) || colunaPatio;
+          let ordensColuna = ordens.filter((o) => o.status === colunaPatio.id);
 
           if (contratoSelecionadoFiltro) {
             ordensColuna = ordensColuna.filter((o) => 
@@ -347,7 +359,7 @@ export function KanbanPatio() {
             );
           }
 
-          if (coluna.id === 'concluido') {
+          if (colunaPatio.id === 'concluido') {
             if (filtroCnpj) {
               ordensColuna = ordensColuna.filter((o) => 
                 (o.cnpj_transportadora || '').toLowerCase().includes(filtroCnpj.toLowerCase()) ||
@@ -367,15 +379,15 @@ export function KanbanPatio() {
           }
 
           return (
-            <div key={coluna.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-280px)] min-h-[450px]">
-              <div className={`flex justify-between items-center pb-3 mb-3 border-b-2 ${coluna.cor}`}>
-                <h2 className="font-bold text-xs uppercase tracking-wider">{coluna.titulo}</h2>
+            <div key={colunaPatio.id} className="bg-[#161B23] rounded-xl p-4 border border-white/5 flex flex-col h-[calc(100vh-280px)] min-h-[450px]">
+              <div className={`flex justify-between items-center pb-3 mb-3 border-b-2 ${colunaPatio.cor}`}>
+                <h2 className="font-bold text-xs uppercase tracking-wider">{colunaConfig.titulo}</h2>
                 <span className="bg-[#1A2030] text-gray-300 text-xs font-bold px-2.5 py-0.5 rounded-full border border-white/10">
                   {ordensColuna.length}
                 </span>
               </div>
 
-              {coluna.id === 'concluido' && (
+              {colunaPatio.id === 'concluido' && (
                 <div className="mb-3 p-2.5 bg-[#1A2030] rounded-lg border border-white/10 space-y-2">
                   <div className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Filtros de Concluídos</div>
                   <input
