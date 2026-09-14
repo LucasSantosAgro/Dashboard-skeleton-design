@@ -121,7 +121,7 @@ export function KanbanPatio() {
 
       if (erroBusca || !contrato) {
         console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
         return;
       }
 

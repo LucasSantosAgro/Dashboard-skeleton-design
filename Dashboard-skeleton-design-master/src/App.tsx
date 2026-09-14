@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, CheckSquare, BarChart3, CheckCircle2, Clock, X, Edit2 } from "lucide-react";
+import { Loader2, LogOut, Trash2, Printer, DollarSign, Package, Calendar, Activity, RefreshCw, AlertTriangle, PlusCircle, MinusCircle, History, Truck, Filter, Search, CheckSquare, BarChart3, CheckCircle2, Clock, X, Edit2, Scale } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { supabase } from '@/lib/supabaseClient';
 import jsPDF from "jspdf";
@@ -497,7 +497,7 @@ export function KanbanPatio() {
 
       if (erroBusca || !contrato) {
         console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
         return;
       }
 
@@ -1040,6 +1040,106 @@ export function KanbanPatio() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
+  const [pesoSaida, setPesoSaida] = useState('');
+  const [valorSaca, setValorSaca] = useState('');
+  const [formaPag, setFormaPag] = useState('PIX');
+  const [dinheiroRecebido, setDinheiroRecebido] = useState('');
+
+  const pesoEntrada = Number(p.peso_entrada || 0);
+  const pesoSaidaNum = Number(pesoSaida || 0);
+  const pesoLiquido = Math.max(0, pesoSaidaNum - pesoEntrada);
+  const qtdSacas = pesoLiquido / 60;
+  const valorUnitarioNum = Number(valorSaca || 0);
+  const valorTotal = qtdSacas * valorUnitarioNum;
+  const dinheiroRecNum = Number(dinheiroRecebido || 0);
+  const troco = formaPag === 'DINHEIRO' ? Math.max(0, dinheiroRecNum - valorTotal) : 0;
+
+  return (
+    <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-white/5 pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-blue-400 text-sm">Comp: {p.comprovante}</span>
+            <span className="bg-blue-950/60 text-blue-300 border border-blue-500/20 text-[10px] px-2 py-0.5 rounded font-medium">{p.produto}</span>
+          </div>
+          <p className="text-xs text-gray-300 mt-1">Placa: <strong className="text-white uppercase">{p.placa}</strong> | Entrada: {p.data} ({pesoEntrada.toLocaleString('pt-BR')} kg)</p>
+        </div>
+        <button onClick={() => onExcluir(p.id)} className="text-red-400 hover:text-red-300 text-xs flex items-center gap-1 cursor-pointer">
+          <Trash2 size={14} /> Cancelar Pesagem
+        </button>
+      </div>
+
+      <form onSubmit={(e) => onFinalizar(p, e, { pesoSaida: pesoSaidaNum, valorSaca: valorUnitarioNum, formaPag, pesoLiquido, qtdSacas, valorTotal, troco })} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+        <div>
+          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Peso Saída (kg)</label>
+          <input 
+            type="number" 
+            step="10" 
+            placeholder="Ex: 35000" 
+            value={pesoSaida} 
+            onChange={e => setPesoSaida(e.target.value)} 
+            className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+            required 
+          />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Valor por Saca (R$)</label>
+          <input 
+            type="number" 
+            step="0.01" 
+            placeholder="Ex: 85.00" 
+            value={valorSaca} 
+            onChange={e => setValorSaca(e.target.value)} 
+            className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+            required 
+          />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Forma de Pagamento</label>
+          <select 
+            value={formaPag} 
+            onChange={e => setFormaPag(e.target.value)} 
+            className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500"
+          >
+            <option value="PIX">PIX</option>
+            <option value="DINHEIRO">DINHEIRO</option>
+          </select>
+        </div>
+
+        {formaPag === 'DINHEIRO' && (
+          <div>
+            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Dinheiro Recebido (R$)</label>
+            <input 
+              type="number" 
+              step="0.01" 
+              placeholder="Ex: 1000.00" 
+              value={dinheiroRecebido} 
+              onChange={e => setDinheiroRecebido(e.target.value)} 
+              className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+              required 
+            />
+          </div>
+        )}
+
+        <div className="bg-[#1A2030] p-2.5 rounded-lg border border-white/5 flex flex-col justify-center">
+          <div className="text-[10px] text-gray-400">Líquido: <strong className="text-white">{pesoLiquido.toLocaleString('pt-BR')} kg</strong></div>
+          <div className="text-[10px] text-gray-400">Total: <strong className="text-emerald-400">R$ {valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></div>
+          {formaPag === 'DINHEIRO' && (
+            <div className="text-[10px] text-gray-400">Troco: <strong className="text-amber-400">R$ {troco.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></div>
+          )}
+        </div>
+
+        <div className="sm:col-span-2 lg:col-span-5 flex justify-end">
+          <button type="submit" className="bg-green-600 hover:bg-green-500 text-white font-bold text-xs px-6 py-2.5 rounded-lg transition-colors cursor-pointer shadow-md">
+            Finalizar e Emitir Comprovante
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
