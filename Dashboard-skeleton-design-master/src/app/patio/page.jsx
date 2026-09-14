@@ -17,12 +17,10 @@ export function KanbanPatio() {
   const [carregando, setCarregando] = useState(true);
   const [processandoId, setProcessandoId] = useState(null);
   
-  // Estados para os filtros da coluna de concluídos
   const [filtroCnpj, setFiltroCnpj] = useState('');
   const [filtroContrato, setFiltroContrato] = useState('');
   const [filtroProduto, setFiltroProduto] = useState('');
 
-  // Estados para os Modais de KPIs e Filtro de Contrato
   const [modalAtivosAberto, setModalAtivosAberto] = useState(false);
   const [modalFinalizadosAberto, setModalFinalizadosAberto] = useState(false);
   const [contratoSelecionadoFiltro, setContratoSelecionadoFiltro] = useState(null);
@@ -30,15 +28,13 @@ export function KanbanPatio() {
   const processandoRef = useRef({});
 
   const buscarDados = useCallback(async () => {
-    // Buscar ordens de carregamento
     const { data: ordensData, error: erroOrdens } = await supabase
       .from('ordens_carregamento')
-      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente)')
+      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj_cliente)')
       .order('created_at', { ascending: true });
 
     if (!erroOrdens && ordensData) setOrdens(ordensData);
 
-    // Buscar todos os contratos de embarque para os KPIs
     const { data: contratosData, error: erroContratos } = await supabase
       .from('contratos_embarque')
       .select('*');
@@ -125,7 +121,7 @@ export function KanbanPatio() {
 
       if (erroBusca || !contrato) {
         console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
         return;
       }
 
@@ -152,7 +148,9 @@ export function KanbanPatio() {
                      `• Baixa efetuada: -${pesoNumerico.toLocaleString('pt-BR')} Kg\n` +
                      `• Saldo restante: ${novoSaldo.toLocaleString('pt-BR')} Kg`;
 
-      if (novoSaldo < 100000) {
+      if (novoSaldo <= 0) {
+        mensagem += `\n\n🔒 CONTRATO FINALIZADO AUTOMATICAMENTE!`;
+      } else if (novoSaldo < 100000) {
         mensagem += `\n\n⚠️ ATENÇÃO: O saldo deste contrato está abaixo de 100.000 Kg!`;
       }
 
@@ -207,11 +205,9 @@ export function KanbanPatio() {
     };
   }, [buscarDados]);
 
-  // Contratos Ativos e Finalizados
-  const contratosAtivos = contratos.filter(c => c.status === 'Ativo' || Number(c.quantidade_disponivel) > 0);
+  const contratosAtivos = contratos.filter(c => c.status !== 'Finalizado' && Number(c.quantidade_disponivel) > 0);
   const contratosFinalizados = contratos.filter(c => c.status === 'Finalizado' || Number(c.quantidade_disponivel) <= 0);
 
-  // Filtragem de ordens para o gráfico e Kanban conforme contrato selecionado nos KPIs ou filtros de Concluídos
   const ordensFiltradasParaGrafico = ordens.filter(ordem => {
     if (contratoSelecionadoFiltro) {
       const matchContrato = 
@@ -234,7 +230,6 @@ export function KanbanPatio() {
     return true;
   });
 
-  // Agrupamento de produtos embarcados para o gráfico
   const dadosGraficoProdutos = {};
   ordensFiltradasParaGrafico.forEach(ordem => {
     if (ordem.status === 'concluido' && ordem.peso_carregado) {
@@ -261,9 +256,7 @@ export function KanbanPatio() {
 
   return (
     <div className="space-y-6">
-      {/* Seção de KPIs de Contratos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* KPI Contratos Ativos */}
         <div 
           onClick={() => setModalAtivosAberto(true)}
           className="bg-[#161B23] p-4 rounded-xl border border-white/5 hover:border-blue-500/50 transition-all cursor-pointer shadow-md flex items-center justify-between"
@@ -278,7 +271,6 @@ export function KanbanPatio() {
           </div>
         </div>
 
-        {/* KPI Contratos Finalizados */}
         <div 
           onClick={() => setModalFinalizadosAberto(true)}
           className="bg-[#161B23] p-4 rounded-xl border border-white/5 hover:border-green-500/50 transition-all cursor-pointer shadow-md flex items-center justify-between"
@@ -294,7 +286,6 @@ export function KanbanPatio() {
         </div>
       </div>
 
-      {/* Indicador de Filtro Ativo por Contrato */}
       {contratoSelecionadoFiltro && (
         <div className="bg-blue-950/30 border border-blue-500/30 p-3 rounded-xl flex items-center justify-between text-xs text-blue-200">
           <div className="flex items-center gap-2">
@@ -310,7 +301,6 @@ export function KanbanPatio() {
         </div>
       )}
 
-      {/* Gráfico de Quantidade de Produtos Embarcados */}
       <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md space-y-4">
         <div className="flex justify-between items-center border-b border-white/5 pb-3">
           <div className="flex items-center gap-2">
@@ -347,19 +337,16 @@ export function KanbanPatio() {
         )}
       </div>
 
-      {/* Kanban de Ordens de Carregamento */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {COLUNAS_PATIO.map((coluna) => {
           let ordensColuna = ordens.filter((o) => o.status === coluna.id);
 
-          // Aplicar filtro de contrato global se selecionado
           if (contratoSelecionadoFiltro) {
             ordensColuna = ordensColuna.filter((o) => 
               o.contratos_embarque?.id === contratoSelecionadoFiltro || o.contrato_id === contratoSelecionadoFiltro
             );
           }
 
-          // Aplicação dos filtros restritivos apenas na coluna de Concluídos
           if (coluna.id === 'concluido') {
             if (filtroCnpj) {
               ordensColuna = ordensColuna.filter((o) => 
@@ -388,7 +375,6 @@ export function KanbanPatio() {
                 </span>
               </div>
 
-              {/* Painel de Filtros dedicado na coluna de Concluídos */}
               {coluna.id === 'concluido' && (
                 <div className="mb-3 p-2.5 bg-[#1A2030] rounded-lg border border-white/10 space-y-2">
                   <div className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Filtros de Concluídos</div>
@@ -547,7 +533,6 @@ export function KanbanPatio() {
         })}
       </div>
 
-      {/* Modal de Contratos Ativos */}
       {modalAtivosAberto && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
@@ -569,6 +554,7 @@ export function KanbanPatio() {
                         <span className="bg-blue-950/60 text-blue-300 border border-blue-500/20 text-[10px] px-2 py-0.5 rounded font-medium">{c.produto}</span>
                       </div>
                       <p className="text-xs text-gray-300 mt-1">Cliente: <strong className="text-white">{c.cliente}</strong></p>
+                      {c.cnpj_cliente && <p className="text-xs text-gray-400">CNPJ: {c.cnpj_cliente}</p>}
                       <p className="text-xs text-green-400 mt-0.5">Disponível: <strong>{Number(c.quantidade_disponivel).toLocaleString('pt-BR')} Kg</strong></p>
                     </div>
                     <button
@@ -588,7 +574,6 @@ export function KanbanPatio() {
         </div>
       )}
 
-      {/* Modal de Contratos Finalizados */}
       {modalFinalizadosAberto && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
@@ -610,6 +595,7 @@ export function KanbanPatio() {
                         <span className="bg-green-950/60 text-green-300 border border-green-500/20 text-[10px] px-2 py-0.5 rounded font-medium">{c.produto}</span>
                       </div>
                       <p className="text-xs text-gray-300 mt-1">Cliente: <strong className="text-white">{c.cliente}</strong></p>
+                      {c.cnpj_cliente && <p className="text-xs text-gray-400">CNPJ: {c.cnpj_cliente}</p>}
                       <p className="text-xs text-gray-400 mt-0.5">Saldo Final: <strong>{Number(c.quantidade_disponivel).toLocaleString('pt-BR')} Kg</strong></p>
                     </div>
                     <button
