@@ -579,7 +579,7 @@ export function KanbanPatio() {
     };
   }, [buscarDados]);
 
-  const contratosAtivos = contratos.filter(c => c.status === 'Ativo' || Number(c.quantidade_disponivel) > 0);
+  const contratosAtivos = contratos.filter(c => c.status !== 'Finalizado' && Number(c.quantidade_disponivel) > 0);
   const contratosFinalizados = contratos.filter(c => c.status === 'Finalizado' || Number(c.quantidade_disponivel) <= 0);
 
   const ordensFiltradasParaGrafico = ordens.filter(ordem => {
