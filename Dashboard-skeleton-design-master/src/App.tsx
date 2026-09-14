@@ -387,7 +387,6 @@ export function CadastroContratos() {
   );
 }
 
-
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [contratos, setContratos] = useState([]);
