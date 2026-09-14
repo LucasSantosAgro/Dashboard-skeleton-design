@@ -404,12 +404,30 @@ export function KanbanPatio() {
   const processandoRef = useRef({});
 
   const buscarDados = useCallback(async () => {
-    const { data: ordensData, error: erroOrdens } = await supabase
+    const { data, error } = await supabase
       .from('ordens_carregamento')
-      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj, cnpj_cliente)')
+      .select(`
+        *,
+        contratos_embarque (
+          id,
+          numero_contrato,
+          cliente,
+          produto,
+          quantidade_disponivel,
+          unidade_medida,
+          status,
+          cnpj,
+          cnpj_cliente
+        )
+      `)
       .order('created_at', { ascending: true });
 
-    if (!erroOrdens && ordensData) setOrdens(ordensData);
+    if (error) {
+      console.error('Erro ao buscar ordens:', error);
+    } else {
+      console.log('Ordens carregadas:', data);
+      if (data) setOrdens(data);
+    }
 
     const { data: contratosData, error: erroContratos } = await supabase
       .from('contratos_embarque')
