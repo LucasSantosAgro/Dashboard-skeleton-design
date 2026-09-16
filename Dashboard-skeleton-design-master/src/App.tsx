@@ -404,30 +404,12 @@ export function KanbanPatio() {
   const processandoRef = useRef({});
 
   const buscarDados = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data: ordensData, error: erroOrdens } = await supabase
       .from('ordens_carregamento')
-      .select(`
-        *,
-        contratos_embarque (
-          id,
-          numero_contrato,
-          cliente,
-          produto,
-          quantidade_disponivel,
-          unidade_medida,
-          status,
-          cnpj,
-          cnpj_cliente
-        )
-      `)
+      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj, cnpj_cliente)')
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Erro ao buscar ordens:', error);
-    } else {
-      console.log('Ordens carregadas:', data);
-      if (data) setOrdens(data);
-    }
+    if (!erroOrdens && ordensData) setOrdens(ordensData);
 
     const { data: contratosData, error: erroContratos } = await supabase
       .from('contratos_embarque')
@@ -599,13 +581,27 @@ export function KanbanPatio() {
     };
   }, [buscarDados]);
 
-  const contratosAtivos = contratos.filter(c => (c.status === 'Ativo' || !c.status) && Number(c.quantidade_disponivel) > 0);
-  const contratosFinalizados = contratos.filter(c => c.status === 'Finalizado' || Number(c.quantidade_disponivel) <= 0);
+  const contratosAtivos = contratos.filter(c => {
+    const st = (c.status || '').toLowerCase().trim();
+    return (st === 'ativo' || !st) && Number(c.quantidade_disponivel) > 0;
+  });
+  
+  const contratosFinalizados = contratos.filter(c => {
+    const st = (c.status || '').toLowerCase().trim();
+    return st === 'finalizado' || Number(c.quantidade_disponivel) <= 0;
+  });
 
-  // KPIs Calculados
-  const totalVeiculosPatio = ordens.filter(o => o.status === 'em_patio' || o.status === 'carregando').length;
+  // KPIs Calculados (Imunes a letras maiúsculas e espaços)
+  const totalVeiculosPatio = ordens.filter(o => {
+    const s = (o.status || '').toLowerCase().trim();
+    return s === 'em_patio' || s === 'carregando';
+  }).length;
+
   const pesoTotalEmbarcado = ordens
-    .filter(o => o.status === 'concluido' && o.peso_carregado)
+    .filter(o => {
+      const s = (o.status || '').toLowerCase().trim();
+      return (s === 'concluido' || s === 'concluído') && o.peso_carregado;
+    })
     .reduce((acc, o) => acc + Number(o.peso_carregado), 0);
 
   const ordensFiltradasParaGrafico = ordens.filter(ordem => {
@@ -616,10 +612,12 @@ export function KanbanPatio() {
       if (!matchContrato) return false;
     }
 
-    if (ordem.status === 'concluido') {
+    const statusOrdem = (ordem.status || '').toLowerCase().trim();
+
+    if (statusOrdem === 'concluido' || statusOrdem === 'concluído') {
       if (ordem.contratos_embarque) {
-        const stContrato = ordem.contratos_embarque.status;
-        if (stContrato && stContrato !== 'Ativo' && stContrato !== 'Finalizado') {
+        const stContrato = (ordem.contratos_embarque.status || '').toLowerCase().trim();
+        if (stContrato && stContrato !== 'ativo' && stContrato !== 'finalizado') {
           return false;
         }
       }
@@ -639,7 +637,8 @@ export function KanbanPatio() {
 
   const dadosGraficoProdutos = {};
   ordensFiltradasParaGrafico.forEach(ordem => {
-    if (ordem.status === 'concluido' && ordem.peso_carregado) {
+    const statusOrdem = (ordem.status || '').toLowerCase().trim();
+    if ((statusOrdem === 'concluido' || statusOrdem === 'concluído') && ordem.peso_carregado) {
       const produto = ordem.contratos_embarque?.produto || ordem.produto || 'Não especificado';
       const peso = Number(ordem.peso_carregado) || 0;
       dadosGraficoProdutos[produto] = (dadosGraficoProdutos[produto] || 0) + peso;
@@ -771,7 +770,13 @@ export function KanbanPatio() {
       {/* COLUNAS KANBAN */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {COLUNAS_PATIO.map((coluna) => {
-          let ordensColuna = ordens.filter((o) => o.status === coluna.id);
+          const colIdNormalizado = coluna.id.toLowerCase().trim();
+
+          let ordensColuna = ordens.filter((o) => {
+            const oStatus = (o.status || '').toLowerCase().trim();
+            // Cobre tanto 'concluido' quanto 'concluído'
+            return oStatus === colIdNormalizado || (colIdNormalizado === 'concluido' && oStatus === 'concluído');
+          });
 
           if (contratoSelecionadoFiltro) {
             ordensColuna = ordensColuna.filter((o) => 
@@ -782,8 +787,8 @@ export function KanbanPatio() {
           if (coluna.id === 'concluido') {
             ordensColuna = ordensColuna.filter(o => {
               if (o.contratos_embarque) {
-                const stContrato = o.contratos_embarque.status;
-                if (stContrato && stContrato !== 'Ativo' && stContrato !== 'Finalizado') {
+                const stContrato = (o.contratos_embarque.status || '').toLowerCase().trim();
+                if (stContrato && stContrato !== 'ativo' && stContrato !== 'finalizado') {
                   return false;
                 }
               }
@@ -858,116 +863,120 @@ export function KanbanPatio() {
                     Nenhum veículo nesta etapa
                   </div>
                 ) : (
-                  ordensColuna.map((ordem) => (
-                    <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md">
-                      <div className="flex justify-between text-xs font-bold text-blue-400 mb-1">
-                        <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
-                        <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
-                      </div>
-                      
-                      {ordem.contratos_embarque?.numero_contrato && (
-                        <div className="mb-2 text-[11px] bg-blue-950/40 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded font-medium inline-block">
-                          Contrato: {ordem.contratos_embarque.numero_contrato} ({ordem.contratos_embarque.status || 'Ativo'})
+                  ordensColuna.map((ordem) => {
+                    const statusAtualNormalizado = (ordem.status || '').toLowerCase().trim();
+
+                    return (
+                      <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md">
+                        <div className="flex justify-between text-xs font-bold text-blue-400 mb-1">
+                          <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
+                          <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
                         </div>
-                      )}
-
-                      {ordem.contratos_embarque?.produto && (
-                        <div className="mb-2 ml-1 text-[11px] bg-purple-950/40 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded font-medium inline-block">
-                          Produto: {ordem.contratos_embarque.produto}
-                        </div>
-                      )}
-
-                      <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
-                      {ordem.cnpj_transportadora && (
-                        <p className="text-[11px] text-gray-400">CNPJ: {ordem.cnpj_transportadora}</p>
-                      )}
-                      <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
-
-                      {ordem.data_chegada_portaria && (
-                        <div className="mt-2 pt-2 border-t border-white/5 text-[11px] text-blue-400 font-medium">
-                          ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
-                        </div>
-                      )}
-
-                      {ordem.peso_carregado && (
-                        <div className="mt-1 text-[11px] text-green-400 font-medium">
-                          ⚖️ Carregado: {Number(ordem.peso_carregado).toLocaleString('pt-BR')} Kg {ordem.nota_fiscal ? `| NF: ${ordem.nota_fiscal}` : ''}
-                        </div>
-                      )}
-
-                      <div className="mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
-                        <div><strong>Cavalo:</strong> <span className="text-gray-200">{ordem.placa_cavalo}</span></div>
-                        <div><strong>Carreta:</strong> <span className="text-gray-200">{ordem.placa_carreta || 'N/A'}</span></div>
-                      </div>
-                      <div className="mt-3 pt-2 border-t border-white/5">
-                        {ordem.status === 'aguardando' && (
-                          <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
-                            Aprovar Entrada
-                          </button>
-                        )}
-                        {ordem.status === 'em_patio' && (
-                          <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
-                            Iniciar Carregamento
-                          </button>
-                        )}
-                        {ordem.status === 'carregando' && (
-                          <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-gray-400">Nota Fiscal</label>
-                              <input
-                                type="text"
-                                placeholder="Número da NF"
-                                defaultValue={ordem.nota_fiscal || ''}
-                                id={`nf-${ordem.id}`}
-                                disabled={processandoId === ordem.id}
-                                className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-gray-400">Peso Carregado (KG)</label>
-                              <input
-                                type="number"
-                                placeholder="Ex: 35000"
-                                defaultValue={ordem.peso_carregado || ''}
-                                id={`peso-${ordem.id}`}
-                                disabled={processandoId === ordem.id}
-                                className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
-                              />
-                            </div>
-                            <button
-                              disabled={processandoId === ordem.id}
-                              onClick={() => {
-                                const nfInput = document.getElementById(`nf-${ordem.id}`);
-                                const pesoInput = document.getElementById(`peso-${ordem.id}`);
-                                const nf = nfInput ? nfInput.value : '';
-                                const peso = pesoInput ? parseFloat(pesoInput.value) || 0 : 0;
-                                
-                                if (!nf || peso <= 0) {
-                                  alert('Preencha a Nota Fiscal e o Peso Carregado corretamente!');
-                                  return;
-                                }
-
-                                atualizarConclusaoCarregamento(ordem.id, nf, peso, ordem.contrato_id || ordem.contratos_embarque?.id);
-                              }}
-                              className={`w-full text-xs font-bold py-2 rounded-lg mt-2 transition-colors shadow-md flex items-center justify-center gap-2 ${
-                                processandoId === ordem.id 
-                                  ? 'bg-gray-600 text-gray-300 cursor-not-allowed' 
-                                  : 'bg-green-600 hover:bg-green-500 text-white cursor-pointer shadow-green-900/20'
-                              }`}
-                            >
-                              {processandoId === ordem.id ? (
-                                <>
-                                  <Loader2 className="animate-spin" size={14} /> Processando baixa...
-                                </>
-                              ) : (
-                                'Finalizar e Baixar do Contrato'
-                              )}
-                            </button>
+                        
+                        {ordem.contratos_embarque?.numero_contrato && (
+                          <div className="mb-2 text-[11px] bg-blue-950/40 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded font-medium inline-block">
+                            Contrato: {ordem.contratos_embarque.numero_contrato} ({ordem.contratos_embarque.status || 'Ativo'})
                           </div>
                         )}
+
+                        {ordem.contratos_embarque?.produto && (
+                          <div className="mb-2 ml-1 text-[11px] bg-purple-950/40 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded font-medium inline-block">
+                            Produto: {ordem.contratos_embarque.produto}
+                          </div>
+                        )}
+
+                        <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
+                        {ordem.cnpj_transportadora && (
+                          <p className="text-[11px] text-gray-400">CNPJ: {ordem.cnpj_transportadora}</p>
+                        )}
+                        <p className="text-xs text-gray-300 mt-1">Mot: <span className="text-white font-medium">{ordem.nome_motorista}</span></p>
+
+                        {ordem.data_chegada_portaria && (
+                          <div className="mt-2 pt-2 border-t border-white/5 text-[11px] text-blue-400 font-medium">
+                            ⏱️ Check-in: {formatarDataHora(ordem.data_chegada_portaria)}
+                          </div>
+                        )}
+
+                        {ordem.peso_carregado && (
+                          <div className="mt-1 text-[11px] text-green-400 font-medium">
+                            ⚖️ Carregado: {Number(ordem.peso_carregado).toLocaleString('pt-BR')} Kg {ordem.nota_fiscal ? `| NF: ${ordem.nota_fiscal}` : ''}
+                          </div>
+                        )}
+
+                        <div className="mt-3 pt-2 border-t border-white/5 text-[11px] text-gray-400 grid grid-cols-2 gap-1">
+                          <div><strong>Cavalo:</strong> <span className="text-gray-200">{ordem.placa_cavalo}</span></div>
+                          <div><strong>Carreta:</strong> <span className="text-gray-200">{ordem.placa_carreta || 'N/A'}</span></div>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-white/5">
+                          {statusAtualNormalizado === 'aguardando' && (
+                            <button onClick={() => atualizarStatus(ordem.id, 'em_patio')} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                              Aprovar Entrada
+                            </button>
+                          )}
+                          {statusAtualNormalizado === 'em_patio' && (
+                            <button onClick={() => atualizarStatus(ordem.id, 'carregando')} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-1.5 rounded-lg font-semibold transition-colors cursor-pointer">
+                              Iniciar Carregamento
+                            </button>
+                          )}
+                          {statusAtualNormalizado === 'carregando' && (
+                            <div className="mt-3 pt-2 border-t border-white/5 space-y-2">
+                              <div>
+                                <label className="text-[10px] uppercase font-bold text-gray-400">Nota Fiscal</label>
+                                <input
+                                  type="text"
+                                  placeholder="Número da NF"
+                                  defaultValue={ordem.nota_fiscal || ''}
+                                  id={`nf-${ordem.id}`}
+                                  disabled={processandoId === ordem.id}
+                                  className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] uppercase font-bold text-gray-400">Peso Carregado (KG)</label>
+                                <input
+                                  type="number"
+                                  placeholder="Ex: 35000"
+                                  defaultValue={ordem.peso_carregado || ''}
+                                  id={`peso-${ordem.id}`}
+                                  disabled={processandoId === ordem.id}
+                                  className="w-full p-2 text-xs bg-[#161B23] border border-white/10 text-white rounded-lg outline-none focus:border-blue-500"
+                                />
+                              </div>
+                              <button
+                                disabled={processandoId === ordem.id}
+                                onClick={() => {
+                                  const nfInput = document.getElementById(`nf-${ordem.id}`);
+                                  const pesoInput = document.getElementById(`peso-${ordem.id}`);
+                                  const nf = nfInput ? nfInput.value : '';
+                                  const peso = pesoInput ? parseFloat(pesoInput.value) || 0 : 0;
+                                  
+                                  if (!nf || peso <= 0) {
+                                    alert('Preencha a Nota Fiscal e o Peso Carregado corretamente!');
+                                    return;
+                                  }
+
+                                  atualizarConclusaoCarregamento(ordem.id, nf, peso, ordem.contrato_id || ordem.contratos_embarque?.id);
+                                }}
+                                className={`w-full text-xs font-bold py-2 rounded-lg mt-2 transition-colors shadow-md flex items-center justify-center gap-2 ${
+                                  processandoId === ordem.id 
+                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed' 
+                                    : 'bg-green-600 hover:bg-green-500 text-white cursor-pointer shadow-green-900/20'
+                                }`}
+                              >
+                                {processandoId === ordem.id ? (
+                                  <>
+                                    <Loader2 className="animate-spin" size={14} /> Processando baixa...
+                                  </>
+                                ) : (
+                                  'Finalizar e Baixar do Contrato'
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
