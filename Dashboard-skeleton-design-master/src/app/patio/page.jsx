@@ -27,20 +27,56 @@ export function KanbanPatio() {
 
   const processandoRef = useRef({});
 
+  // FUNÇÃO REESCRITA COM SISTEMA DE "FALLBACK" PARA PREVENIR ERROS DE BANCO
   const buscarDados = useCallback(async () => {
-    const { data: ordensData, error: erroOrdens } = await supabase
-      .from('ordens_carregamento')
-      .select('*, contratos_embarque(id, numero_contrato, quantidade_disponivel, produto, status, cliente, cnpj, cnpj_cliente)')
-      .order('created_at', { ascending: true });
-
-    if (!erroOrdens && ordensData) setOrdens(ordensData);
-
+    // 1. Busca todos os contratos (sabemos que funciona pois aparecem no painel)
     const { data: contratosData, error: erroContratos } = await supabase
       .from('contratos_embarque')
       .select('*');
 
-    if (!erroContratos && contratosData) setContratos(contratosData);
+    if (erroContratos) console.error('Erro ao buscar contratos:', erroContratos);
+    const contratosAtuais = contratosData || [];
+    setContratos(contratosAtuais);
 
+    // 2. Busca ordens de forma SEGURA e RESILIENTE
+    let ordensDataResult = [];
+    
+    // Tenta primeiro com o Join nativo usando apenas '*', sem arriscar colunas que não existem
+    const { data: ordensComJoin, error: erroJoin } = await supabase
+      .from('ordens_carregamento')
+      .select('*, contratos_embarque(*)')
+      .order('created_at', { ascending: true });
+
+    if (!erroJoin && ordensComJoin) {
+      // Normaliza para garantir que contratos_embarque seja um objeto no React
+      ordensDataResult = ordensComJoin.map(ordem => ({
+        ...ordem,
+        contratos_embarque: Array.isArray(ordem.contratos_embarque) 
+          ? (ordem.contratos_embarque[0] || null) 
+          : (ordem.contratos_embarque || null)
+      }));
+    } else {
+      console.warn('Erro de relação detectado no Supabase. Acionando Fallback de Segurança...', erroJoin);
+      
+      // Fallback: Se o banco rejeitou o Join por falta de Foreign Key, busca plano e junta manualmente.
+      const { data: ordensPlanas, error: erroPlanas } = await supabase
+        .from('ordens_carregamento')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (erroPlanas) {
+        console.error('Falha crítica ao buscar ordens de carregamento:', erroPlanas);
+      } else if (ordensPlanas) {
+        ordensDataResult = ordensPlanas.map(ordem => ({
+          ...ordem,
+          contratos_embarque: ordem.contrato_id 
+            ? contratosAtuais.find(c => c.id === ordem.contrato_id) || null
+            : null
+        }));
+      }
+    }
+
+    setOrdens(ordensDataResult);
     setCarregando(false);
   }, []);
 
@@ -121,7 +157,7 @@ export function KanbanPatio() {
 
       if (erroBusca || !contrato) {
         console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
+        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
         return;
       }
 
@@ -215,7 +251,6 @@ export function KanbanPatio() {
     return st === 'finalizado' || Number(c.quantidade_disponivel) <= 0;
   });
 
-  // KPIs Calculados (Imunes a letras maiúsculas e espaços)
   const totalVeiculosPatio = ordens.filter(o => {
     const s = (o.status || '').toLowerCase().trim();
     return s === 'em_patio' || s === 'carregando';
@@ -398,7 +433,6 @@ export function KanbanPatio() {
 
           let ordensColuna = ordens.filter((o) => {
             const oStatus = (o.status || '').toLowerCase().trim();
-            // Cobre tanto 'concluido' quanto 'concluído'
             return oStatus === colIdNormalizado || (colIdNormalizado === 'concluido' && oStatus === 'concluído');
           });
 
@@ -431,9 +465,10 @@ export function KanbanPatio() {
               );
             }
             if (filtroProduto) {
-              ordensColuna = ordensColuna.filter((o) => 
-                (o.contratos_embarque?.produto || '').toLowerCase().includes(filtroProduto.toLowerCase())
-              );
+              ordensColuna = ordensColuna.filter((o) => {
+                const prod = o.contratos_embarque?.produto || o.produto || '';
+                return prod.toLowerCase().includes(filtroProduto.toLowerCase());
+              });
             }
           }
 
