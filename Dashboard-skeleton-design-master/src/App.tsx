@@ -397,11 +397,38 @@ export function KanbanPatio() {
   const [filtroContrato, setFiltroContrato] = useState('');
   const [filtroProduto, setFiltroProduto] = useState('');
 
+  // Novos estados para filtro de período
+  const [filtroDataInicio, setFiltroDataInicio] = useState('');
+  const [filtroDataFim, setFiltroDataFim] = useState('');
+
   const [modalAtivosAberto, setModalAtivosAberto] = useState(false);
   const [modalFinalizadosAberto, setModalFinalizadosAberto] = useState(false);
   const [contratoSelecionadoFiltro, setContratoSelecionadoFiltro] = useState(null);
 
   const processandoRef = useRef({});
+
+  // Lógica para verificar se a ordem está dentro do período filtrado
+  const ordemDentroDoPeriodo = useCallback((ordem) => {
+    if (!filtroDataInicio && !filtroDataFim) return true;
+    
+    const dataRef = ordem.created_at || ordem.data_chegada_portaria;
+    if (!dataRef) return true; 
+
+    const dataOrdem = new Date(dataRef);
+    if (isNaN(dataOrdem.getTime())) return true;
+    
+    if (filtroDataInicio) {
+      const inicio = new Date(`${filtroDataInicio}T00:00:00`);
+      if (dataOrdem < inicio) return false;
+    }
+    
+    if (filtroDataFim) {
+      const fim = new Date(`${filtroDataFim}T23:59:59`);
+      if (dataOrdem > fim) return false;
+    }
+    
+    return true;
+  }, [filtroDataInicio, filtroDataFim]);
 
   // FUNÇÃO REESCRITA COM SISTEMA DE "FALLBACK" PARA PREVENIR ERROS DE BANCO
   const buscarDados = useCallback(async () => {
@@ -635,11 +662,13 @@ export function KanbanPatio() {
   const pesoTotalEmbarcado = ordens
     .filter(o => {
       const s = (o.status || '').toLowerCase().trim();
-      return (s === 'concluido' || s === 'concluído') && o.peso_carregado;
+      return (s === 'concluido' || s === 'concluído') && o.peso_carregado && ordemDentroDoPeriodo(o);
     })
     .reduce((acc, o) => acc + Number(o.peso_carregado), 0);
 
   const ordensFiltradasParaGrafico = ordens.filter(ordem => {
+    if (!ordemDentroDoPeriodo(ordem)) return false;
+
     if (contratoSelecionadoFiltro) {
       const matchContrato = 
         ordem.contratos_embarque?.id === contratoSelecionadoFiltro || 
@@ -697,6 +726,44 @@ export function KanbanPatio() {
 
   return (
     <div className="space-y-6">
+      
+      {/* BARRA DE FILTROS GLOBAIS DE PERÍODO */}
+      <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex flex-col sm:flex-row sm:items-end gap-4">
+        <div className="flex items-center gap-2 text-gray-400 mb-1 sm:mb-2 sm:mr-4">
+          <Filter size={18} className="text-blue-400" />
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Período de Embarque</span>
+        </div>
+        
+        <div className="flex-1 max-w-[200px]">
+          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Data Início</label>
+          <input
+            type="date"
+            value={filtroDataInicio}
+            onChange={(e) => setFiltroDataInicio(e.target.value)}
+            className="w-full p-2 text-xs bg-[#1A2030] border border-white/10 text-white rounded outline-none focus:border-blue-500"
+          />
+        </div>
+        
+        <div className="flex-1 max-w-[200px]">
+          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Data Fim</label>
+          <input
+            type="date"
+            value={filtroDataFim}
+            onChange={(e) => setFiltroDataFim(e.target.value)}
+            className="w-full p-2 text-xs bg-[#1A2030] border border-white/10 text-white rounded outline-none focus:border-blue-500"
+          />
+        </div>
+        
+        {(filtroDataInicio || filtroDataFim) && (
+          <button
+            onClick={() => { setFiltroDataInicio(''); setFiltroDataFim(''); }}
+            className="text-xs text-gray-400 hover:text-white pb-2 underline cursor-pointer"
+          >
+            Limpar Período
+          </button>
+        )}
+      </div>
+
       {/* PAINEL DE KPIS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div 
@@ -742,7 +809,9 @@ export function KanbanPatio() {
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Total Embarcado</span>
             <h2 className="text-xl font-extrabold text-white mt-1">{(pesoTotalEmbarcado / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Ton</h2>
-            <p className="text-[11px] text-gray-400 mt-0.5">{pesoTotalEmbarcado.toLocaleString('pt-BR')} Kg total</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {filtroDataInicio || filtroDataFim ? 'No período selecionado' : 'Total acumulado'}
+            </p>
           </div>
           <div className="p-3 bg-amber-950/40 text-amber-400 border border-amber-500/20 rounded-xl">
             <Scale size={24} />
@@ -819,6 +888,9 @@ export function KanbanPatio() {
           }
 
           if (coluna.id === 'concluido') {
+            // Aplica filtro de data apenas na coluna de concluídos
+            ordensColuna = ordensColuna.filter(o => ordemDentroDoPeriodo(o));
+
             ordensColuna = ordensColuna.filter(o => {
               if (o.contratos_embarque) {
                 const stContrato = (o.contratos_embarque.status || '').toLowerCase().trim();
@@ -886,7 +958,7 @@ export function KanbanPatio() {
                       onClick={() => { setFiltroCnpj(''); setFiltroContrato(''); setFiltroProduto(''); }}
                       className="w-full text-[11px] text-gray-400 hover:text-white py-0.5 transition-colors cursor-pointer"
                     >
-                      Limpar Filtros
+                      Limpar Filtros Rápidos
                     </button>
                   )}
                 </div>
