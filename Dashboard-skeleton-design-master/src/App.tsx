@@ -502,6 +502,32 @@ export function KanbanPatio() {
     if (error) buscarDados();
   };
 
+  // Nova função para excluir ordem de carregamento
+  const excluirOrdem = async (id) => {
+    if (!window.confirm('🚨 TEM CERTEZA? Esta ação excluirá permanentemente a ordem de carregamento do sistema.')) {
+      return;
+    }
+
+    try {
+      // Atualização otimista na UI para parecer instantâneo
+      setOrdens((prev) => prev.filter(o => o.id !== id));
+      
+      const { error } = await supabase
+        .from('ordens_carregamento')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao excluir:', error);
+        alert('Ocorreu um erro ao excluir a ordem. Ela retornará à tela.');
+        buscarDados(); // reverte a UI caso dê erro no banco
+      }
+    } catch (err) {
+      console.error(err);
+      buscarDados();
+    }
+  };
+
   const atualizarConclusaoCarregamento = async (id, notaFiscal, pesoCarregado, contratoId) => {
     if (processandoRef.current[id]) return;
     processandoRef.current[id] = true;
@@ -974,10 +1000,22 @@ export function KanbanPatio() {
                     const statusAtualNormalizado = (ordem.status || '').toLowerCase().trim();
 
                     return (
-                      <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md">
-                        <div className="flex justify-between text-xs font-bold text-blue-400 mb-1">
-                          <span>#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</span>
-                          <span className="text-gray-400 text-[11px] font-normal">{ordem.tipo_veiculo}</span>
+                      <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md relative">
+                        
+                        {/* CABEÇALHO DO CARD COM BOTÃO EXCLUIR */}
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <div className="text-xs font-bold text-blue-400">#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</div>
+                            <div className="text-gray-400 text-[10px]">{ordem.tipo_veiculo}</div>
+                          </div>
+                          
+                          <button 
+                            onClick={() => excluirOrdem(ordem.id)}
+                            className="text-gray-500 hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-red-500/10"
+                            title="Excluir Ordem"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                         
                         {ordem.contratos_embarque?.numero_contrato && (
@@ -992,7 +1030,15 @@ export function KanbanPatio() {
                           </div>
                         )}
 
-                        <h3 className="font-bold text-white text-sm">{ordem.transportadora}</h3>
+                        {/* EXIBIÇÃO DO CLIENTE */}
+                        {(ordem.contratos_embarque?.cliente || ordem.cliente) && (
+                          <div className="mb-2 text-[11px] text-gray-300">
+                            Cliente: <span className="text-white font-medium">{ordem.contratos_embarque?.cliente || ordem.cliente}</span>
+                          </div>
+                        )}
+
+                        <h3 className="font-bold text-white text-sm mt-1">{ordem.transportadora}</h3>
+                        
                         {ordem.cnpj_transportadora && (
                           <p className="text-[11px] text-gray-400">CNPJ: {ordem.cnpj_transportadora}</p>
                         )}
