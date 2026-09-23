@@ -33,12 +33,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [tab,setTab]=useState('dashboard'),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('');
   const [veiculos,setVeiculos]=useState([]),[motoristas,setMotoristas]=useState([]),[fretes,setFretes]=useState([]),[dashboard,setDashboard]=useState([]),[kpis,setKpis]=useState(null);
   const [viagens,setViagens]=useState([]),[trip,setTrip]=useState(emptyTrip);
-  const [abastecimentos,setAbastecimentos]=useState([]),[despesas,setDespesas]=useState([]);
   const [q,setQ]=useState(''),[modal,setModal]=useState(''),[editing,setEditing]=useState(null),[vf,setVf]=useState(emptyV),[mf,setMf]=useState(emptyM),[ff,setFf]=useState(emptyF);
   
   const canEdit = userRole !== 'motorista';
   
-  // Identifica se o utilizador logado é motorista e qual o seu registo
   const currentMotorista = useMemo(() => {
     if (canEdit) return null;
     return motoristas.find(m => m.email === currentUserEmail) || motoristas[0] || null;
@@ -46,27 +44,32 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
   const load = useCallback(async()=>{
     setLoading(true); setError('');
-    const [v,m,f,t,d,k,abs,des] = await Promise.all([
-      supabase.from('veiculos').select('*').order('placa'),
-      supabase.from('motoristas').select('*').order('nome'),
-      supabase.from('fretes').select('*').order('created_at',{ascending:false}),
-      supabase.from('viagens').select('*, fretes(codigo_frete, tipo_operacao, origem, destino, produto, valor_frete), veiculos(placa, marca, modelo), motoristas(nome)').order('created_at',{ascending:false}),
-      supabase.from('v_frota_dashboard').select('*').order('data_saida',{ascending:false}),
-      supabase.from('v_frota_kpis').select('*').maybeSingle(),
-      supabase.from('viagem_abastecimentos').select('*').catch(()=>({data:[]})),
-      supabase.from('viagem_despesas').select('*').catch(()=>({data:[]}))
-    ]);
-    const err = [v.error,m.error,f.error,t.error,d.error,k.error].find(Boolean);
-    if(err) setError(err.message);
-    setVeiculos(v.data||[]);
-    setMotoristas(m.data||[]);
-    setFretes(f.data||[]);
-    setViagens(t.data||[]);
-    setDashboard(d.data||[]);
-    setKpis(k.data||null);
-    setAbastecimentos(abs.data||[]);
-    setDespesas(des.data||[]);
-    setLoading(false);
+    try {
+      const [v,m,f,t,d,k] = await Promise.all([
+        supabase.from('veiculos').select('*').order('placa'),
+        supabase.from('motoristas').select('*').order('nome'),
+        supabase.from('fretes').select('*').order('created_at',{ascending:false}),
+        supabase.from('viagens').select('*, fretes(codigo_frete, tipo_operacao, origem, destino, produto, valor_frete), veiculos(placa, marca, modelo), motoristas(nome)').order('created_at',{ascending:false}),
+        supabase.from('v_frota_dashboard').select('*').order('data_saida',{ascending:false}).catch(()=>({data:[]})),
+        supabase.from('v_frota_kpis').select('*').maybeSingle().catch(()=>({data:null}))
+      ]);
+      
+      const err = [v.error,m.error,f.error,t.error].find(Boolean);
+      if(err) {
+        setError(`Erro ao carregar dados do Supabase: ${err.message}`);
+      }
+      
+      setVeiculos(v.data||[]);
+      setMotoristas(m.data||[]);
+      setFretes(f.data||[]);
+      setViagens(t.data||[]);
+      setDashboard(d.data||[]);
+      setKpis(k.data||null);
+    } catch (e) {
+      setError('Erro inesperado ao conectar com o Supabase: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
   },[]);
 
   useEffect(()=>{load()},[load]);
@@ -358,7 +361,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </Modal>
       )}
 
-      {/* Modal Viagem (Dual-Access: Gestor completo vs Motorista travado) */}
+      {/* Modal Viagem */}
       {modal==='viagem' && (
         <Modal title={editing?'Editar viagem':'Registar nova viagem'} onClose={()=>setModal('')}>
           <form onSubmit={e=>{e.preventDefault();save('viagem')}} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
