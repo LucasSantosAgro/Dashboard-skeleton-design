@@ -6,6 +6,7 @@ import jsPDF from "jspdf";
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import AbaLogistica from './AbaLogistica.jsx';
+import FrotaFretes from './FrotaFretes.jsx';
 import CheckinPortaria from './app/(public)/checkin/page.jsx';
 import AgendamentoPage from './app/(public)/agendamento/page.jsx';
 
@@ -66,7 +67,7 @@ const GraselLogo = () => (
         GRASEL
       </span>
       <span className="text-[8px] font-bold text-sky-400 tracking-[0.28em] leading-tight mt-1 uppercase opacity-90">
-        GRÃOS E INSUNOS
+        GRÃOS E INSUMOS
       </span>
     </div>
   </div>
@@ -90,25 +91,11 @@ const gerarPDF = (p, operador) => {
   ];
 
   [10, 150].forEach(y => {
-    // Desenho vetorial da Logo Grasel no PDF
-    doc.setFillColor(56, 189, 248); // Cor azul da marca (#38BDF8)
-    doc.circle(16, y + 4, 5, 'F');
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(20, 20, 20);
-    doc.text("GRASEL", 24, y + 4);
-    doc.setFontSize(7);
-    doc.setTextColor(56, 189, 248);
-    doc.text("GRÃOS E INSUMOS", 24, y + 8);
-
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text("COMPROVANTE", 130, y + 6);
-
+    doc.text("COMPROVANTE GRASEL", 10, y);
     doc.setFontSize(10);
-    info.forEach((txt, i) => doc.text(txt, 10, y + 16 + (i * 6)));
-    const assinaturaY = y + 95;
+    info.forEach((txt, i) => doc.text(txt, 10, y + 8 + (i * 6)));
+    const assinaturaY = y + 85;
     doc.line(10, assinaturaY, 90, assinaturaY);
     doc.line(110, assinaturaY, 190, assinaturaY);
     doc.text("Assinatura do Cliente", 10, assinaturaY + 5);
@@ -412,7 +399,6 @@ export function KanbanPatio() {
   const [filtroContrato, setFiltroContrato] = useState('');
   const [filtroProduto, setFiltroProduto] = useState('');
 
-  // Novos estados para filtro de período
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
   const [filtroDataFim, setFiltroDataFim] = useState('');
 
@@ -422,7 +408,6 @@ export function KanbanPatio() {
 
   const processandoRef = useRef({});
 
-  // Lógica para verificar se a ordem está dentro do período filtrado
   const ordemDentroDoPeriodo = useCallback((ordem) => {
     if (!filtroDataInicio && !filtroDataFim) return true;
     
@@ -445,9 +430,7 @@ export function KanbanPatio() {
     return true;
   }, [filtroDataInicio, filtroDataFim]);
 
-  // FUNÇÃO REESCRITA COM SISTEMA DE "FALLBACK" PARA PREVENIR ERROS DE BANCO
   const buscarDados = useCallback(async () => {
-    // 1. Busca todos os contratos (sabemos que funciona pois aparecem no painel)
     const { data: contratosData, error: erroContratos } = await supabase
       .from('contratos_embarque')
       .select('*');
@@ -456,17 +439,14 @@ export function KanbanPatio() {
     const contratosAtuais = contratosData || [];
     setContratos(contratosAtuais);
 
-    // 2. Busca ordens de forma SEGURA e RESILIENTE
     let ordensDataResult = [];
     
-    // Tenta primeiro com o Join nativo usando apenas '*', sem arriscar colunas que não existem
     const { data: ordensComJoin, error: erroJoin } = await supabase
       .from('ordens_carregamento')
       .select('*, contratos_embarque(*)')
       .order('created_at', { ascending: true });
 
     if (!erroJoin && ordensComJoin) {
-      // Normaliza para garantir que contratos_embarque seja um objeto no React
       ordensDataResult = ordensComJoin.map(ordem => ({
         ...ordem,
         contratos_embarque: Array.isArray(ordem.contratos_embarque) 
@@ -474,9 +454,6 @@ export function KanbanPatio() {
           : (ordem.contratos_embarque || null)
       }));
     } else {
-      console.warn('Erro de relação detectado no Supabase. Acionando Fallback de Segurança...', erroJoin);
-      
-      // Fallback: Se o banco rejeitou o Join por falta de Foreign Key, busca plano e junta manualmente.
       const { data: ordensPlanas, error: erroPlanas } = await supabase
         .from('ordens_carregamento')
         .select('*')
@@ -517,14 +494,12 @@ export function KanbanPatio() {
     if (error) buscarDados();
   };
 
-  // Nova função para excluir ordem de carregamento
   const excluirOrdem = async (id) => {
     if (!window.confirm('🚨 TEM CERTEZA? Esta ação excluirá permanentemente a ordem de carregamento do sistema.')) {
       return;
     }
 
     try {
-      // Atualização otimista na UI para parecer instantâneo
       setOrdens((prev) => prev.filter(o => o.id !== id));
       
       const { error } = await supabase
@@ -535,7 +510,7 @@ export function KanbanPatio() {
       if (error) {
         console.error('Erro ao excluir:', error);
         alert('Ocorreu um erro ao excluir a ordem. Ela retornará à tela.');
-        buscarDados(); // reverte a UI caso dê erro no banco
+        buscarDados();
       }
     } catch (err) {
       console.error(err);
@@ -767,8 +742,6 @@ export function KanbanPatio() {
 
   return (
     <div className="space-y-6">
-      
-      {/* BARRA DE FILTROS GLOBAIS DE PERÍODO */}
       <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex flex-col sm:flex-row sm:items-end gap-4">
         <div className="flex items-center gap-2 text-gray-400 mb-1 sm:mb-2 sm:mr-4">
           <Filter size={18} className="text-blue-400" />
@@ -805,7 +778,6 @@ export function KanbanPatio() {
         )}
       </div>
 
-      {/* PAINEL DE KPIS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div 
           onClick={() => setModalAtivosAberto(true)}
@@ -875,7 +847,6 @@ export function KanbanPatio() {
         </div>
       )}
 
-      {/* GRÁFICO DE PRODUTOS EMBARCADOS */}
       <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md space-y-4">
         <div className="flex justify-between items-center border-b border-white/5 pb-3">
           <div className="flex items-center gap-2">
@@ -912,7 +883,6 @@ export function KanbanPatio() {
         )}
       </div>
 
-      {/* COLUNAS KANBAN */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {COLUNAS_PATIO.map((coluna) => {
           const colIdNormalizado = coluna.id.toLowerCase().trim();
@@ -929,7 +899,6 @@ export function KanbanPatio() {
           }
 
           if (coluna.id === 'concluido') {
-            // Aplica filtro de data apenas na coluna de concluídos
             ordensColuna = ordensColuna.filter(o => ordemDentroDoPeriodo(o));
 
             ordensColuna = ordensColuna.filter(o => {
@@ -1016,8 +985,6 @@ export function KanbanPatio() {
 
                     return (
                       <div key={ordem.id} className="bg-[#1A2030] p-4 rounded-xl border border-white/10 hover:border-blue-500/30 transition-all shadow-md relative">
-                        
-                        {/* CABEÇALHO DO CARD COM BOTÃO EXCLUIR */}
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <div className="text-xs font-bold text-blue-400">#{ordem.codigo_ordem || ordem.id.substring(0, 6)}</div>
@@ -1045,7 +1012,6 @@ export function KanbanPatio() {
                           </div>
                         )}
 
-                        {/* EXIBIÇÃO DO CLIENTE */}
                         {(ordem.contratos_embarque?.cliente || ordem.cliente) && (
                           <div className="mb-2 text-[11px] text-gray-300">
                             Cliente: <span className="text-white font-medium">{ordem.contratos_embarque?.cliente || ordem.cliente}</span>
@@ -1153,7 +1119,6 @@ export function KanbanPatio() {
         })}
       </div>
 
-      {/* MODAL CONTRATOS ATIVOS */}
       {modalAtivosAberto && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
@@ -1195,7 +1160,6 @@ export function KanbanPatio() {
         </div>
       )}
 
-      {/* MODAL CONTRATOS FINALIZADOS */}
       {modalFinalizadosAberto && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[#161B23] border border-white/10 rounded-xl max-w-2xl w-full p-6 max-h-[85vh] flex flex-col shadow-2xl">
@@ -1249,7 +1213,6 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
   const pesoEntrada = Number(p.peso_entrada || 0);
   const pesoSaidaNum = Number(pesoSaida || 0);
 
-  // Validação: Não permitir peso de saída menor que o peso de entrada
   const handleFinalizarComConfirmacao = (e) => {
     e.preventDefault();
 
@@ -1630,6 +1593,18 @@ export default function App() {
           <button onClick={() => setAba("logistica")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'logistica' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
             {userRole === 'motorista' ? 'MEU DIÁRIO / LOGÍSTICA' : 'LOGÍSTICA / DIÁRIO'}
           </button>
+          
+          <button
+            onClick={() => setAba("frota")}
+            className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+              aba === 'frota'
+                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Truck size={14} /> FROTA / FRETES
+          </button>
+
           {userRole !== 'motorista' && (
             <>
               <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
@@ -1665,7 +1640,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
-        {userRole === 'motorista' ? (
+        {userRole === 'motorista' && aba !== 'frota' ? (
           <AbaLogistica session={session} userName={userName} />
         ) : (
           <>
@@ -1959,6 +1934,10 @@ export default function App() {
 
             {aba === "logistica" && (
               <AbaLogistica session={session} userName={userName} />
+            )}
+
+            {aba === "frota" && (
+              <FrotaFretes userRole={userRole} />
             )}
 
             {aba === "patio" && (
