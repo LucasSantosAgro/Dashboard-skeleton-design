@@ -66,7 +66,7 @@ const GraselLogo = () => (
         GRASEL
       </span>
       <span className="text-[8px] font-bold text-sky-400 tracking-[0.28em] leading-tight mt-1 uppercase opacity-90">
-        GRÃOS E INSUMOS
+        GRÃOS E INSUNOS
       </span>
     </div>
   </div>
@@ -90,11 +90,25 @@ const gerarPDF = (p, operador) => {
   ];
 
   [10, 150].forEach(y => {
+    // Desenho vetorial da Logo Grasel no PDF
+    doc.setFillColor(56, 189, 248); // Cor azul da marca (#38BDF8)
+    doc.circle(16, y + 4, 5, 'F');
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(20, 20, 20);
+    doc.text("GRASEL", 24, y + 4);
+    doc.setFontSize(7);
+    doc.setTextColor(56, 189, 248);
+    doc.text("GRÃOS E INSUMOS", 24, y + 8);
+
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(12);
-    doc.text("COMPROVANTE GRASEL", 10, y);
+    doc.setTextColor(0, 0, 0);
+    doc.text("COMPROVANTE", 130, y + 6);
+
     doc.setFontSize(10);
-    info.forEach((txt, i) => doc.text(txt, 10, y + 8 + (i * 6)));
-    const assinaturaY = y + 85;
+    info.forEach((txt, i) => doc.text(txt, 10, y + 16 + (i * 6)));
+    const assinaturaY = y + 95;
     doc.line(10, assinaturaY, 90, assinaturaY);
     doc.line(110, assinaturaY, 190, assinaturaY);
     doc.text("Assinatura do Cliente", 10, assinaturaY + 5);
