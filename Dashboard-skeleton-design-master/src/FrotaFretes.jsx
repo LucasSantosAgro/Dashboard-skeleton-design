@@ -84,8 +84,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       if(resF.error) throw resF.error;
       setFretes(resF.data || []);
 
-      // Consulta de viagens corrigida para evitar conflitos de relacionamento
-      const resT = await supabase.from('viagens').select('*, veiculos(placa, marca, modelo), motoristas(id, nome, email)').order('created_at',{ascending:false});
+      // Busca limpa de viagens e veículos (sem join problemático de motoristas)
+      const resT = await supabase.from('viagens').select('*, veiculos(placa, marca, modelo)').order('created_at',{ascending:false});
       if(resT.error) throw resT.error;
       setViagens(resT.data || []);
 
@@ -109,12 +109,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   useEffect(() => { load(); }, [load]);
 
   const viagensFiltradas = useMemo(() => {
-    let lista = viagens;
+    let lista = viagens.map(v => ({
+      ...v,
+      // Mapeia o nome do motorista buscando pelo ID na lista de motoristas carregada
+      motorista_nome: motoristas.find(m => m.id === v.motorista_id)?.nome || '-'
+    }));
+
     if (isDriver && currentMotorista) {
-      lista = viagens.filter(v => v.motorista_id === currentMotorista.id);
+      lista = lista.filter(v => v.motorista_id === currentMotorista.id);
     }
-    return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf].join(' ').toLowerCase().includes(q.toLowerCase()));
-  }, [viagens, isDriver, currentMotorista, q]);
+    return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
+  }, [viagens, motoristas, isDriver, currentMotorista, q]);
 
   function open(type, row = null) {
     setEditing(row); setQ('');
@@ -254,7 +259,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <>
               <td className="p-3 font-bold text-blue-300">{v.codigo_viagem}</td>
               <td className="p-3">{v.veiculos?.placa || '-'}</td>
-              <td className="p-3">{v.motoristas?.nome || '-'}</td>
+              <td className="p-3">{v.motorista_nome}</td>
               <td className="p-3">{v.local_carregamento || '-'} → {v.local_descarga || '-'}</td>
               <td className="p-3">{v.numero_nf || '-'}</td>
               <td className="p-3">{status(v.status)}</td>
