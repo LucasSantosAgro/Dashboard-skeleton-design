@@ -27,7 +27,6 @@ function Buttons({saving,close}){return <div className="sm:col-span-2 lg:col-spa
 export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const isDriver = userRole === 'motorista';
   
-  // Abas específicas para motorista (Início de Viagem, Abastecimentos, Despesas) vs Gestor
   const tabs = useMemo(() => {
     if (isDriver) {
       return [
@@ -53,8 +52,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [veiculos, setVeiculos] = useState([]);
   const [motoristas, setMotoristas] = useState([]);
   const [fretes, setFretes] = useState([]);
-  const [dashboard, setDashboard] = useState([]);
-  const [kpis, setKpis] = useState(null);
   const [viagens, setViagens] = useState([]);
   const [abastecimentos, setAbastecimentos] = useState([]);
   const [despesas, setDespesas] = useState([]);
@@ -87,11 +84,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       if(resF.error) throw resF.error;
       setFretes(resF.data || []);
 
-      const resT = await supabase.from('viagens').select('*, fretes(codigo_frete, tipo_operacao, origem, destino, produto, valor_frete), veiculos(placa, marca, modelo), motoristas(nome, email)').order('created_at',{ascending:false});
+      // Consulta de viagens corrigida para evitar conflitos de relacionamento
+      const resT = await supabase.from('viagens').select('*, veiculos(placa, marca, modelo), motoristas(id, nome, email)').order('created_at',{ascending:false});
       if(resT.error) throw resT.error;
       setViagens(resT.data || []);
 
-      // Tabelas de abastecimento e despesas (se existirem no banco)
       try {
         const resAb = await supabase.from('abastecimentos').select('*, veiculos(placa)').order('created_at', {ascending: false});
         setAbastecimentos(resAb.data || []);
@@ -101,18 +98,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const resDesp = await supabase.from('despesas_viagem').select('*, veiculos(placa)').order('created_at', {ascending: false});
         setDespesas(resDesp.data || []);
       } catch { setDespesas([]); }
-
-      if (!isDriver) {
-        try {
-          const resD = await supabase.from('v_frota_dashboard').select('*').order('data_saida',{ascending:false});
-          setDashboard(resD.data || []);
-        } catch { setDashboard([]); }
-
-        try {
-          const resK = await supabase.from('v_frota_kpis').select('*').maybeSingle();
-          setKpis(resK.data || null);
-        } catch { setKpis(null); }
-      }
 
     } catch (e) {
       setError('Erro ao carregar dados do Supabase: ' + (e.message || e));
@@ -242,7 +227,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       {error && <div className="flex gap-2 p-3 rounded-xl bg-red-950/30 border border-red-500/20 text-red-300 text-xs"><AlertCircle size={15}/>{error}</div>}
 
-      {/* ABA MINHAS VIAGENS / VIAGENS */}
       {(tab === 'viagens' || tab === 'minhas_viagens') && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -280,7 +264,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* ABA ABASTECIMENTOS */}
       {tab === 'abastecimentos' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
@@ -303,7 +286,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* ABA DESPESAS */}
       {tab === 'despesas' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
@@ -325,7 +307,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* Modal Viagem (Início de Viagem) */}
       {modal === 'viagem' && (
         <Modal title={editing ? 'Editar viagem' : 'Iniciar / Registrar Viagem'} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -379,7 +360,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </Modal>
       )}
 
-      {/* Modal Abastecimento */}
       {modal === 'abastecimento' && (
         <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -400,7 +380,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </Modal>
       )}
 
-      {/* Modal Despesa */}
       {modal === 'despesa' && (
         <Modal title="Lançar Despesa de Viagem" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
