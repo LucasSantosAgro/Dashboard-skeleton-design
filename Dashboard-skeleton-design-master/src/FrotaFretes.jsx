@@ -72,30 +72,41 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const resV = await supabase.from('veiculos').select('*').order('placa');
+      const resV = await supabase.from('veiculos').select('id, placa, marca, modelo, ano, status').order('placa');
       if(resV.error) throw resV.error;
       setVeiculos(resV.data || []);
 
-      const resM = await supabase.from('motoristas').select('*').order('nome');
+      const resM = await supabase.from('motoristas').select('id, nome, email, telefone, status').order('nome');
       if(resM.error) throw resM.error;
       setMotoristas(resM.data || []);
 
-      const resF = await supabase.from('fretes').select('*').order('created_at',{ascending:false});
+      const resF = await supabase.from('fretes').select('id, codigo_frete, origem, destino, status, created_at').order('created_at',{ascending:false});
       if(resF.error) throw resF.error;
       setFretes(resF.data || []);
 
-      // Busca limpa de viagens e veículos (sem join problemático de motoristas)
-      const resT = await supabase.from('viagens').select('*, veiculos(placa, marca, modelo)').order('created_at',{ascending:false});
+      const resT = await supabase.from('viagens').select(`
+        id, codigo_viagem, frete_id, veiculo_id, motorista_id, carreta_placa,
+        km_inicial, km_final, peso_carregado_kg, peso_descarga_kg,
+        numero_nf, local_carregamento, local_descarga, data_saida, data_chegada,
+        status, observacao, created_at,
+        veiculos (id, placa, marca, modelo)
+      `).order('created_at',{ascending:false});
       if(resT.error) throw resT.error;
       setViagens(resT.data || []);
 
       try {
-        const resAb = await supabase.from('abastecimentos').select('*, veiculos(placa)').order('created_at', {ascending: false});
+        const resAb = await supabase.from('abastecimentos').select(`
+          id, veiculo_id, data_hora, litros, valor_total, km_atual, posto, observacao, created_at,
+          veiculos (id, placa)
+        `).order('created_at', {ascending: false});
         setAbastecimentos(resAb.data || []);
       } catch { setAbastecimentos([]); }
 
       try {
-        const resDesp = await supabase.from('despesas_viagem').select('*, veiculos(placa)').order('created_at', {ascending: false});
+        const resDesp = await supabase.from('despesas_viagem').select(`
+          id, veiculo_id, categoria, valor, data_despesa, descricao, created_at,
+          veiculos (id, placa)
+        `).order('created_at', {ascending: false});
         setDespesas(resDesp.data || []);
       } catch { setDespesas([]); }
 
@@ -111,7 +122,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const viagensFiltradas = useMemo(() => {
     let lista = viagens.map(v => ({
       ...v,
-      // Mapeia o nome do motorista buscando pelo ID na lista de motoristas carregada
       motorista_nome: motoristas.find(m => m.id === v.motorista_id)?.nome || '-'
     }));
 
