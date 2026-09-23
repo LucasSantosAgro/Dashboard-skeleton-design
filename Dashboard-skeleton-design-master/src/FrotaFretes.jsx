@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt } from 'lucide-react';
+import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from './lib/supabaseClient';
 
@@ -45,28 +45,34 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const load = useCallback(async()=>{
     setLoading(true); setError('');
     try {
-      const [v,m,f,t,d,k] = await Promise.all([
-        supabase.from('veiculos').select('*').order('placa'),
-        supabase.from('motoristas').select('*').order('nome'),
-        supabase.from('fretes').select('*').order('created_at',{ascending:false}),
-        supabase.from('viagens').select('*, fretes(codigo_frete, tipo_operacao, origem, destino, produto, valor_frete), veiculos(placa, marca, modelo), motoristas(nome)').order('created_at',{ascending:false}),
-        supabase.from('v_frota_dashboard').select('*').order('data_saida',{ascending:false}).catch(()=>({data:[]})),
-        supabase.from('v_frota_kpis').select('*').maybeSingle().catch(()=>({data:null}))
-      ]);
-      
-      const err = [v.error,m.error,f.error,t.error].find(Boolean);
-      if(err) {
-        setError(`Erro ao carregar dados do Supabase: ${err.message}`);
-      }
-      
-      setVeiculos(v.data||[]);
-      setMotoristas(m.data||[]);
-      setFretes(f.data||[]);
-      setViagens(t.data||[]);
-      setDashboard(d.data||[]);
-      setKpis(k.data||null);
+      const resV = await supabase.from('veiculos').select('*').order('placa');
+      if(resV.error) throw resV.error;
+      setVeiculos(resV.data || []);
+
+      const resM = await supabase.from('motoristas').select('*').order('nome');
+      if(resM.error) throw resM.error;
+      setMotoristas(resM.data || []);
+
+      const resF = await supabase.from('fretes').select('*').order('created_at',{ascending:false});
+      if(resF.error) throw resF.error;
+      setFretes(resF.data || []);
+
+      const resT = await supabase.from('viagens').select('*, fretes(codigo_frete, tipo_operacao, origem, destino, produto, valor_frete), veiculos(placa, marca, modelo), motoristas(nome)').order('created_at',{ascending:false});
+      if(resT.error) throw resT.error;
+      setViagens(resT.data || []);
+
+      try {
+        const resD = await supabase.from('v_frota_dashboard').select('*').order('data_saida',{ascending:false});
+        setDashboard(resD.data || []);
+      } catch { setDashboard([]); }
+
+      try {
+        const resK = await supabase.from('v_frota_kpis').select('*').maybeSingle();
+        setKpis(resK.data || null);
+      } catch { setKpis(null); }
+
     } catch (e) {
-      setError('Erro inesperado ao conectar com o Supabase: ' + e.message);
+      setError('Erro ao carregar dados do Supabase: ' + (e.message || e));
     } finally {
       setLoading(false);
     }
