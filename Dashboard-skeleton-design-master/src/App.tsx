@@ -122,7 +122,7 @@ export function CadastroContratos() {
   const [numeroContrato, setNumeroContrato] = useState('');
   const [cliente, setCliente] = useState('');
   const [cnpj, setCnpj] = useState('');
-  const [produto, setProduto] = useState('Milho');
+  const [produto, setProduto] = useState('Milho ensacado');
   const [quantidadeDisponivel, setQuantidadeDisponivel] = useState('');
   const [contratoEditandoId, setContratoEditandoId] = useState(null);
 
@@ -193,7 +193,7 @@ export function CadastroContratos() {
     setNumeroContrato(c.numero_contrato || '');
     setCliente(c.cliente || '');
     setCnpj(c.cnpj || c.cnpj_cliente || '');
-    setProduto(c.produto || 'Milho');
+    setProduto(c.produto || 'Milho ensacado');
     setQuantidadeDisponivel(c.quantidade_disponivel ?? '');
   };
 
@@ -203,7 +203,7 @@ export function CadastroContratos() {
     setCliente('');
     setCnpj('');
     setQuantidadeDisponivel('');
-    setProduto('Milho');
+    setProduto('Milho ensacado');
   };
 
   const finalizarContratoManual = async (id) => {
@@ -284,8 +284,9 @@ export function CadastroContratos() {
               onChange={e => setProduto(e.target.value)} 
               className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500"
             >
-              <option value="Milho">Milho</option>
-              <option value="Soja">Soja</option>
+              <option value="Milho ensacado">Milho ensacado</option>
+              <option value="Milho granel">Milho granel</option>
+              <option value="Quebradinho">Quebradinho</option>
             </select>
           </div>
           <div>
@@ -1088,6 +1089,7 @@ export function KanbanPatio() {
                                 <label className="text-[10px] uppercase font-bold text-gray-400">Peso Carregado (KG)</label>
                                 <input
                                   type="number"
+                                  step="10"
                                   placeholder="Ex: 35000"
                                   defaultValue={ordem.peso_carregado || ''}
                                   id={`peso-${ordem.id}`}
@@ -1232,6 +1234,29 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
 
   const pesoEntrada = Number(p.peso_entrada || 0);
   const pesoSaidaNum = Number(pesoSaida || 0);
+
+  // Validação: Não permitir peso de saída menor que o peso de entrada
+  const handleFinalizarComConfirmacao = (e) => {
+    e.preventDefault();
+
+    if (pesoSaidaNum < pesoEntrada) {
+      alert("⚠️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
+      return;
+    }
+
+    const confirmacao = window.confirm(
+      `Confirma a finalização da pesagem para a placa ${p.placa}?\n\n` +
+      `• Peso Entrada: ${pesoEntrada.toLocaleString('pt-BR')} kg\n` +
+      `• Peso Saída: ${pesoSaidaNum.toLocaleString('pt-BR')} kg\n` +
+      `• Peso Líquido: ${pesoLiquido.toLocaleString('pt-BR')} kg\n` +
+      `• Total: R$ ${valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+    );
+
+    if (!confirmacao) return;
+
+    onFinalizar(p, e, { pesoSaida: pesoSaidaNum, valorSaca: valorUnitarioNum, formaPag, pesoLiquido, qtdSacas, valorTotal, troco });
+  };
+
   const pesoLiquido = Math.max(0, pesoSaidaNum - pesoEntrada);
   const qtdSacas = pesoLiquido / 60;
   const valorUnitarioNum = Number(valorSaca || 0);
@@ -1254,7 +1279,7 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
         </button>
       </div>
 
-      <form onSubmit={(e) => onFinalizar(p, e, { pesoSaida: pesoSaidaNum, valorSaca: valorUnitarioNum, formaPag, pesoLiquido, qtdSacas, valorTotal, troco })} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+      <form onSubmit={handleFinalizarComConfirmacao} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
         <div>
           <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Peso Saída (kg)</label>
           <input 
@@ -1770,8 +1795,9 @@ export default function App() {
                   <div>
                     <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
                     <select name="prod" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm outline-none border border-white/10 text-white focus:border-blue-500">
-                      <option value="Milho">Milho</option>
-                      <option value="Soja">Soja</option>
+                      <option value="Milho ensacado">Milho ensacado</option>
+                      <option value="Milho granel">Milho granel</option>
+                      <option value="Quebradinho">Quebradinho</option>
                     </select>
                   </div>
                   <div>
