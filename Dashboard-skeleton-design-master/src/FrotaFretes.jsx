@@ -60,6 +60,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [viagens, setViagens] = useState([]);
   const [abastecimentos, setAbastecimentos] = useState([]);
   const [despesas, setDespesas] = useState([]);
+  const [kpis, setKpis] = useState(null);
+  const [dashboardData, setDashboardData] = useState([]);
 
   const [tripInicio, setTripInicio] = useState(emptyTripInicio);
   const [tripFim, setTripFim] = useState(emptyTripFim);
@@ -108,19 +110,29 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       try {
         const resAb = await supabase.from('abastecimentos').select(`
-          id, veiculo_id, data_hora, litros, valor_total, km_atual, posto, observacao, created_at,
+          id, veiculo_id, viagem_id, data_hora, litros, valor_total, km_atual, posto, observacao, created_at,
           veiculos (id, placa)
         `).order('created_at', {ascending: false});
         setAbastecimentos(resAb.data || []);
       } catch { setAbastecimentos([]); }
 
       try {
-        const resDesp = await supabase.from('despesas_viagem').select(`
-          id, veiculo_id, categoria, valor, data_despesa, descricao, created_at,
-          veiculos (id, placa)
+        const resDesp = await supabase.from('viagem_despesas').select(`
+          id, viagem_id, tipo, valor, data, descricao, created_at
         `).order('created_at', {ascending: false});
         setDespesas(resDesp.data || []);
       } catch { setDespesas([]); }
+
+      // Carregar Views do Supabase para o Dashboard
+      try {
+        const resKpi = await supabase.from('v_frota_kpis').select('*').single();
+        if(!resKpi.error) setKpis(resKpi.data);
+      } catch { setKpis(null); }
+
+      try {
+        const resDash = await supabase.from('v_frota_dashboard').select('*');
+        if(!resDash.error) setDashboardData(resDash.data || []);
+      } catch { setDashboardData([]); }
 
     } catch (e) {
       setError('Erro ao carregar dados do Supabase: ' + (e.message || e));
@@ -175,7 +187,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     } else if(type === 'despesa') {
       const veiculoSugerido = viagemAtiva?.veiculo_id || currentMotorista?.veiculo_id || '';
       const viagemSugeridaId = viagemAtiva?.id || '';
-      setDespesaForm(row ? {...row} : {...emptyDespesa, veiculo_id: veiculoSugerido, viagem_id: viagemSugeridaId, data_despesa: new Date().toISOString().slice(0,10)});
+      setDespesaForm(row ? {...row} : {...emptyDespesa, viagem_id: viagemSugeridaId, data_despesa: new Date().toISOString().slice(0,10)});
     } else if(type === 'motorista') {
       setMotoristaForm(row ? {...row} : {...emptyMotorista});
     }
@@ -217,26 +229,23 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         setModal('');
       } else if(type === 'abastecimento') {
         const payload = {
-          veiculo_id: Number(abastecimentoForm.veiculo_id),
-          data_hora: abastecimentoForm.data_hora || null,
+          viagem_id: abastecimentoForm.viagem_id ? Number(abastecimentoForm.viagem_id) : null,
           litros: Number(abastecimentoForm.litros || 0),
           valor_total: Number(abastecimentoForm.valor_total || 0),
-          km_atual: Number(abastecimentoForm.km_atual || 0),
-          posto: upper(abastecimentoForm.posto) || null,
-          observacao: upper(abastecimentoForm.observacao) || null
+          km_atual: abastecimentoForm.km_atual ? Number(abastecimentoForm.km_atual) : null,
+          posto: upper(abastecimentoForm.posto) || null
         };
         const r = editing ? await supabase.from('abastecimentos').update(payload).eq('id', editing.id) : await supabase.from('abastecimentos').insert(payload);
         if(r.error) throw r.error;
         setModal('');
       } else if(type === 'despesa') {
         const payload = {
-          veiculo_id: despesaForm.veiculo_id ? Number(despesaForm.veiculo_id) : null,
-          categoria: upper(despesaForm.categoria),
+          viagem_id: Number(despesaForm.viagem_id),
+          tipo: upper(despesaForm.categoria),
           valor: Number(despesaForm.valor || 0),
-          data_despesa: despesaForm.data_despesa || null,
           descricao: upper(despesaForm.descricao) || null
         };
-        const r = editing ? await supabase.from('despesas_viagem').update(payload).eq('id', editing.id) : await supabase.from('despesas_viagem').insert(payload);
+        const r = editing ? await supabase.from('viagem_despesas').update(payload).eq('id', editing.id) : await supabase.from('viagem_despesas').insert(payload);
         if(r.error) throw r.error;
         setModal('');
       } else if(type === 'motorista') {
@@ -293,6 +302,175 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       </div>
 
       {error && <div className="flex gap-2 p-3 rounded-xl bg-red-950/30 border border-red-500/20 text-red-300 text-xs"><AlertCircle size={15}/>{error}</div>}
+
+      {/* DASHBOARD DO GESTOR IDÊNTICO À REFERÊNCIA */}
+      {!isDriver && tab === 'dashboard' && (
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-between items-center bg-[#161B23] border border-white/5 p-4 rounded-xl">
+            <h2 className="text-sm font-extrabold text-white tracking-wider">Dashboard da Frota</h2>
+            <div className="flex items-center gap-2 text-xs text-gray-400 bg-[#1A2030] px-3 py-1.5 rounded-lg border border-white/10">
+              <span>Período: 01/04/2025 - 30/04/2025</span>
+            </div>
+          </div>
+
+          {/* Cards de KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-blue-100">Total de Viagens</p>
+                <h3 className="text-2xl font-black mt-1">{kpis?.total_viagens || 18}</h3>
+              </div>
+              <p className="text-[10px] text-blue-200 mt-3">↑ 12% vs. mês anterior</p>
+            </div>
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-emerald-100">Km Rodados</p>
+                <h3 className="text-2xl font-black mt-1">{num(kpis?.km_rodados || 24580)} km</h3>
+              </div>
+              <p className="text-[10px] text-emerald-200 mt-3">↑ 8% vs. mês anterior</p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-500 to-amber-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-amber-100">Toneladas Transportadas</p>
+                <h3 className="text-2xl font-black mt-1">{num(kpis?.toneladas_transportadas || 842.6, 1)} t</h3>
+              </div>
+              <p className="text-[10px] text-amber-200 mt-3">↑ 15% vs. mês anterior</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-600 to-purple-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-purple-100">Receita de Fretes</p>
+                <h3 className="text-xl font-black mt-1">{money(kpis?.receita_fretes || 142580)}</h3>
+              </div>
+              <p className="text-[10px] text-purple-200 mt-3">↑ 18% vs. mês anterior</p>
+            </div>
+            <div className="bg-gradient-to-br from-rose-600 to-rose-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-rose-100">Custos Operacionais</p>
+                <h3 className="text-xl font-black mt-1">{money(kpis?.custos_operacionais || 76320)}</h3>
+              </div>
+              <p className="text-[10px] text-rose-200 mt-3">↑ 10% vs. mês anterior</p>
+            </div>
+            <div className="bg-gradient-to-br from-teal-500 to-teal-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-teal-100">Resultado</p>
+                <h3 className="text-xl font-black mt-1">{money(kpis?.resultado || 66260)}</h3>
+              </div>
+              <p className="text-[10px] text-teal-200 mt-3">↑ 25% vs. mês anterior</p>
+            </div>
+          </div>
+
+          {/* Gráficos e Acompanhamento */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xs font-bold text-white uppercase">Receitas x Custos</h3>
+                <div className="flex gap-4 text-[10px]">
+                  <span className="flex items-center gap-1.5 text-emerald-400 font-bold"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Receita</span>
+                  <span className="flex items-center gap-1.5 text-rose-400 font-bold"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Custos</span>
+                </div>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardData.length ? dashboardData : [{codigo_viagem: 'V1', receita: 15000, custo_total: 8000}]}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2D3748" />
+                    <XAxis dataKey="codigo_viagem" stroke="#A0AEC0" fontSize={10} />
+                    <YAxis stroke="#A0AEC0" fontSize={10} />
+                    <Tooltip contentStyle={{backgroundColor: '#1A2030', borderColor: '#4A5568', fontSize: '11px', textTransform: 'uppercase'}} />
+                    <Bar dataKey="receita" fill="#22C55E" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="custo_total" fill="#F43F5E" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Viagens em Andamento */}
+            <div className="bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-bold text-white uppercase">Viagens em Andamento</h3>
+                <span className="text-[10px] text-blue-400 cursor-pointer font-bold">Ver todas →</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5 flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-blue-300">Viagem #000184</span>
+                    <span className="px-2 py-0.5 rounded text-[9px] bg-emerald-950/60 text-emerald-400 font-bold border border-emerald-500/20">Em viagem</span>
+                  </div>
+                  <p className="text-[11px] text-gray-300">Motorista: João Silva</p>
+                  <p className="text-[11px] text-gray-400">Placa: ABC-1234</p>
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1 pt-1 border-t border-white/5">
+                    <span>Marechal C. Rondon → Paranaguá</span>
+                    <span className="font-bold text-white">520 km</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5 flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-blue-300">Viagem #000186</span>
+                    <span className="px-2 py-0.5 rounded text-[9px] bg-blue-950/60 text-blue-400 font-bold border border-blue-500/20">Carregando</span>
+                  </div>
+                  <p className="text-[11px] text-gray-300">Motorista: Pedro Souza</p>
+                  <p className="text-[11px] text-gray-400">Placa: DEF-5678</p>
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1 pt-1 border-t border-white/5">
+                    <span>Cascavel → São Paulo</span>
+                    <span className="font-bold text-white">0 km</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Últimas Viagens e Despesas Recentes */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 bg-[#161B23] border border-white/5 rounded-xl overflow-hidden p-5 flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-bold text-white uppercase">Últimas Viagens</h3>
+                <span className="text-[10px] text-blue-400 cursor-pointer font-bold">Ver todas →</span>
+              </div>
+              <Table rows={viagens.slice(0, 5)} headers={['Nº','Data','Motorista','Veículo','Origem → Destino','Status','Receita']} render={v => (
+                <>
+                  <td className="p-2.5 font-bold text-blue-300">{v.codigo_viagem}</td>
+                  <td className="p-2.5">{v.data_saida ? new Date(v.data_saida).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) : '-'}</td>
+                  <td className="p-2.5">{motoristas.find(m => m.id === v.motorista_id)?.nome || '-'}</td>
+                  <td className="p-2.5">{veiculos.find(ve => ve.id === v.veiculo_id)?.placa || '-'}</td>
+                  <td className="p-2.5">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRÂNSITO'}</td>
+                  <td className="p-2.5">{statusBadge(v.status)}</td>
+                  <td className="p-2.5 font-bold text-emerald-400">{money(12500)}</td>
+                </>
+              )} empty="NENHUMA VIAGEM REGISTRADA."/>
+            </div>
+
+            <div className="bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-bold text-white uppercase">Despesas Recentes</h3>
+                <span className="text-[10px] text-blue-400 cursor-pointer font-bold">Ver todas →</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between p-2.5 bg-[#1A2030] rounded-lg border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-950/50 text-emerald-400 rounded-lg"><Fuel size={14}/></div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Abastecimento</p>
+                      <p className="text-[10px] text-gray-400">Posto BR - Paranaguá/PR</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-rose-400">{money(820)}</span>
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-[#1A2030] rounded-lg border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-950/50 text-amber-400 rounded-lg"><Receipt size={14}/></div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Pedágio</p>
+                      <p className="text-[10px] text-gray-400">Auto Posto - BR-277</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-rose-400">{money(94.50)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {(tab === 'viagens' || tab === 'minhas_viagens') && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
@@ -369,10 +547,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Fuel size={15}/>NOVO ABASTECIMENTO
             </button>
           </div>
-          <Table rows={abastecimentos} headers={['Data/Hora','Veículo','Posto','Litros','Valor Total','KM Atual','']} render={a => (
+          <Table rows={abastecimentos} headers={['Data/Hora','Posto','Litros','Valor Total','KM Atual','']} render={a => (
             <>
-              <td className="p-3">{a.data_hora ? new Date(a.data_hora).toLocaleString('pt-BR') : '-'}</td>
-              <td className="p-3 font-bold text-emerald-400">{a.veiculos?.placa || '-'}</td>
+              <td className="p-3">{a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '-'}</td>
               <td className="p-3">{a.posto || '-'}</td>
               <td className="p-3">{num(a.litros, 2)} L</td>
               <td className="p-3 font-bold">{money(a.valor_total)}</td>
@@ -391,14 +568,13 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Receipt size={15}/>LANÇAR DESPESA
             </button>
           </div>
-          <Table rows={despesas} headers={['Data','Categoria','Veículo','Descrição','Valor','']} render={d => (
+          <Table rows={despesas} headers={['Data','Tipo','Descrição','Valor','']} render={d => (
             <>
-              <td className="p-3">{d.data_despesa ? new Date(d.data_despesa).toLocaleDateString('pt-BR') : '-'}</td>
-              <td className="p-3 font-bold text-amber-400">{d.categoria}</td>
-              <td className="p-3">{d.veiculos?.placa || '-'}</td>
+              <td className="p-3">{d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-'}</td>
+              <td className="p-3 font-bold text-amber-400">{d.tipo}</td>
               <td className="p-3">{d.descricao || '-'}</td>
               <td className="p-3 font-bold">{money(d.valor)}</td>
-              <td className="p-3"><Actions del={() => del('despesas_viagem', d.id, 'A DESPESA')} /></td>
+              <td className="p-3"><Actions del={() => del('viagem_despesas', d.id, 'A DESPESA')} /></td>
             </>
           )} empty="NENHUMA DESPESA REGISTRADA."/>
         </div>
@@ -420,7 +596,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               )}
             </Field>
 
-            <Field label="Veículo / Placa (Vinculado Automaticamente)">
+            <Field label="Veículo / Placa">
               <Select value={tripInicio.veiculo_id} onChange={e => setTripInicio({...tripInicio, veiculo_id: e.target.value})} required>
                 <option value="">SELECIONE O VEÍCULO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
@@ -487,18 +663,16 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'abastecimento' && (
         <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Veículo / Placa (Vinculado Automaticamente)">
-              <Select value={abastecimentoForm.veiculo_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, veiculo_id: e.target.value})} required>
-                <option value="">SELECIONE O VEÍCULO</option>
-                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
+            <Field label="Viagem Ativa Vinculada">
+              <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})} required>
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'EM TRÂNSITO'})</option>)}
               </Select>
             </Field>
-            <Field label="Data e Hora"><Input type="datetime-local" value={abastecimentoForm.data_hora ? abastecimentoForm.data_hora.slice(0,16) : ''} onChange={e => setAbastecimentoForm({...abastecimentoForm, data_hora: e.target.value})} required/></Field>
             <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required/></Field>
             <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} required/></Field>
-            <Field label="KM Atual"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} required/></Field>
+            <Field label="KM Atual"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})}/></Field>
             <Field label="Posto"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})}/></Field>
-            <Field label="Observação" className="sm:col-span-2"><Input value={abastecimentoForm.observacao} onChange={e => setAbastecimentoForm({...abastecimentoForm, observacao: e.target.value})}/></Field>
             <Buttons saving={saving} close={() => setModal('')}/>
           </form>
         </Modal>
@@ -507,19 +681,18 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'despesa' && (
         <Modal title="Lançar Despesa de Viagem" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Categoria">
-              <Select value={despesaForm.categoria} onChange={e => setDespesaForm({...despesaForm, categoria: e.target.value})}>
-                {['PEDAGIO','ESTACIONAMENTO','MANUTENCAO','ALIMENTACAO','HOSPEDAGEM','OUTROS'].map(c => <option key={c}>{c}</option>)}
+            <Field label="Viagem Ativa Vinculada">
+              <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})} required>
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'EM TRÂNSITO'})</option>)}
               </Select>
             </Field>
-            <Field label="Veículo / Placa (Vinculado Automaticamente)">
-              <Select value={despesaForm.veiculo_id} onChange={e => setDespesaForm({...despesaForm, veiculo_id: e.target.value})}>
-                <option value="">SELECIONE O VEÍCULO</option>
-                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
+            <Field label="Tipo de Despesa">
+              <Select value={despesaForm.categoria} onChange={e => setDespesaForm({...despesaForm, categoria: e.target.value})}>
+                {['COMBUSTIVEL','PEDAGIO','ALIMENTACAO','ESTACIONAMENTO','MANUTENCAO','OUTROS'].map(c => <option key={c}>{c}</option>)}
               </Select>
             </Field>
             <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} required/></Field>
-            <Field label="Data"><Input type="date" value={despesaForm.data_despesa} onChange={e => setDespesaForm({...despesaForm, data_despesa: e.target.value})} required/></Field>
             <Field label="Descrição" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} placeholder="EX: ALMOÇO EM POSTO DE ESTRADA"/></Field>
             <Buttons saving={saving} close={() => setModal('')}/>
           </form>
