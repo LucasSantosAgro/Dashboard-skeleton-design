@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle } from 'lucide-react';
+import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from './lib/supabaseClient';
 
@@ -7,15 +7,19 @@ const colors = ['#38BDF8','#22C55E','#F59E0B','#A78BFA','#EC4899','#14B8A6'];
 const money = v => Number(v || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const num = (v,d=0) => Number(v || 0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 
-const emptyTrip = {
+const emptyTripInicio = {
   codigo_viagem: '', frete_id: '', veiculo_id: '', motorista_id: '', carreta_placa: '',
-  km_inicial: '', km_final: '', peso_carregado_kg: '', peso_descarga_kg: '',
-  numero_nf: '', local_carregamento: '', local_descarga: '', data_saida: '', data_chegada: '',
-  status: 'PLANEJADA', observacao: '', contratante_cnpj: '', cliente_cnpj: ''
+  km_inicial: '', peso_carregado_kg: '', produto: '',
+  numero_nf: '', local_carregamento: '', data_saida: '', observacao: '', contratante_cnpj: '', cliente_cnpj: ''
+};
+
+const emptyTripFim = {
+  km_final: '', peso_descarga_kg: '', local_descarga: '', data_chegada: '', status: 'FINALIZADA'
 };
 
 const emptyAbastecimento = { veiculo_id: '', data_hora: '', litros: '', valor_total: '', km_atual: '', posto: '', observacao: '' };
 const emptyDespesa = { veiculo_id: '', categoria: 'COMBUSTIVEL', valor: '', data_despesa: '', descricao: '' };
+const emptyMotorista = { nome: '', email: '', telefone: '', status: 'ATIVO', veiculo_id: '' };
 
 function Input(p){return <input {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
 function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
@@ -56,9 +60,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [abastecimentos, setAbastecimentos] = useState([]);
   const [despesas, setDespesas] = useState([]);
 
-  const [trip, setTrip] = useState(emptyTrip);
+  const [tripInicio, setTripInicio] = useState(emptyTripInicio);
+  const [tripFim, setTripFim] = useState(emptyTripFim);
   const [abastecimentoForm, setAbastecimentoForm] = useState(emptyAbastecimento);
   const [despesaForm, setDespesaForm] = useState(emptyDespesa);
+  const [motoristaForm, setMotoristaForm] = useState(emptyMotorista);
 
   const [q, setQ] = useState('');
   const [modal, setModal] = useState('');
@@ -76,7 +82,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       if(resV.error) throw resV.error;
       setVeiculos(resV.data || []);
 
-      const resM = await supabase.from('motoristas').select('id, nome, email, telefone, status').order('nome');
+      const resM = await supabase.from('motoristas').select('id, nome, email, telefone, status, veiculo_id').order('nome');
       if(resM.error) throw resM.error;
       setMotoristas(resM.data || []);
 
@@ -86,7 +92,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       const resT = await supabase.from('viagens').select(`
         id, codigo_viagem, frete_id, veiculo_id, motorista_id, carreta_placa,
-        km_inicial, km_final, peso_carregado_kg, peso_descarga_kg,
+        km_inicial, km_final, peso_carregado_kg, peso_descarga_kg, produto,
         numero_nf, local_carregamento, local_descarga, data_saida, data_chegada,
         status, observacao, created_at,
         veiculos (id, placa, marca, modelo)
@@ -115,7 +121,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     } finally {
       setLoading(false);
     }
-  }, [isDriver]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -128,28 +134,42 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     if (isDriver && currentMotorista) {
       lista = lista.filter(v => v.motorista_id === currentMotorista.id);
     }
-    return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
+    return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.produto, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
   }, [viagens, motoristas, isDriver, currentMotorista, q]);
 
   function open(type, row = null) {
     setEditing(row); setQ('');
-    if(type === 'viagem') {
+    if(type === 'iniciar_viagem') {
+      const veiculoSugerido = currentMotorista?.veiculo_id || '';
       if(row) {
-        setTrip({...row});
+        setTripInicio({...row});
       } else {
-        setTrip({
-          ...emptyTrip,
+        setTripInicio({
+          ...emptyTripInicio,
           codigo_viagem: `VAG-${Date.now().toString().slice(-6)}`,
           motorista_id: currentMotorista ? currentMotorista.id : '',
-          veiculo_id: '',
+          veiculo_id: veiculoSugerido,
           data_saida: new Date().toISOString().slice(0,16),
           status: 'EM_VIAGEM'
         });
       }
+    } else if(type === 'finalizar_viagem') {
+      setEditing(row);
+      setTripFim({
+        km_final: row?.km_final || '',
+        peso_descarga_kg: row?.peso_descarga_kg || '',
+        local_descarga: row?.local_descarga || '',
+        data_chegada: row?.data_chegada ? row.data_chegada.slice(0,16) : new Date().toISOString().slice(0,16),
+        status: 'FINALIZADA'
+      });
     } else if(type === 'abastecimento') {
-      setAbastecimentoForm(row ? {...row} : {...emptyAbastecimento, data_hora: new Date().toISOString().slice(0,16)});
+      const veiculoSugerido = currentMotorista?.veiculo_id || '';
+      setAbastecimentoForm(row ? {...row} : {...emptyAbastecimento, veiculo_id: veiculoSugerido, data_hora: new Date().toISOString().slice(0,16)});
     } else if(type === 'despesa') {
-      setDespesaForm(row ? {...row} : {...emptyDespesa, data_despesa: new Date().toISOString().slice(0,10)});
+      const veiculoSugerido = currentMotorista?.veiculo_id || '';
+      setDespesaForm(row ? {...row} : {...emptyDespesa, veiculo_id: veiculoSugerido, data_despesa: new Date().toISOString().slice(0,10)});
+    } else if(type === 'motorista') {
+      setMotoristaForm(row ? {...row} : {...emptyMotorista});
     }
     setModal(type);
   }
@@ -158,26 +178,38 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     setSaving(true); setError('');
     let table = '', payload = {};
 
-    if(type === 'viagem') {
+    if(type === 'iniciar_viagem') {
       table = 'viagens';
       payload = {
-        codigo_viagem: trip.codigo_viagem || `VAG-${Date.now().toString().slice(-6)}`,
-        frete_id: trip.frete_id ? Number(trip.frete_id) : null,
-        veiculo_id: Number(trip.veiculo_id),
-        motorista_id: isDriver && currentMotorista ? currentMotorista.id : Number(trip.motorista_id),
-        carreta_placa: trip.carreta_placa || null,
-        km_inicial: trip.km_inicial ? Number(trip.km_inicial) : null,
-        km_final: trip.km_final ? Number(trip.km_final) : null,
-        peso_carregado_kg: trip.peso_carregado_kg ? Number(trip.peso_carregado_kg) : null,
-        peso_descarga_kg: trip.peso_descarga_kg ? Number(trip.peso_descarga_kg) : null,
-        numero_nf: trip.numero_nf || null,
-        local_carregamento: trip.local_carregamento || null,
-        local_descarga: trip.local_descarga || null,
-        data_saida: trip.data_saida || null,
-        data_chegada: trip.data_chegada || null,
-        status: trip.status || 'PLANEJADA',
-        observacao: trip.observacao || null
+        codigo_viagem: tripInicio.codigo_viagem || `VAG-${Date.now().toString().slice(-6)}`,
+        frete_id: tripInicio.frete_id ? Number(tripInicio.frete_id) : null,
+        veiculo_id: Number(tripInicio.veiculo_id),
+        motorista_id: isDriver && currentMotorista ? currentMotorista.id : Number(tripInicio.motorista_id),
+        carreta_placa: tripInicio.carreta_placa || null,
+        km_inicial: tripInicio.km_inicial ? Number(tripInicio.km_inicial) : null,
+        peso_carregado_kg: tripInicio.peso_carregado_kg ? Number(tripInicio.peso_carregado_kg) : null,
+        produto: tripInicio.produto || null,
+        numero_nf: tripInicio.numero_nf || null,
+        local_carregamento: tripInicio.local_carregamento || null,
+        data_saida: tripInicio.data_saida || null,
+        status: tripInicio.status || 'EM_VIAGEM',
+        observacao: tripInicio.observacao || null
       };
+      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
+      if(r.error) setError(r.error.message);
+      else setModal('');
+    } else if(type === 'finalizar_viagem') {
+      table = 'viagens';
+      payload = {
+        km_final: tripFim.km_final ? Number(tripFim.km_final) : null,
+        peso_descarga_kg: tripFim.peso_descarga_kg ? Number(tripFim.peso_descarga_kg) : null,
+        local_descarga: tripFim.local_descarga || null,
+        data_chegada: tripFim.data_chegada || null,
+        status: 'FINALIZADA'
+      };
+      const r = await supabase.from(table).update(payload).eq('id', editing.id);
+      if(r.error) setError(r.error.message);
+      else setModal('');
     } else if(type === 'abastecimento') {
       table = 'abastecimentos';
       payload = {
@@ -189,6 +221,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         posto: abastecimentoForm.posto || null,
         observacao: abastecimentoForm.observacao || null
       };
+      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
+      if(r.error) setError(r.error.message);
+      else setModal('');
     } else if(type === 'despesa') {
       table = 'despesas_viagem';
       payload = {
@@ -198,13 +233,25 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         data_despesa: despesaForm.data_despesa || null,
         descricao: despesaForm.descricao || null
       };
+      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
+      if(r.error) setError(r.error.message);
+      else setModal('');
+    } else if(type === 'motorista') {
+      table = 'motoristas';
+      payload = {
+        nome: motoristaForm.nome,
+        email: motoristaForm.email,
+        telefone: motoristaForm.telefone,
+        status: motoristaForm.status,
+        veiculo_id: motoristaForm.veiculo_id ? Number(motoristaForm.veiculo_id) : null
+      };
+      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
+      if(r.error) setError(r.error.message);
+      else setModal('');
     }
 
-    const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
-    if(r.error) setError(r.error.message);
-    else setModal('');
     setSaving(false);
-    if(!r.error) await load();
+    await load();
   }
 
   async function del(table, id, label) {
@@ -214,7 +261,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     else await load();
   }
 
-  const status = s => <span className="px-2 py-1 rounded border text-[9px] font-bold bg-blue-950/40 text-blue-300 border-blue-500/20">{s}</span>;
+  const statusBadge = s => <span className="px-2 py-1 rounded border text-[9px] font-bold bg-blue-950/40 text-blue-300 border-blue-500/20">{s}</span>;
 
   return (
     <div className="flex flex-col gap-5">
@@ -225,7 +272,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             {isDriver ? `Painel do Motorista: ${currentMotorista?.nome || currentUserEmail}` : 'Frota & Fretes'}
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            {isDriver ? 'Inicie viagens, registre abastecimentos e lance despesas na estrada.' : 'Veículos próprios, motoristas, fretes e viagens.'}
+            {isDriver ? 'Inicie viagens, finalize rotas, registre abastecimentos e despesas.' : 'Veículos próprios, motoristas vinculados, fretes e viagens.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -247,35 +294,65 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           <div className="p-4 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-2.5 text-gray-500"/>
-              <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar viagens..." className="pl-9 md:w-72"/>
+              <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar viagens, produtos..." className="pl-9 md:w-72"/>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {isDriver && (
                 <>
                   <button onClick={() => open('abastecimento')} className="flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg">
-                    <Fuel size={15}/>NOVO ABASTECIMENTO
+                    <Fuel size={15}/>ABASTECIMENTO
                   </button>
                   <button onClick={() => open('despesa')} className="flex items-center justify-center gap-2 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg">
-                    <Receipt size={15}/>LANÇAR DESPESA
+                    <Receipt size={15}/>DESPESA
                   </button>
                 </>
               )}
-              <button onClick={() => open('viagem')} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-lg">
-                <PlayCircle size={15}/>{isDriver ? 'INICIAR / REGISTRAR VIAGEM' : 'NOVA VIAGEM'}
+              <button onClick={() => open('iniciar_viagem')} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-lg">
+                <PlayCircle size={15}/>INICIAR NOVA VIAGEM
               </button>
             </div>
           </div>
-          <Table rows={viagensFiltradas} headers={['Código','Veículo','Motorista','Carregamento → Descarga','NF','Status','']} render={v => (
+          <Table rows={viagensFiltradas} headers={['Código','Veículo','Motorista','Produto','Origem → Destino','Status','Ações']} render={v => (
             <>
               <td className="p-3 font-bold text-blue-300">{v.codigo_viagem}</td>
               <td className="p-3">{v.veiculos?.placa || '-'}</td>
               <td className="p-3">{v.motorista_nome}</td>
-              <td className="p-3">{v.local_carregamento || '-'} → {v.local_descarga || '-'}</td>
-              <td className="p-3">{v.numero_nf || '-'}</td>
-              <td className="p-3">{status(v.status)}</td>
-              <td className="p-3"><Actions edit={() => open('viagem', v)} del={() => del('viagens', v.id, `a viagem ${v.codigo_viagem}`)} /></td>
+              <td className="p-3 font-semibold text-gray-300">{v.produto || '-'}</td>
+              <td className="p-3">{v.local_carregamento || '-'} → {v.local_descarga || 'Em trânsito'}</td>
+              <td className="p-3">{statusBadge(v.status)}</td>
+              <td className="p-3">
+                <div className="flex items-center gap-1.5">
+                  {v.status !== 'FINALIZADA' && (
+                    <button onClick={() => open('finalizar_viagem', v)} className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-950/50 text-emerald-400 hover:bg-emerald-900/50 text-[10px] font-bold border border-emerald-500/20">
+                      <CheckCircle2 size={12}/> Finalizar
+                    </button>
+                  )}
+                  <Actions edit={() => open('iniciar_viagem', v)} del={() => del('viagens', v.id, `a viagem ${v.codigo_viagem}`)} />
+                </div>
+              </td>
             </>
           )} empty="Nenhuma viagem registrada."/>
+        </div>
+      )}
+
+      {tab === 'motoristas' && (
+        <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-white/5 flex justify-between items-center">
+            <h2 className="text-sm font-bold text-white">Motoristas & Vínculo de Veículos</h2>
+            <button onClick={() => open('motorista')} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
+              <Plus size={15}/>NOVO MOTORISTA
+            </button>
+          </div>
+          <Table rows={motoristas.map(m => ({...m, veiculo_placa: veiculos.find(v => v.id === m.veiculo_id)?.placa || 'Nenhum'}))} headers={['Nome','E-mail','Telefone','Veículo Vinculado','Status','']} render={m => (
+            <>
+              <td className="p-3 font-bold text-white">{m.nome}</td>
+              <td className="p-3">{m.email || '-'}</td>
+              <td className="p-3">{m.telefone || '-'}</td>
+              <td className="p-3 font-semibold text-blue-400">{m.veiculo_placa}</td>
+              <td className="p-3">{statusBadge(m.status)}</td>
+              <td className="p-3"><Actions edit={() => open('motorista', m)} del={() => del('motoristas', m.id, m.nome)} /></td>
+            </>
+          )} empty="Nenhum motorista cadastrado."/>
         </div>
       )}
 
@@ -322,54 +399,81 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {modal === 'viagem' && (
-        <Modal title={editing ? 'Editar viagem' : 'Iniciar / Registrar Viagem'} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Código Viagem"><Input value={trip.codigo_viagem} onChange={e => setTrip({...trip, codigo_viagem: e.target.value})} required/></Field>
+      {modal === 'iniciar_viagem' && (
+        <Modal title={editing ? 'Editar Início da Viagem' : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
+          <form onSubmit={e => { e.preventDefault(); save('iniciar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Código Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})} required/></Field>
             
             <Field label="Motorista">
               {isDriver ? (
                 <Input value={currentMotorista ? currentMotorista.nome : (currentUserEmail || 'Motorista')} disabled className="bg-gray-800 text-gray-400 cursor-not-allowed"/>
               ) : (
-                <Select value={trip.motorista_id} onChange={e => setTrip({...trip, motorista_id: e.target.value})} required>
+                <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})} required>
                   <option value="">Selecione o motorista</option>
                   {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </Select>
               )}
             </Field>
 
-            <Field label="Veículo / Placa">
-              <Select value={trip.veiculo_id} onChange={e => setTrip({...trip, veiculo_id: e.target.value})} required>
+            <Field label="Veículo / Placa (Preenchido Automaticamente)">
+              <Select value={tripInicio.veiculo_id} onChange={e => setTripInicio({...tripInicio, veiculo_id: e.target.value})} required>
                 <option value="">Selecione o veículo</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
               </Select>
             </Field>
 
             <Field label="Frete Associado (Opcional)">
-              <Select value={trip.frete_id} onChange={e => setTrip({...trip, frete_id: e.target.value})}>
+              <Select value={tripInicio.frete_id} onChange={e => setTripInicio({...tripInicio, frete_id: e.target.value})}>
                 <option value="">Nenhum / Viagem Própria</option>
                 {fretes.map(f => <option key={f.id} value={f.id}>{f.codigo_frete} - {f.origem} → {f.destino}</option>)}
               </Select>
             </Field>
 
-            <Field label="Status da Viagem">
-              <Select value={trip.status} onChange={e => setTrip({...trip, status: e.target.value})}>
-                {['PLANEJADA','AGUARDANDO_CARREGAMENTO','CARREGADO','EM_VIAGEM','NO_DESTINO','FINALIZADA','CANCELADA'].map(s => <option key={s}>{s}</option>)}
+            <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} placeholder="Ex: Soja a granel"/></Field>
+            <Field label="Placa Carreta (Opcional)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})}/></Field>
+            <Field label="Local Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})}/></Field>
+            <Field label="Número NF"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
+            <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})}/></Field>
+            <Field label="Peso Origem (kg)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => setTripInicio({...tripInicio, peso_carregado_kg: e.target.value})}/></Field>
+            <Field label="Data/Hora Saída"><Input type="datetime-local" value={tripInicio.data_saida ? tripInicio.data_saida.slice(0,16) : ''} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})}/></Field>
+            <Field label="Observação" className="sm:col-span-2"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})}/></Field>
+            
+            <Buttons saving={saving} close={() => setModal('')}/>
+          </form>
+        </Modal>
+      )}
+
+      {modal === 'finalizar_viagem' && (
+        <Modal title={`Finalizar Viagem: ${editing?.codigo_viagem || ''}`} onClose={() => setModal('')}>
+          <form onSubmit={e => { e.preventDefault(); save('finalizar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="KM Final"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})} required/></Field>
+            <Field label="Peso Destino (kg)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} required/></Field>
+            <Field label="Local Descarga"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})} required/></Field>
+            <Field label="Data/Hora Chegada"><Input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} required/></Field>
+            
+            <Buttons saving={saving} close={() => setModal('')}/>
+          </form>
+        </Modal>
+      )}
+
+      {modal === 'motorista' && (
+        <Modal title={editing ? 'Editar Motorista' : 'Novo Motorista'} onClose={() => setModal('')}>
+          <form onSubmit={e => { e.preventDefault(); save('motorista'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})} required/></Field>
+            <Field label="E-mail (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} required/></Field>
+            <Field label="Telefone"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})}/></Field>
+            <Field label="Veículo Vinculado Padrão">
+              <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
+                <option value="">Nenhum veículo vinculado</option>
+                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
               </Select>
             </Field>
-
-            <Field label="Placa Carreta (Opcional)"><Input value={trip.carreta_placa} onChange={e => setTrip({...trip, carreta_placa: e.target.value})}/></Field>
-            <Field label="Local Carregamento"><Input value={trip.local_carregamento} onChange={e => setTrip({...trip, local_carregamento: e.target.value})}/></Field>
-            <Field label="Local Descarga"><Input value={trip.local_descarga} onChange={e => setTrip({...trip, local_descarga: e.target.value})}/></Field>
-            <Field label="Número NF"><Input value={trip.numero_nf} onChange={e => setTrip({...trip, numero_nf: e.target.value})}/></Field>
-            <Field label="KM Inicial"><Input type="number" value={trip.km_inicial} onChange={e => setTrip({...trip, km_inicial: e.target.value})}/></Field>
-            <Field label="KM Final"><Input type="number" value={trip.km_final} onChange={e => setTrip({...trip, km_final: e.target.value})}/></Field>
-            <Field label="Peso Carregado (kg)"><Input type="number" value={trip.peso_carregado_kg} onChange={e => setTrip({...trip, peso_carregado_kg: e.target.value})}/></Field>
-            <Field label="Peso Descarga (kg)"><Input type="number" value={trip.peso_descarga_kg} onChange={e => setTrip({...trip, peso_descarga_kg: e.target.value})}/></Field>
-            <Field label="Data Saída"><Input type="datetime-local" value={trip.data_saida ? trip.data_saida.slice(0,16) : ''} onChange={e => setTrip({...trip, data_saida: e.target.value})}/></Field>
-            <Field label="Data Chegada"><Input type="datetime-local" value={trip.data_chegada ? trip.data_chegada.slice(0,16) : ''} onChange={e => setTrip({...trip, data_chegada: e.target.value})}/></Field>
-            <Field label="Observação" className="sm:col-span-2"><Input value={trip.observacao} onChange={e => setTrip({...trip, observacao: e.target.value})}/></Field>
-            
+            <Field label="Status">
+              <Select value={motoristaForm.status} onChange={e => setMotoristaForm({...motoristaForm, status: e.target.value})}>
+                <option value="ATIVO">ATIVO</option>
+                <option value="INATIVO">INATIVO</option>
+              </Select>
+            </Field>
             <Buttons saving={saving} close={() => setModal('')}/>
           </form>
         </Modal>
@@ -378,7 +482,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'abastecimento' && (
         <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Veículo / Placa">
+            <Field label="Veículo / Placa (Preenchido Automaticamente)">
               <Select value={abastecimentoForm.veiculo_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, veiculo_id: e.target.value})} required>
                 <option value="">Selecione o veículo</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
@@ -403,7 +507,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 {['COMBUSTIVEL','PEDAGIO','ESTACIONAMENTO','MANUTENCAO','ALIMENTACAO','HOSPEDAGEM','OUTROS'].map(c => <option key={c}>{c}</option>)}
               </Select>
             </Field>
-            <Field label="Veículo / Placa (Opcional)">
+            <Field label="Veículo / Placa (Preenchido Automaticamente)">
               <Select value={despesaForm.veiculo_id} onChange={e => setDespesaForm({...despesaForm, veiculo_id: e.target.value})}>
                 <option value="">Selecione o veículo</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
