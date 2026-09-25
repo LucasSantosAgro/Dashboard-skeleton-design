@@ -76,7 +76,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     return motoristas.find(m => m.email?.toLowerCase() === currentUserEmail?.toLowerCase()) || motoristas[0] || null;
   }, [isDriver, motoristas, currentUserEmail]);
 
-  // Identifica se há uma viagem ativa (EM_VIAGEM) para o motorista atual
   const viagemAtiva = useMemo(() => {
     if (!currentMotorista) return null;
     return viagens.find(v => v.motorista_id === currentMotorista.id && v.status === 'EM_VIAGEM') || null;
@@ -109,7 +108,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       try {
         const resAb = await supabase.from('abastecimentos').select(`
-          id, veiculo_id, viagem_id, data_hora, litros, valor_total, km_atual, posto, observacao, created_at,
+          id, veiculo_id, data_hora, litros, valor_total, km_atual, posto, observacao, created_at,
           veiculos (id, placa)
         `).order('created_at', {ascending: false});
         setAbastecimentos(resAb.data || []);
@@ -117,7 +116,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       try {
         const resDesp = await supabase.from('despesas_viagem').select(`
-          id, veiculo_id, viagem_id, categoria, valor, data_despesa, descricao, created_at,
+          id, veiculo_id, categoria, valor, data_despesa, descricao, created_at,
           veiculos (id, placa)
         `).order('created_at', {ascending: false});
         setDespesas(resDesp.data || []);
@@ -185,84 +184,79 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
   async function save(type) {
     setSaving(true); setError('');
-    let table = '', payload = {};
-
-    if(type === 'iniciar_viagem') {
-      table = 'viagens';
-      payload = {
-        codigo_viagem: upper(tripInicio.codigo_viagem || `VAG-${Date.now().toString().slice(-6)}`),
-        frete_id: tripInicio.frete_id ? Number(tripInicio.frete_id) : null,
-        veiculo_id: Number(tripInicio.veiculo_id),
-        motorista_id: isDriver && currentMotorista ? currentMotorista.id : Number(tripInicio.motorista_id),
-        carreta_placa: upper(tripInicio.carreta_placa) || null,
-        km_inicial: tripInicio.km_inicial ? Number(tripInicio.km_inicial) : null,
-        peso_carregado_kg: tripInicio.peso_carregado_kg ? Number(tripInicio.peso_carregado_kg) : null,
-        produto: upper(tripInicio.produto) || null,
-        numero_nf: upper(tripInicio.numero_nf) || null,
-        local_carregamento: upper(tripInicio.local_carregamento) || null,
-        data_saida: tripInicio.data_saida || null,
-        status: 'EM_VIAGEM', // Sempre inicia travado como EM_VIAGEM
-        observacao: upper(tripInicio.observacao) || null
-      };
-      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
-      if(r.error) setError(r.error.message);
-      else setModal('');
-    } else if(type === 'finalizar_viagem') {
-      table = 'viagens';
-      payload = {
-        km_final: tripFim.km_final ? Number(tripFim.km_final) : null,
-        peso_descarga_kg: tripFim.peso_descarga_kg ? Number(tripFim.peso_descarga_kg) : null,
-        local_descarga: upper(tripFim.local_descarga) || null,
-        data_chegada: tripFim.data_chegada || null,
-        status: 'FINALIZADA'
-      };
-      const r = await supabase.from(table).update(payload).eq('id', editing.id);
-      if(r.error) setError(r.error.message);
-      else setModal('');
-    } else if(type === 'abastecimento') {
-      table = 'abastecimentos';
-      payload = {
-        veiculo_id: Number(abastecimentoForm.veiculo_id),
-        viagem_id: abastecimentoForm.viagem_id ? Number(abastecimentoForm.viagem_id) : (viagemAtiva ? viagemAtiva.id : null),
-        data_hora: abastecimentoForm.data_hora || null,
-        litros: Number(abastecimentoForm.litros || 0),
-        valor_total: Number(abastecimentoForm.valor_total || 0),
-        km_atual: Number(abastecimentoForm.km_atual || 0),
-        posto: upper(abastecimentoForm.posto) || null,
-        observacao: upper(abastecimentoForm.observacao) || null
-      };
-      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
-      if(r.error) setError(r.error.message);
-      else setModal('');
-    } else if(type === 'despesa') {
-      table = 'despesas_viagem';
-      payload = {
-        veiculo_id: despesaForm.veiculo_id ? Number(despesaForm.veiculo_id) : null,
-        viagem_id: despesaForm.viagem_id ? Number(despesaForm.viagem_id) : (viagemAtiva ? viagemAtiva.id : null),
-        categoria: upper(despesaForm.categoria),
-        valor: Number(despesaForm.valor || 0),
-        data_despesa: despesaForm.data_despesa || null,
-        descricao: upper(despesaForm.descricao) || null
-      };
-      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
-      if(r.error) setError(r.error.message);
-      else setModal('');
-    } else if(type === 'motorista') {
-      table = 'motoristas';
-      payload = {
-        nome: upper(motoristaForm.nome),
-        email: motoristaForm.email?.toLowerCase(),
-        telefone: motoristaForm.telefone,
-        status: upper(motoristaForm.status),
-        veiculo_id: motoristaForm.veiculo_id ? Number(motoristaForm.veiculo_id) : null
-      };
-      const r = editing ? await supabase.from(table).update(payload).eq('id', editing.id) : await supabase.from(table).insert(payload);
-      if(r.error) setError(r.error.message);
-      else setModal('');
+    try {
+      if(type === 'iniciar_viagem') {
+        const payload = {
+          codigo_viagem: upper(tripInicio.codigo_viagem || `VAG-${Date.now().toString().slice(-6)}`),
+          frete_id: tripInicio.frete_id ? Number(tripInicio.frete_id) : null,
+          veiculo_id: Number(tripInicio.veiculo_id),
+          motorista_id: isDriver && currentMotorista ? currentMotorista.id : Number(tripInicio.motorista_id),
+          carreta_placa: upper(tripInicio.carreta_placa) || null,
+          km_inicial: tripInicio.km_inicial ? Number(tripInicio.km_inicial) : null,
+          peso_carregado_kg: tripInicio.peso_carregado_kg ? Number(tripInicio.peso_carregado_kg) : null,
+          produto: upper(tripInicio.produto) || null,
+          numero_nf: upper(tripInicio.numero_nf) || null,
+          local_carregamento: upper(tripInicio.local_carregamento) || null,
+          data_saida: tripInicio.data_saida || null,
+          status: 'EM_VIAGEM',
+          observacao: upper(tripInicio.observacao) || null
+        };
+        const r = editing ? await supabase.from('viagens').update(payload).eq('id', editing.id) : await supabase.from('viagens').insert(payload);
+        if(r.error) throw r.error;
+        setModal('');
+      } else if(type === 'finalizar_viagem') {
+        const payload = {
+          km_final: tripFim.km_final ? Number(tripFim.km_final) : null,
+          peso_descarga_kg: tripFim.peso_descarga_kg ? Number(tripFim.peso_descarga_kg) : null,
+          local_descarga: upper(tripFim.local_descarga) || null,
+          data_chegada: tripFim.data_chegada || null,
+          status: 'FINALIZADA'
+        };
+        const r = await supabase.from('viagens').update(payload).eq('id', editing.id);
+        if(r.error) throw r.error;
+        setModal('');
+      } else if(type === 'abastecimento') {
+        const payload = {
+          veiculo_id: Number(abastecimentoForm.veiculo_id),
+          data_hora: abastecimentoForm.data_hora || null,
+          litros: Number(abastecimentoForm.litros || 0),
+          valor_total: Number(abastecimentoForm.valor_total || 0),
+          km_atual: Number(abastecimentoForm.km_atual || 0),
+          posto: upper(abastecimentoForm.posto) || null,
+          observacao: upper(abastecimentoForm.observacao) || null
+        };
+        const r = editing ? await supabase.from('abastecimentos').update(payload).eq('id', editing.id) : await supabase.from('abastecimentos').insert(payload);
+        if(r.error) throw r.error;
+        setModal('');
+      } else if(type === 'despesa') {
+        const payload = {
+          veiculo_id: despesaForm.veiculo_id ? Number(despesaForm.veiculo_id) : null,
+          categoria: upper(despesaForm.categoria),
+          valor: Number(despesaForm.valor || 0),
+          data_despesa: despesaForm.data_despesa || null,
+          descricao: upper(despesaForm.descricao) || null
+        };
+        const r = editing ? await supabase.from('despesas_viagem').update(payload).eq('id', editing.id) : await supabase.from('despesas_viagem').insert(payload);
+        if(r.error) throw r.error;
+        setModal('');
+      } else if(type === 'motorista') {
+        const payload = {
+          nome: upper(motoristaForm.nome),
+          email: motoristaForm.email?.toLowerCase(),
+          telefone: motoristaForm.telefone,
+          status: upper(motoristaForm.status),
+          veiculo_id: motoristaForm.veiculo_id ? Number(motoristaForm.veiculo_id) : null
+        };
+        const r = editing ? await supabase.from('motoristas').update(payload).eq('id', editing.id) : await supabase.from('motoristas').insert(payload);
+        if(r.error) throw r.error;
+        setModal('');
+      }
+      await load();
+    } catch (e) {
+      setError('Erro ao salvar: ' + (e.message || JSON.stringify(e)));
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
-    await load();
   }
 
   async function del(table, id, label) {
