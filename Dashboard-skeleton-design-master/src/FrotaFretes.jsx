@@ -22,7 +22,7 @@ const emptyAbastecimento = { veiculo_id: '', viagem_id: '', data_hora: '', litro
 const emptyDespesa = { veiculo_id: '', viagem_id: '', categoria: 'PEDAGIO', valor: '', data_despesa: '', descricao: '' };
 const emptyMotorista = { nome: '', email: '', telefone: '', status: 'ATIVO', veiculo_id: '' };
 const emptyVeiculo = { placa: '', marca: '', modelo: '', ano: '', status: 'ATIVO' };
-const emptyFrete = { codigo_frete: '', origem: '', destino: '', cliente: '', valor: '', status: 'PENDENTE' };
+const emptyFrete = { codigo_frete: '', origem: '', destino: '', cliente: '', valor: '', status: 'PENDENTE', veiculo_id: '' };
 
 function Input(p){return <input {...p} value={p.value ?? ''} onChange={e => { e.target.value = upper(e.target.value); if(p.onChange) p.onChange(e); }} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
 function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
@@ -76,6 +76,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [q, setQ] = useState('');
   const [modal, setModal] = useState('');
   const [editing, setEditing] = useState(null);
+  const [kpiModal, setKpiModal] = useState(null); // Para gerenciar clique nos Cards/KPIs
 
   const currentMotorista = useMemo(() => {
     if (!isDriver) return null;
@@ -98,7 +99,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       if(resM.error) throw resM.error;
       setMotoristas(resM.data || []);
 
-      const resF = await supabase.from('fretes').select('id, codigo_frete, origem, destino, cliente, valor, status, created_at').order('created_at',{ascending:false});
+      const resF = await supabase.from('fretes').select('id, codigo_frete, origem, destino, cliente, valor, status, created_at, veiculo_id').order('created_at',{ascending:false});
       if(resF.error) throw resF.error;
       setFretes(resF.data || []);
 
@@ -157,6 +158,18 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     }
     return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.produto, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
   }, [viagens, motoristas, isDriver, currentMotorista, q]);
+
+  // Fretes filtrados para o motorista ou para a placa selecionada ao iniciar viagem
+  const fretesDisponiveis = useMemo(() => {
+    return fretes.filter(f => {
+      if (f.status !== 'PENDENTE') return false;
+      const placaVeiculoViagem = tripInicio.veiculo_id ? Number(tripInicio.veiculo_id) : (isDriver ? currentMotorista?.veiculo_id : null);
+      if (placaVeiculoViagem && f.veiculo_id && Number(f.veiculo_id) !== Number(placaVeiculoViagem)) {
+        return false;
+      }
+      return true;
+    });
+  }, [fretes, tripInicio.veiculo_id, isDriver, currentMotorista]);
 
   function open(type, row = null) {
     setEditing(row); setQ('');
@@ -217,7 +230,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           numero_nf: upper(tripInicio.numero_nf) || null,
           local_carregamento: upper(tripInicio.local_carregamento) || null,
           data_saida: tripInicio.data_saida || null,
-          status: 'EM_VIAGEM',
+          status: editing?.status || 'EM_VIAGEM',
           observacao: upper(tripInicio.observacao) || null
         };
         const r = editing ? await supabase.from('viagens').update(payload).eq('id', editing.id) : await supabase.from('viagens').insert(payload);
@@ -284,7 +297,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           destino: upper(freteForm.destino),
           cliente: upper(freteForm.cliente),
           valor: Number(freteForm.valor || 0),
-          status: upper(freteForm.status)
+          status: upper(freteForm.status),
+          veiculo_id: freteForm.veiculo_id ? Number(freteForm.veiculo_id) : null
         };
         const r = editing ? await supabase.from('fretes').update(payload).eq('id', editing.id) : await supabase.from('fretes').insert(payload);
         if(r.error) throw r.error;
@@ -306,6 +320,39 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   }
 
   const statusBadge = s => <span className="px-2 py-1 rounded border text-[9px] font-bold bg-blue-950/40 text-blue-300 border-blue-500/20">{s}</span>;
+
+  // Função auxiliar para calcular dados detalhados por placa para os KPIs
+  const getKpiBreakdownByPlate = (metricType) => {
+    return veiculos.map(v => {
+      const viagensVeiculo = viagens.filter(item => Number(item.veiculo_id) === Number(v.id));
+      const viagemIds = viagensVeiculo.map(i => i.id);
+
+      const kmRodados = viagensVeiculo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
+      const toneladas = viagensVeiculo.reduce((acc, item) => acc + Number(item.peso_descarga_kg || item.peso_carregado_kg || 0) / 1000, 0);
+      
+      const fretesVeiculo = fretes.filter(f => f.veiculo_id === v.id || viagensVeiculo.some(tg => tg.frete_id === f.id));
+      const receita = fretesVeiculo.reduce((acc, f) => acc + Number(f.valor || 0), 0);
+
+      const abstVeiculo = abastecimentos.filter(a => Number(a.veiculo_id) === Number(v.id) || (a.viagem_id && viagemIds.includes(Number(a.viagem_id))));
+      const despVeiculo = despesas.filter(d => d.viagem_id && viagemIds.includes(Number(d.viagem_id)));
+      
+      const custosAbst = abstVeiculo.reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
+      const custosDesp = despVeiculo.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+      const custos = custosAbst + custosDesp;
+      const resultado = receita - custos;
+
+      return {
+        placa: v.placa,
+        modelo: v.modelo || '-',
+        totalViagens: viagensVeiculo.length,
+        kmRodados,
+        toneladas,
+        receita,
+        custos,
+        resultado
+      };
+    });
+  };
 
   return (
     <div className="flex flex-col gap-5 uppercase">
@@ -337,54 +384,54 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {!isDriver && tab === 'dashboard' && (
         <div className="flex flex-col gap-6">
           <div className="flex justify-between items-center bg-[#161B23] border border-white/5 p-4 rounded-xl">
-            <h2 className="text-sm font-extrabold text-white tracking-wider">Dashboard da Frota</h2>
+            <h2 className="text-sm font-extrabold text-white tracking-wider">Dashboard da Frota (Clique nos cards para detalhar por placa)</h2>
             <div className="flex items-center gap-2 text-xs text-gray-400 bg-[#1A2030] px-3 py-1.5 rounded-lg border border-white/10">
               <span>Período Geral</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+            <div onClick={() => setKpiModal('viagens')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-blue-100">Total de Viagens</p>
                 <h3 className="text-2xl font-black mt-1">{kpis?.total_viagens || viagens.length}</h3>
               </div>
-              <p className="text-[10px] text-blue-200 mt-3">Registradas no sistema</p>
+              <p className="text-[10px] text-blue-200 mt-3">Clique para ver por placa →</p>
             </div>
-            <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+            <div onClick={() => setKpiModal('km')} className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-emerald-100">Km Rodados</p>
                 <h3 className="text-2xl font-black mt-1">{num(kpis?.km_rodados || 0)} km</h3>
               </div>
-              <p className="text-[10px] text-emerald-200 mt-3">Baseado nas viagens</p>
+              <p className="text-[10px] text-emerald-200 mt-3">Clique para ver por placa →</p>
             </div>
-            <div className="bg-gradient-to-br from-amber-500 to-amber-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+            <div onClick={() => setKpiModal('toneladas')} className="bg-gradient-to-br from-amber-500 to-amber-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-amber-100">Toneladas Transportadas</p>
                 <h3 className="text-2xl font-black mt-1">{num(kpis?.toneladas_transportadas || 0, 1)} t</h3>
               </div>
-              <p className="text-[10px] text-amber-200 mt-3">Volume total</p>
+              <p className="text-[10px] text-amber-200 mt-3">Clique para ver por placa →</p>
             </div>
-            <div className="bg-gradient-to-br from-purple-600 to-purple-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+            <div onClick={() => setKpiModal('receita')} className="bg-gradient-to-br from-purple-600 to-purple-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-purple-100">Receita de Fretes</p>
                 <h3 className="text-xl font-black mt-1">{money(kpis?.receita_fretes || fretes.reduce((acc, f) => acc + Number(f.valor || 0), 0))}</h3>
               </div>
-              <p className="text-[10px] text-purple-200 mt-3">Soma de fretes</p>
+              <p className="text-[10px] text-purple-200 mt-3">Clique para ver por placa →</p>
             </div>
-            <div className="bg-gradient-to-br from-rose-600 to-rose-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+            <div onClick={() => setKpiModal('custos')} className="bg-gradient-to-br from-rose-600 to-rose-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-rose-100">Custos Operacionais</p>
                 <h3 className="text-xl font-black mt-1">{money(kpis?.custos_operacionais || abastecimentos.reduce((acc, a) => acc + Number(a.valor_total || 0), 0))}</h3>
               </div>
-              <p className="text-[10px] text-rose-200 mt-3">Abastecimentos e despesas</p>
+              <p className="text-[10px] text-rose-200 mt-3">Clique para ver por placa →</p>
             </div>
-            <div className="bg-gradient-to-br from-teal-500 to-teal-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between">
+            <div onClick={() => setKpiModal('resultado')} className="bg-gradient-to-br from-teal-500 to-teal-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-teal-100">Resultado</p>
                 <h3 className="text-xl font-black mt-1">{money(kpis?.resultado || 0)}</h3>
               </div>
-              <p className="text-[10px] text-teal-200 mt-3">Receita - Custos</p>
+              <p className="text-[10px] text-teal-200 mt-3">Clique para ver por placa →</p>
             </div>
           </div>
 
@@ -440,6 +487,40 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
+      {/* MODAL DETALHAMENTO DE KPI POR PLACA */}
+      {kpiModal && (
+        <Modal title={`Detalhamento por Placa - ${kpiModal.toUpperCase()}`} onClose={() => setKpiModal(null)}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
+                <tr>
+                  <th className="p-3 text-left">Placa / Veículo</th>
+                  <th className="p-3 text-center">Total Viagens</th>
+                  <th className="p-3 text-right">Km Rodados</th>
+                  <th className="p-3 text-right">Toneladas (t)</th>
+                  <th className="p-3 text-right">Receita Fretes</th>
+                  <th className="p-3 text-right">Custos</th>
+                  <th className="p-3 text-right">Resultado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {getKpiBreakdownByPlate(kpiModal).map((item, idx) => (
+                  <tr key={idx} className="border-t border-white/5 hover:bg-white/[0.02]">
+                    <td className="p-3 font-bold text-blue-300">{item.placa} <span className="text-gray-400 font-normal">({item.modelo})</span></td>
+                    <td className="p-3 text-center">{item.totalViagens}</td>
+                    <td className="p-3 text-right">{num(item.kmRodados)} km</td>
+                    <td className="p-3 text-right">{num(item.toneladas, 1)} t</td>
+                    <td className="p-3 text-right text-emerald-400 font-bold">{money(item.receita)}</td>
+                    <td className="p-3 text-right text-rose-400 font-bold">{money(item.custos)}</td>
+                    <td className="p-3 text-right text-teal-400 font-black">{money(item.resultado)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Modal>
+      )}
+
       {(tab === 'viagens' || tab === 'minhas_viagens') && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -486,7 +567,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* ABA VEÍCULOS ADICIONADA */}
       {tab === 'veiculos' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
@@ -529,18 +609,18 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* ABA FRETES ADICIONADA */}
       {tab === 'fretes' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Gestão de Fretes</h2>
+            <h2 className="text-sm font-bold text-white">Gestão de Fretes (Com Vínculo de Placa)</h2>
             <button onClick={() => open('frete')} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Plus size={15}/>CADASTRAR FRETE
             </button>
           </div>
-          <Table rows={fretes} headers={['Código','Origem → Destino','Cliente','Valor','Status','Ações']} render={f => (
+          <Table rows={fretes.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || 'GERAL / QUALQUER'}))} headers={['Código','Placa Vinculada','Origem → Destino','Cliente','Valor','Status','Ações']} render={f => (
             <>
               <td className="p-3 font-bold text-blue-300">{f.codigo_frete}</td>
+              <td className="p-3 font-semibold text-blue-400">{f.veiculo_placa}</td>
               <td className="p-3">{f.origem || '-'} → {f.destino || '-'}</td>
               <td className="p-3">{f.cliente || '-'}</td>
               <td className="p-3 font-bold text-emerald-400">{money(f.valor)}</td>
@@ -554,14 +634,15 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {tab === 'abastecimentos' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Meus Abastecimentos</h2>
+            <h2 className="text-sm font-bold text-white">Consulta de Abastecimentos (Incluindo Viagens Finalizadas)</h2>
             <button onClick={() => open('abastecimento')} className="flex items-center gap-2 bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Fuel size={15}/>NOVO ABASTECIMENTO
             </button>
           </div>
-          <Table rows={abastecimentos} headers={['Data/Hora','Posto','Litros','Valor Total','KM Atual','']} render={a => (
+          <Table rows={abastecimentos.map(a => ({...a, viagem_codigo: viagens.find(v => Number(v.id) === Number(a.viagem_id))?.codigo_viagem || '-'}))} headers={['Data/Hora','Viagem','Posto','Litros','Valor Total','KM Atual','']} render={a => (
             <>
               <td className="p-3">{a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '-'}</td>
+              <td className="p-3 font-bold text-blue-300">{a.viagem_codigo}</td>
               <td className="p-3">{a.posto || '-'}</td>
               <td className="p-3">{num(a.litros, 2)} L</td>
               <td className="p-3 font-bold">{money(a.valor_total)}</td>
@@ -575,14 +656,15 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {tab === 'despesas' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Despesas de Viagem</h2>
+            <h2 className="text-sm font-bold text-white">Consulta de Despesas (Incluindo Viagens Finalizadas)</h2>
             <button onClick={() => open('despesa')} className="flex items-center gap-2 bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Receipt size={15}/>LANÇAR DESPESA
             </button>
           </div>
-          <Table rows={despesas} headers={['Data','Tipo','Descrição','Valor','']} render={d => (
+          <Table rows={despesas.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || '-'}))} headers={['Data','Viagem','Tipo','Descrição','Valor','']} render={d => (
             <>
               <td className="p-3">{d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-'}</td>
+              <td className="p-3 font-bold text-blue-300">{d.viagem_codigo}</td>
               <td className="p-3 font-bold text-amber-400">{d.tipo}</td>
               <td className="p-3">{d.descricao || '-'}</td>
               <td className="p-3 font-bold">{money(d.valor)}</td>
@@ -593,7 +675,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'iniciar_viagem' && (
-        <Modal title={editing ? 'Editar Início da Viagem' : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
+        <Modal title={editing ? 'Editar / Vincular Frete da Viagem' : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('iniciar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Código Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})} required/></Field>
             
@@ -615,10 +697,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               </Select>
             </Field>
 
-            <Field label="Frete Associado (Opcional)">
+            <Field label="Frete Associado (Pendentes para a Placa)">
               <Select value={tripInicio.frete_id} onChange={e => setTripInicio({...tripInicio, frete_id: e.target.value})}>
                 <option value="">NENHUM / VIAGEM PRÓPRIA</option>
-                {fretes.map(f => <option key={f.id} value={f.id}>{f.codigo_frete} - {f.origem} → {f.destino}</option>)}
+                {fretesDisponiveis.map(f => <option key={f.id} value={f.id}>{f.codigo_frete} - {f.origem} → {f.destino} ({money(f.valor)})</option>)}
               </Select>
             </Field>
 
@@ -672,7 +754,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </Modal>
       )}
 
-      {/* MODAL VEÍCULO ADICIONADO */}
       {modal === 'veiculo' && (
         <Modal title={editing ? 'Editar Veículo' : 'Novo Veículo'} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('veiculo'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -692,12 +773,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </Modal>
       )}
 
-      {/* MODAL FRETE ADICIONADO */}
       {modal === 'frete' && (
-        <Modal title={editing ? 'Editar Frete' : 'Cadastrar Frete'} onClose={() => setModal('')}>
+        <Modal title={editing ? 'Editar Frete' : 'Cadastrar Frete com Vínculo de Placa'} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('frete'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Código do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})} required/></Field>
             <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} required placeholder="NOME DO CLIENTE"/></Field>
+            <Field label="Vincular à Placa (Opcional)">
+              <Select value={freteForm.veiculo_id} onChange={e => setFreteForm({...freteForm, veiculo_id: e.target.value})}>
+                <option value="">QUALQUER PLACA / GERAL</option>
+                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
+              </Select>
+            </Field>
             <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required placeholder="CIDADE/UF ORIGEM"/></Field>
             <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required placeholder="CIDADE/UF DESTINO"/></Field>
             <Field label="Valor do Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor} onChange={e => setFreteForm({...freteForm, valor: e.target.value})} required/></Field>
@@ -717,10 +803,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'abastecimento' && (
         <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Viagem Ativa Vinculada">
+            <Field label="Viagem Vinculada (Ativa ou Finalizada)">
               <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})} required>
                 <option value="">SELECIONE A VIAGEM</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'EM TRÂNSITO'})</option>)}
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'ROTA'} - {v.status})</option>)}
               </Select>
             </Field>
             <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required/></Field>
@@ -735,10 +821,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'despesa' && (
         <Modal title="Lançar Despesa de Viagem" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Viagem Ativa Vinculada">
+            <Field label="Viagem Vinculada (Ativa ou Finalizada)">
               <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})} required>
                 <option value="">SELECIONE A VIAGEM</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'EM TRÂNSITO'})</option>)}
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'ROTA'} - {v.status})</option>)}
               </Select>
             </Field>
             <Field label="Tipo de Despesa">
