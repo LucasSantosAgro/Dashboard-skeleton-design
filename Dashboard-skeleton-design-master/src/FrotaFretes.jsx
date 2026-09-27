@@ -166,6 +166,15 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     setEditing(row); setQ('');
     if(type === 'iniciar_viagem') {
       const veiculoSugerido = currentMotorista?.veiculo_id || '';
+      
+      let freteSugeridoId = '';
+      if (!row && veiculoSugerido) {
+        const freteDoVeiculo = fretes.find(f => Number(f.veiculo_id) === Number(veiculoSugerido) && f.status === 'PLANEJADO');
+        if (freteDoVeiculo) {
+          freteSugeridoId = String(freteDoVeiculo.id);
+        }
+      }
+
       if(row) {
         setTripInicio({...row});
       } else {
@@ -174,6 +183,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           codigo_viagem: `VAG-${Date.now().toString().slice(-6)}`,
           motorista_id: currentMotorista ? currentMotorista.id : '',
           veiculo_id: veiculoSugerido,
+          frete_id: freteSugeridoId,
           data_saida: new Date().toISOString().slice(0,16),
           status: 'EM_VIAGEM'
         });
@@ -236,7 +246,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const r = await supabase.from('viagens').update(payload).eq('id', editing.id);
         if(r.error) throw r.error;
 
-        // Atualiza o status do frete vinculado para FINALIZADO
         if (editing?.frete_id) {
           const rFrete = await supabase.from('fretes').update({ status: 'FINALIZADO' }).eq('id', editing.frete_id);
           if(rFrete.error) throw rFrete.error;
