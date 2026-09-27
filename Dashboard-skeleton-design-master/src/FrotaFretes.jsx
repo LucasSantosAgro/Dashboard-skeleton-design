@@ -99,7 +99,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       if(resM.error) throw resM.error;
       setMotoristas(resM.data || []);
 
-      const resF = await supabase.from('fretes').select('id, codigo_frete, tipo_operacao, origem, destino, cliente, valor_frete, status, created_at').order('created_at',{ascending:false});
+      // Incluído veiculo_id na listagem de fretes[cite: 24]
+      const resF = await supabase.from('fretes').select('id, codigo_frete, tipo_operacao, origem, destino, cliente, valor_frete, status, veiculo_id, created_at').order('created_at',{ascending:false});
       if(resF.error) throw resF.error;
       setFretes(resF.data || []);
 
@@ -224,6 +225,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         };
         const r = editing ? await supabase.from('viagens').update(payload).eq('id', editing.id) : await supabase.from('viagens').insert(payload);
         if(r.error) throw r.error;
+
+        // Se iniciou a viagem vinculada a um frete, atualiza o status do frete para EM_VIAGEM se necessário
+        if (payload.frete_id) {
+          await supabase.from('fretes').update({ status: 'EM_VIAGEM' }).eq('id', payload.frete_id);
+        }
+
         setModal('');
       } else if(type === 'finalizar_viagem') {
         const payload = {
@@ -235,6 +242,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         };
         const r = await supabase.from('viagens').update(payload).eq('id', editing.id);
         if(r.error) throw r.error;
+
+        // Mudar o status do frete vinculado para FINALIZADO
+        if (editing?.frete_id) {
+          await supabase.from('fretes').update({ status: 'FINALIZADO' }).eq('id', editing.frete_id);
+        }
+
         setModal('');
       } else if(type === 'abastecimento') {
         const litrosVal = Number(abastecimentoForm.litros || 0);
@@ -295,7 +308,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           destino: upper(freteForm.destino),
           cliente: upper(freteForm.cliente),
           valor_frete: Number(freteForm.valor_frete || 0),
-          status: upper(freteForm.status)
+          status: upper(freteForm.status),
+          veiculo_id: freteForm.veiculo_id ? Number(freteForm.veiculo_id) : null
         };
         const r = editing ? await supabase.from('fretes').update(payload).eq('id', editing.id) : await supabase.from('fretes').insert(payload);
         if(r.error) throw r.error;
@@ -611,10 +625,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Plus size={15}/>CADASTRAR FRETE
             </button>
           </div>
-          <Table rows={fretes} headers={['Código','Tipo Operação','Origem → Destino','Cliente','Valor Frete','Status','Ações']} render={f => (
+          <Table rows={fretes.map(f => ({...f, veiculo_placa: veiculos.find(v => v.id === f.veiculo_id)?.placa || 'NENHUM'}))} headers={['Código','Tipo Operação','Veículo Previsto','Origem → Destino','Cliente','Valor Frete','Status','Ações']} render={f => (
             <>
               <td className="p-3 font-bold text-blue-300">{f.codigo_frete}</td>
               <td className="p-3 font-semibold text-blue-400">{f.tipo_operacao}</td>
+              <td className="p-3 font-semibold text-amber-400">{f.veiculo_placa}</td>
               <td className="p-3">{f.origem || '-'} → {f.destino || '-'}</td>
               <td className="p-3">{f.cliente || '-'}</td>
               <td className="p-3 font-bold text-emerald-400">{money(f.valor_frete)}</td>
@@ -684,17 +699,29 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               )}
             </Field>
 
+            <Field label="Frete Associado (Planejados)">
+              <Select value={tripInicio.frete_id} onChange={e => {
+                const selectedFreteId = e.target.value;
+                const freteObj = fretes.find(f => String(f.id) === String(selectedFreteId));
+                setTripInicio({
+                  ...tripInicio, 
+                  frete_id: selectedFreteId,
+                  // Auto-seleciona o veículo se o frete tiver um veículo vinculado
+                  veiculo_id: freteObj?.veiculo_id ? freteObj.veiculo_id : tripInicio.veiculo_id
+                });
+              }}>
+                <option value="">NENHUM / VIAGEM PRÓPRIA</option>
+                {fretesDisponiveis.map(f => {
+                  const vPlaca = veiculos.find(v => v.id === f.veiculo_id)?.placa;
+                  return <option key={f.id} value={f.id}>{f.codigo_frete} - {f.origem} → {f.destino} {vPlaca ? `[Veículo: ${vPlaca}]` : ''} ({money(f.valor_frete)})</option>
+                })}
+              </Select>
+            </Field>
+
             <Field label="Veículo / Placa">
               <Select value={tripInicio.veiculo_id} onChange={e => setTripInicio({...tripInicio, veiculo_id: e.target.value})} required>
                 <option value="">SELECIONE O VEÍCULO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
-              </Select>
-            </Field>
-
-            <Field label="Frete Associado (Planejados)">
-              <Select value={tripInicio.frete_id} onChange={e => setTripInicio({...tripInicio, frete_id: e.target.value})}>
-                <option value="">NENHUM / VIAGEM PRÓPRIA</option>
-                {fretesDisponiveis.map(f => <option key={f.id} value={f.id}>{f.codigo_frete} - {f.origem} → {f.destino} ({money(f.valor_frete)})</option>)}
               </Select>
             </Field>
 
@@ -777,6 +804,15 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 {['FRETE_PROPRIO','FRETE_TERCEIRO','TRANSFERENCIA','RETORNO','DESLOCAMENTO','OUTROS'].map(op => <option key={op}>{op}</option>)}
               </Select>
             </Field>
+            
+            {/* Novo campo para informar a placa/veículo no lançamento do frete */}
+            <Field label="Veículo / Placa Vinculada">
+              <Select value={freteForm.veiculo_id} onChange={e => setFreteForm({...freteForm, veiculo_id: e.target.value})}>
+                <option value="">SELECIONE O VEÍCULO (OPCIONAL)</option>
+                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
+              </Select>
+            </Field>
+
             <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} required placeholder="NOME DO CLIENTE"/></Field>
             <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required placeholder="CIDADE/UF ORIGEM"/></Field>
             <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required placeholder="CIDADE/UF DESTINO"/></Field>
