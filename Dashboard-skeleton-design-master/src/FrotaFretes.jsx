@@ -162,6 +162,31 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     return fretes.filter(f => f.status === 'PLANEJADO');
   }, [fretes]);
 
+  // Cálculo de Média de Consumo (KM/L) por Veículo
+  const veiculosComConsumo = useMemo(() => {
+    return veiculos.map(v => {
+      const viagensVeiculo = viagens.filter(item => Number(item.veiculo_id) === Number(v.id));
+      const viagemIds = viagensVeiculo.map(i => i.id);
+
+      const kmRodados = viagensVeiculo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
+      
+      const abstsVeiculo = abastecimentos.filter(a => {
+        if (!a.viagem_id) return false;
+        return viagemIds.includes(Number(a.viagem_id));
+      });
+      const totalLitros = abstsVeiculo.reduce((acc, a) => acc + Number(a.litros || 0), 0);
+      
+      const mediaKmL = totalLitros > 0 ? kmRodados / totalLitros : 0;
+
+      return {
+        ...v,
+        kmRodados,
+        totalLitros,
+        mediaKmL
+      };
+    });
+  }, [veiculos, viagens, abastecimentos]);
+
   // Ranking inteligente por retorno para o dashboard do gestor
   const rankingGestor = useMemo(() => {
     const mapa = {};
@@ -174,7 +199,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         viagensFinalizadas: 0,
         kmRodados: 0,
         receitaTotal: 0,
-        custosTotal: 0
+        custosTotal: 0,
+        totalLitros: 0
       };
     });
 
@@ -189,7 +215,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           viagensFinalizadas: 0,
           kmRodados: 0,
           receitaTotal: 0,
-          custosTotal: 0
+          custosTotal: 0,
+          totalLitros: 0
         };
       }
 
@@ -212,15 +239,18 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       const desps = despesas.filter(d => Number(d.viagem_id) === Number(viagem.id));
       const custoViagem = absts.reduce((acc, a) => acc + Number(a.valor_total || 0), 0) + desps.reduce((acc, d) => acc + Number(d.valor || 0), 0);
       item.custosTotal += custoViagem;
+      item.totalLitros += absts.reduce((acc, a) => acc + Number(a.litros || 0), 0);
     });
 
     return Object.values(mapa).map(item => {
       const retornoLiquido = item.receitaTotal - item.custosTotal;
       const mediaPorKm = item.kmRodados > 0 ? item.receitaTotal / item.kmRodados : 0;
+      const mediaKmL = item.totalLitros > 0 ? item.kmRodados / item.totalLitros : 0;
       return {
         ...item,
         retornoLiquido,
-        mediaPorKm
+        mediaPorKm,
+        mediaKmL
       };
     }).sort((a, b) => b.retornoLiquido - a.retornoLiquido);
   }, [veiculos, motoristas, viagens, fretes, abastecimentos, despesas]);
@@ -299,7 +329,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const r = editing ? await supabase.from('viagens').update(payload).eq('id', editing.id) : await supabase.from('viagens').insert(payload);
         if(r.error) throw r.error;
 
-        // Se houver frete associado e preço por tonelada, atualiza o valor total do frete com base no peso informado
         if (tripInicio.frete_id && tripInicio.valor_por_tonelada && pesoKg > 0) {
           const valorCalculado = (pesoKg / 1000) * Number(tripInicio.valor_por_tonelada);
           await supabase.from('fretes').update({ 
@@ -529,7 +558,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </div>
           </div>
 
-          {/* NOVO: Ranking do Gestor por Retorno, Placas, Motoristas e Média por KM */}
           <div className="bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -547,6 +575,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                     <th className="p-3 text-left">Motorista</th>
                     <th className="p-3 text-center">Viagens Finalizadas</th>
                     <th className="p-3 text-right">Km Rodados</th>
+                    <th className="p-3 text-right">Média KM/L</th>
                     <th className="p-3 text-right">Média Faturamento/KM</th>
                     <th className="p-3 text-right">Faturamento Total</th>
                     <th className="p-3 text-right">Retorno Líquido</th>
@@ -562,6 +591,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                       <td className="p-3 font-semibold text-gray-200">{r.motorista}</td>
                       <td className="p-3 text-center">{r.viagensFinalizadas}</td>
                       <td className="p-3 text-right">{num(r.kmRodados)} km</td>
+                      <td className="p-3 text-right text-yellow-400 font-bold">{num(r.mediaKmL, 2)} KM/L</td>
                       <td className="p-3 text-right text-purple-300 font-bold">{money(r.mediaPorKm)}/km</td>
                       <td className="p-3 text-right text-emerald-400 font-bold">{money(r.receitaTotal)}</td>
                       <td className="p-3 text-right text-teal-400 font-black">{money(r.retornoLiquido)}</td>
@@ -569,7 +599,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   ))}
                   {rankingGestor.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="p-6 text-center text-gray-500">Nenhum dado para o ranking.</td>
+                      <td colSpan={9} className="p-6 text-center text-gray-500">Nenhum dado para o ranking.</td>
                     </tr>
                   )}
                 </tbody>
@@ -711,17 +741,19 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {tab === 'veiculos' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Frota de Veículos</h2>
+            <h2 className="text-sm font-bold text-white">Frota de Veículos e Consumo Médio</h2>
             <button onClick={() => open('veiculo')} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Plus size={15}/>ADICIONAR VEÍCULO
             </button>
           </div>
-          <Table rows={veiculos} headers={['Placa','Marca','Modelo','Ano','Status','Ações']} render={v => (
+          <Table rows={veiculosComConsumo} headers={['Placa','Marca','Modelo','Ano','Km Rodados','Média KM/L','Status','Ações']} render={v => (
             <>
               <td className="p-3 font-bold text-blue-300">{v.placa}</td>
               <td className="p-3">{v.marca || '-'}</td>
               <td className="p-3 font-semibold text-white">{v.modelo || '-'}</td>
               <td className="p-3">{v.ano || '-'}</td>
+              <td className="p-3 text-gray-300">{num(v.kmRodados)} km</td>
+              <td className="p-3 font-bold text-yellow-400">{num(v.mediaKmL, 2)} KM/L</td>
               <td className="p-3">{statusBadge(v.status || 'DISPONIVEL')}</td>
               <td className="p-3"><Actions edit={() => open('veiculo', v)} del={() => del('veiculos', v.id, `O VEÍCULO ${v.placa}`)} /></td>
             </>
@@ -845,7 +877,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 const selectedFreteId = e.target.value;
                 const selectedFrete = fretes.find(f => Number(f.id) === Number(selectedFreteId));
                 
-                // Preenchimento automático do produto e preço por tonelada ao selecionar o frete
                 const pesoAtual = Number(tripInicio.peso_carregado_kg || selectedFrete?.peso_previsto_kg || 0);
                 const valorTon = selectedFrete?.valor_por_tonelada || '';
                 let valorCalculado = tripInicio.valor_frete_calculado;
