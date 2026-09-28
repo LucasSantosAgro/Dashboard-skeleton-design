@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2 } from 'lucide-react';
+import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2, Award } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { supabase } from './lib/supabaseClient';
 
@@ -10,7 +10,7 @@ const upper = v => (typeof v === 'string' ? v.toUpperCase() : v);
 
 const emptyTripInicio = {
   codigo_viagem: '', frete_id: '', veiculo_id: '', motorista_id: '', carreta_placa: '',
-  km_inicial: '', peso_carregado_kg: '', produto: '',
+  km_inicial: '', peso_carregado_kg: '', produto: '', valor_por_tonelada: '', valor_frete_calculado: '',
   numero_nf: '', local_carregamento: '', data_saida: '', observacao: '', status: 'EM_VIAGEM'
 };
 
@@ -22,7 +22,7 @@ const emptyAbastecimento = { veiculo_id: '', viagem_id: '', data_hora: '', litro
 const emptyDespesa = { veiculo_id: '', viagem_id: '', tipo: 'PEDAGIO', valor: '', data: '', descricao: '' };
 const emptyMotorista = { nome: '', email: '', telefone: '', status: 'ATIVO', veiculo_id: '' };
 const emptyVeiculo = { placa: '', marca: '', modelo: '', ano: '', status: 'DISPONIVEL' };
-const emptyFrete = { codigo_frete: '', tipo_operacao: 'FRETE_PROPRIO', origem: '', destino: '', cliente: '', valor_frete: '', status: 'PLANEJADO', veiculo_id: '' };
+const emptyFrete = { codigo_frete: '', tipo_operacao: 'FRETE_PROPRIO', origem: '', destino: '', cliente: '', produto: '', peso_previsto_kg: '', valor_por_tonelada: '', valor_frete: '', status: 'PLANEJADO', veiculo_id: '' };
 
 function Input(p){return <input {...p} value={p.value ?? ''} onChange={e => { e.target.value = upper(e.target.value); if(p.onChange) p.onChange(e); }} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
 function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
@@ -99,7 +99,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       if(resM.error) throw resM.error;
       setMotoristas(resM.data || []);
 
-      const resF = await supabase.from('fretes').select('id, codigo_frete, tipo_operacao, origem, destino, cliente, valor_frete, status, veiculo_id, created_at').order('created_at',{ascending:false});
+      const resF = await supabase.from('fretes').select('id, codigo_frete, tipo_operacao, origem, destino, cliente, produto, peso_previsto_kg, valor_por_tonelada, valor_frete, status, veiculo_id, created_at').order('created_at',{ascending:false});
       if(resF.error) throw resF.error;
       setFretes(resF.data || []);
 
@@ -162,6 +162,69 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     return fretes.filter(f => f.status === 'PLANEJADO');
   }, [fretes]);
 
+  // Ranking inteligente por retorno para o dashboard do gestor
+  const rankingGestor = useMemo(() => {
+    const mapa = {};
+    veiculos.forEach(v => {
+      mapa[v.id] = {
+        veiculo_id: v.id,
+        placa: v.placa,
+        modelo: v.modelo || '-',
+        motorista: motoristas.find(m => m.veiculo_id === v.id)?.nome || 'NÃO ATRIBUÍDO',
+        viagensFinalizadas: 0,
+        kmRodados: 0,
+        receitaTotal: 0,
+        custosTotal: 0
+      };
+    });
+
+    viagens.forEach(viagem => {
+      if (!mapa[viagem.veiculo_id]) {
+        const veh = veiculos.find(v => v.id === viagem.veiculo_id);
+        mapa[viagem.veiculo_id] = {
+          veiculo_id: viagem.veiculo_id,
+          placa: veh?.placa || 'OUTROS',
+          modelo: veh?.modelo || '-',
+          motorista: motoristas.find(m => m.id === viagem.motorista_id)?.nome || 'N/A',
+          viagensFinalizadas: 0,
+          kmRodados: 0,
+          receitaTotal: 0,
+          custosTotal: 0
+        };
+      }
+
+      const item = mapa[viagem.veiculo_id];
+      if (viagem.status === 'FINALIZADO') {
+        item.viagensFinalizadas += 1;
+      }
+
+      const km = Math.max(0, Number(viagem.km_final || 0) - Number(viagem.km_inicial || 0));
+      item.kmRodados += km;
+
+      if (viagem.frete_id) {
+        const freteObj = fretes.find(f => f.id === viagem.frete_id);
+        if (freteObj) {
+          item.receitaTotal += Number(freteObj.valor_frete || 0);
+        }
+      }
+
+      const absts = abastecimentos.filter(a => Number(a.viagem_id) === Number(viagem.id));
+      const desps = despesas.filter(d => Number(d.viagem_id) === Number(viagem.id));
+      const custoViagem = absts.reduce((acc, a) => acc + Number(a.valor_total || 0), 0) + desps.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+      item.custosTotal += custoViagem;
+    });
+
+    return Object.values(mapa).map(item => {
+      const retornoLiquido = item.receitaTotal - item.custosTotal;
+      const mediaPorKm = item.kmRodados > 0 ? item.receitaTotal / item.kmRodados : 0;
+      return {
+        ...item,
+        retornoLiquido,
+        mediaPorKm
+      };
+    }).sort((a, b) => b.retornoLiquido - a.retornoLiquido);
+  }, [veiculos, motoristas, viagens, fretes, abastecimentos, despesas]);
+
   function open(type, row = null) {
     setEditing(row); setQ('');
     if(type === 'iniciar_viagem') {
@@ -176,7 +239,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       }
 
       if(row) {
-        setTripInicio({...row});
+        setTripInicio({...row, valor_por_tonelada: '', valor_frete_calculado: ''});
       } else {
         setTripInicio({
           ...emptyTripInicio,
@@ -217,6 +280,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     setSaving(true); setError('');
     try {
       if(type === 'iniciar_viagem') {
+        const pesoKg = tripInicio.peso_carregado_kg ? Number(tripInicio.peso_carregado_kg) : 0;
         const payload = {
           codigo_viagem: upper(tripInicio.codigo_viagem || `VAG-${Date.now().toString().slice(-6)}`),
           frete_id: tripInicio.frete_id ? Number(tripInicio.frete_id) : null,
@@ -224,7 +288,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           motorista_id: isDriver && currentMotorista ? currentMotorista.id : Number(tripInicio.motorista_id),
           carreta_placa: upper(tripInicio.carreta_placa) || null,
           km_inicial: tripInicio.km_inicial ? Number(tripInicio.km_inicial) : null,
-          peso_carregado_kg: tripInicio.peso_carregado_kg ? Number(tripInicio.peso_carregado_kg) : null,
+          peso_carregado_kg: pesoKg || null,
           produto: upper(tripInicio.produto) || null,
           numero_nf: upper(tripInicio.numero_nf) || null,
           local_carregamento: upper(tripInicio.local_carregamento) || null,
@@ -234,6 +298,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         };
         const r = editing ? await supabase.from('viagens').update(payload).eq('id', editing.id) : await supabase.from('viagens').insert(payload);
         if(r.error) throw r.error;
+
+        // Se houver frete associado e preço por tonelada, atualiza o valor total do frete com base no peso informado
+        if (tripInicio.frete_id && tripInicio.valor_por_tonelada && pesoKg > 0) {
+          const valorCalculado = (pesoKg / 1000) * Number(tripInicio.valor_por_tonelada);
+          await supabase.from('fretes').update({ 
+            valor_frete: valorCalculado,
+            peso_previsto_kg: pesoKg,
+            produto: upper(tripInicio.produto) || undefined
+          }).eq('id', Number(tripInicio.frete_id));
+        }
+
         setModal('');
       } else if(type === 'finalizar_viagem') {
         const payload = {
@@ -304,13 +379,20 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         if(r.error) throw r.error;
         setModal('');
       } else if(type === 'frete') {
+        const pesoPrev = freteForm.peso_previsto_kg ? Number(freteForm.peso_previsto_kg) : 0;
+        const valorTon = freteForm.valor_por_tonelada ? Number(freteForm.valor_por_tonelada) : 0;
+        const valorTotalFinal = pesoPrev > 0 && valorTon > 0 ? (pesoPrev / 1000) * valorTon : Number(freteForm.valor_frete || 0);
+
         const payload = {
           codigo_frete: upper(freteForm.codigo_frete || `FRT-${Date.now().toString().slice(-6)}`),
           tipo_operacao: upper(freteForm.tipo_operacao || 'FRETE_PROPRIO'),
           origem: upper(freteForm.origem),
           destino: upper(freteForm.destino),
           cliente: upper(freteForm.cliente),
-          valor_frete: Number(freteForm.valor_frete || 0),
+          produto: upper(freteForm.produto) || null,
+          peso_previsto_kg: pesoPrev || null,
+          valor_por_tonelada: valorTon || null,
+          valor_frete: valorTotalFinal,
           status: upper(freteForm.status),
           veiculo_id: freteForm.veiculo_id ? Number(freteForm.veiculo_id) : null
         };
@@ -444,6 +526,54 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <h3 className="text-xl font-black mt-1">{money(kpis?.resultado || 0)}</h3>
               </div>
               <p className="text-[10px] text-teal-200 mt-3">Clique para ver por placa →</p>
+            </div>
+          </div>
+
+          {/* NOVO: Ranking do Gestor por Retorno, Placas, Motoristas e Média por KM */}
+          <div className="bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Award className="text-amber-400" size={18}/>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Ranking de Desempenho e Retorno por Veículo / Motorista</h3>
+              </div>
+              <span className="text-[10px] text-gray-400">Atualizado a cada viagem finalizada</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
+                  <tr>
+                    <th className="p-3 text-center w-12">#</th>
+                    <th className="p-3 text-left">Placa / Modelo</th>
+                    <th className="p-3 text-left">Motorista</th>
+                    <th className="p-3 text-center">Viagens Finalizadas</th>
+                    <th className="p-3 text-right">Km Rodados</th>
+                    <th className="p-3 text-right">Média Faturamento/KM</th>
+                    <th className="p-3 text-right">Faturamento Total</th>
+                    <th className="p-3 text-right">Retorno Líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankingGestor.map((r, idx) => (
+                    <tr key={r.veiculo_id} className="border-t border-white/5 hover:bg-white/[0.02]">
+                      <td className="p-3 text-center font-black text-amber-400">
+                        {idx === 0 ? '🥇 1º' : idx === 1 ? '🥈 2º' : idx === 2 ? '🥉 3º' : `${idx + 1}º`}
+                      </td>
+                      <td className="p-3 font-bold text-blue-300">{r.placa} <span className="text-gray-400 font-normal">({r.modelo})</span></td>
+                      <td className="p-3 font-semibold text-gray-200">{r.motorista}</td>
+                      <td className="p-3 text-center">{r.viagensFinalizadas}</td>
+                      <td className="p-3 text-right">{num(r.kmRodados)} km</td>
+                      <td className="p-3 text-right text-purple-300 font-bold">{money(r.mediaPorKm)}/km</td>
+                      <td className="p-3 text-right text-emerald-400 font-bold">{money(r.receitaTotal)}</td>
+                      <td className="p-3 text-right text-teal-400 font-black">{money(r.retornoLiquido)}</td>
+                    </tr>
+                  ))}
+                  {rankingGestor.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="p-6 text-center text-gray-500">Nenhum dado para o ranking.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -628,13 +758,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Plus size={15}/>CADASTRAR FRETE
             </button>
           </div>
-          <Table rows={fretes.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || '-'}))} headers={['Código','Tipo Operação','Veículo (Placa)','Origem → Destino','Cliente','Valor Frete','Status','Ações']} render={f => (
+          <Table rows={fretes.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || '-'}))} headers={['Código','Tipo Operação','Veículo (Placa)','Produto','Origem → Destino','Valor/Ton','Valor Frete','Status','Ações']} render={f => (
             <>
               <td className="p-3 font-bold text-blue-300">{f.codigo_frete}</td>
               <td className="p-3 font-semibold text-blue-400">{f.tipo_operacao}</td>
               <td className="p-3 font-bold text-amber-400">{f.veiculo_placa}</td>
+              <td className="p-3 text-gray-300">{f.produto || '-'}</td>
               <td className="p-3">{f.origem || '-'} → {f.destino || '-'}</td>
-              <td className="p-3">{f.cliente || '-'}</td>
+              <td className="p-3 text-purple-300">{f.valor_por_tonelada ? money(f.valor_por_tonelada) : '-'}</td>
               <td className="p-3 font-bold text-emerald-400">{money(f.valor_frete)}</td>
               <td className="p-3">{statusBadge(f.status || 'PLANEJADO')}</td>
               <td className="p-3"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
@@ -713,10 +844,24 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Select value={tripInicio.frete_id} onChange={e => {
                 const selectedFreteId = e.target.value;
                 const selectedFrete = fretes.find(f => Number(f.id) === Number(selectedFreteId));
+                
+                // Preenchimento automático do produto e preço por tonelada ao selecionar o frete
+                const pesoAtual = Number(tripInicio.peso_carregado_kg || selectedFrete?.peso_previsto_kg || 0);
+                const valorTon = selectedFrete?.valor_por_tonelada || '';
+                let valorCalculado = tripInicio.valor_frete_calculado;
+
+                if (valorTon && pesoAtual > 0) {
+                  valorCalculado = (pesoAtual / 1000) * Number(valorTon);
+                }
+
                 setTripInicio({
                   ...tripInicio, 
                   frete_id: selectedFreteId,
-                  veiculo_id: selectedFrete?.veiculo_id ? String(selectedFrete.veiculo_id) : tripInicio.veiculo_id
+                  veiculo_id: selectedFrete?.veiculo_id ? String(selectedFrete.veiculo_id) : tripInicio.veiculo_id,
+                  produto: selectedFrete?.produto || tripInicio.produto,
+                  peso_carregado_kg: selectedFrete?.peso_previsto_kg ? String(selectedFrete.peso_previsto_kg) : tripInicio.peso_carregado_kg,
+                  valor_por_tonelada: valorTon,
+                  valor_frete_calculado: valorCalculado || selectedFrete?.valor_frete || ''
                 });
               }}>
                 <option value="">NENHUM / VIAGEM PRÓPRIA</option>
@@ -731,12 +876,31 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               </Select>
             </Field>
 
-            <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} placeholder="EX: SOJA A GRANEL"/></Field>
+            <Field label="Produto Transportado (Auto)"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} placeholder="EX: SOJA A GRANEL"/></Field>
+            <Field label="Preço por Tonelada (R$) (Auto)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => {
+              const valTon = e.target.value;
+              const pesoKg = Number(tripInicio.peso_carregado_kg || 0);
+              const calc = pesoKg > 0 && valTon ? (pesoKg / 1000) * Number(valTon) : '';
+              setTripInicio({...tripInicio, valor_por_tonelada: valTon, valor_frete_calculado: calc});
+            }} placeholder="R$ por TON"/></Field>
+            
+            <Field label="Peso Carga (kg)">
+              <Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => {
+                const pesoKg = e.target.value;
+                const valTon = Number(tripInicio.valor_por_tonelada || 0);
+                const calc = valTon > 0 && pesoKg ? (Number(pesoKg) / 1000) * valTon : '';
+                setTripInicio({...tripInicio, peso_carregado_kg: pesoKg, valor_frete_calculado: calc});
+              }} placeholder="Ex: 35000"/>
+            </Field>
+
+            <Field label="Valor Total Frete (Calculado)">
+              <Input type="number" step="0.01" value={tripInicio.valor_frete_calculado} disabled className="bg-gray-800 text-emerald-400 font-bold cursor-not-allowed" placeholder="Calculado automaticamente"/>
+            </Field>
+
             <Field label="Placa Carreta (Opcional)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})}/></Field>
             <Field label="Local Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})}/></Field>
             <Field label="Número NF"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
             <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})}/></Field>
-            <Field label="Peso Origem (kg)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => setTripInicio({...tripInicio, peso_carregado_kg: e.target.value})}/></Field>
             <Field label="Data/Hora Saída"><Input type="datetime-local" value={tripInicio.data_saida ? tripInicio.data_saida.slice(0,16) : ''} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})}/></Field>
             <Field label="Observação" className="sm:col-span-2"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})}/></Field>
             
@@ -817,9 +981,22 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               </Select>
             </Field>
             <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} required placeholder="NOME DO CLIENTE"/></Field>
+            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} placeholder="EX: SOJA, MILHO, ADUBO"/></Field>
+            <Field label="Peso Previsto (kg)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => {
+              const peso = e.target.value;
+              const ton = Number(freteForm.valor_por_tonelada || 0);
+              const total = ton > 0 && peso ? (Number(peso) / 1000) * ton : freteForm.valor_frete;
+              setFreteForm({...freteForm, peso_previsto_kg: peso, valor_frete: total});
+            }} placeholder="EX: 35000"/></Field>
+            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => {
+              const ton = e.target.value;
+              const peso = Number(freteForm.peso_previsto_kg || 0);
+              const total = peso > 0 && ton ? (peso / 1000) * Number(ton) : freteForm.valor_frete;
+              setFreteForm({...freteForm, valor_por_tonelada: ton, valor_frete: total});
+            }} placeholder="R$ por TON"/></Field>
+            <Field label="Valor do Frete Total (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required/></Field>
             <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required placeholder="CIDADE/UF ORIGEM"/></Field>
             <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required placeholder="CIDADE/UF DESTINO"/></Field>
-            <Field label="Valor do Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required/></Field>
             <Field label="Status">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
                 {['PLANEJADO','AGUARDANDO_CARREGAMENTO','CARREGADO','EM_VIAGEM','NO_DESTINO','FINALIZADO','CANCELADO'].map(st => <option key={st}>{st}</option>)}
