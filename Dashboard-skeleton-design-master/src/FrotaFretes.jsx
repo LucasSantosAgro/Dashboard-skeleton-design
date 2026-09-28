@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2, Award } from 'lucide-react';
+import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2, Award, Calendar } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { supabase } from './lib/supabaseClient';
 
@@ -64,6 +64,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [despesas, setDespesas] = useState([]);
   const [kpis, setKpis] = useState(null);
   const [dashboardData, setDashboardData] = useState([]);
+
+  // Estados de Filtros de Período
+  const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos', 'mes_ano', 'intervalo'
+  const [filtroMesAno, setFiltroMesAno] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [filtroDataInicio, setFiltroDataInicio] = useState('');
+  const [filtroDataFim, setFiltroDataFim] = useState('');
 
   const [tripInicio, setTripInicio] = useState(emptyTripInicio);
   const [tripFim, setTripFim] = useState(emptyTripFim);
@@ -146,8 +152,85 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
   useEffect(() => { load(); }, [load]);
 
+  // Função auxiliar para checar se uma data string está dentro do período selecionado
+  const validarFiltroData = useCallback((dataStr) => {
+    if (filtroTipo === 'todos' || !dataStr) return true;
+    const d = new Date(dataStr);
+    if (isNaN(d.getTime())) return true;
+
+    if (filtroTipo === 'mes_ano' && filtroMesAno) {
+      const [anoFiltro, mesFiltro] = filtroMesAno.split('-');
+      return d.getFullYear() === Number(anoFiltro) && (d.getMonth() + 1) === Number(mesFiltro);
+    }
+
+    if (filtroTipo === 'intervalo') {
+      let valido = true;
+      if (filtroDataInicio) {
+        const dInicio = new Date(filtroDataInicio + 'T00:00:00');
+        if (d < dInicio) valido = false;
+      }
+      if (filtroDataFim) {
+        const dFim = new Date(filtroDataFim + 'T23:59:59');
+        if (d > dFim) valido = false;
+      }
+      return valido;
+    }
+
+    return true;
+  }, [filtroTipo, filtroMesAno, filtroDataInicio, filtroDataFim]);
+
+  // Dados filtrados por período
+  const viagensFiltradasPeriodo = useMemo(() => {
+    return viagens.filter(v => validarFiltroData(v.data_saida || v.created_at));
+  }, [viagens, validarFiltroData]);
+
+  const fretesFiltradosPeriodo = useMemo(() => {
+    return fretes.filter(f => validarFiltroData(f.created_at));
+  }, [fretes, validarFiltroData]);
+
+  const abastecimentosFiltradosPeriodo = useMemo(() => {
+    return abastecimentos.filter(a => validarFiltroData(a.created_at));
+  }, [abastecimentos, validarFiltroData]);
+
+  const despesasFiltradasPeriodo = useMemo(() => {
+    return despesas.filter(d => validarFiltroData(d.data || d.created_at));
+  }, [despesas, validarFiltroData]);
+
+  // KPIs dinâmicos baseados no período filtrado
+  const kpisFiltrados = useMemo(() => {
+    const total_viagens = viagensFiltradasPeriodo.length;
+    const km_rodados = viagensFiltradasPeriodo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
+    const toneladas_transportadas = viagensFiltradasPeriodo.reduce((acc, item) => acc + Number(item.peso_descarga_kg || item.peso_carregado_kg || 0) / 1000, 0);
+    
+    const fretesIds = viagensFiltradasPeriodo.map(v => v.frete_id).filter(Boolean);
+    const receita_fretes = fretesFiltradosPeriodo
+      .filter(f => fretesIds.includes(f.id) || viagensFiltradasPeriodo.some(v => v.frete_id === f.id))
+      .reduce((acc, f) => acc + Number(f.valor_frete || 0), 0);
+
+    const viagemIdsPeriodo = viagensFiltradasPeriodo.map(v => Number(v.id));
+    const custosAbst = abastecimentosFiltradosPeriodo
+      .filter(a => a.viagem_id && viagemIdsPeriodo.includes(Number(a.viagem_id)))
+      .reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
+    
+    const custosDesp = despesasFiltradasPeriodo
+      .filter(d => d.viagem_id && viagemIdsPeriodo.includes(Number(d.viagem_id)))
+      .reduce((acc, d) => acc + Number(d.valor || 0), 0);
+
+    const custos_operacionais = custosAbst + custosDesp;
+    const resultado = receita_fretes - custos_operacionais;
+
+    return {
+      total_viagens,
+      km_rodados,
+      toneladas_transportadas,
+      receita_fretes,
+      custos_operacionais,
+      resultado
+    };
+  }, [viagensFiltradasPeriodo, fretesFiltradosPeriodo, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo]);
+
   const viagensFiltradas = useMemo(() => {
-    let lista = viagens.map(v => ({
+    let lista = viagensFiltradasPeriodo.map(v => ({
       ...v,
       motorista_nome: motoristas.find(m => m.id === v.motorista_id)?.nome || '-'
     }));
@@ -156,21 +239,21 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       lista = lista.filter(v => v.motorista_id === currentMotorista.id);
     }
     return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.produto, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
-  }, [viagens, motoristas, isDriver, currentMotorista, q]);
+  }, [viagensFiltradasPeriodo, motoristas, isDriver, currentMotorista, q]);
 
   const fretesDisponiveis = useMemo(() => {
     return fretes.filter(f => f.status === 'PLANEJADO');
   }, [fretes]);
 
-  // Cálculo de Média de Consumo (KM/L) por Veículo
+  // Cálculo de Média de Consumo (KM/L) por Veículo com base no período filtrado
   const veiculosComConsumo = useMemo(() => {
     return veiculos.map(v => {
-      const viagensVeiculo = viagens.filter(item => Number(item.veiculo_id) === Number(v.id));
+      const viagensVeiculo = viagensFiltradasPeriodo.filter(item => Number(item.veiculo_id) === Number(v.id));
       const viagemIds = viagensVeiculo.map(i => i.id);
 
       const kmRodados = viagensVeiculo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
       
-      const abstsVeiculo = abastecimentos.filter(a => {
+      const abstsVeiculo = abastecimentosFiltradosPeriodo.filter(a => {
         if (!a.viagem_id) return false;
         return viagemIds.includes(Number(a.viagem_id));
       });
@@ -185,9 +268,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         mediaKmL
       };
     });
-  }, [veiculos, viagens, abastecimentos]);
+  }, [veiculos, viagensFiltradasPeriodo, abastecimentosFiltradosPeriodo]);
 
-  // Ranking inteligente por retorno para o dashboard do gestor
+  // Ranking inteligente por retorno para o dashboard do gestor (considerando o período filtrado)
   const rankingGestor = useMemo(() => {
     const mapa = {};
     veiculos.forEach(v => {
@@ -204,7 +287,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       };
     });
 
-    viagens.forEach(viagem => {
+    viagensFiltradasPeriodo.forEach(viagem => {
       if (!mapa[viagem.veiculo_id]) {
         const veh = veiculos.find(v => v.id === viagem.veiculo_id);
         mapa[viagem.veiculo_id] = {
@@ -235,8 +318,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         }
       }
 
-      const absts = abastecimentos.filter(a => Number(a.viagem_id) === Number(viagem.id));
-      const desps = despesas.filter(d => Number(d.viagem_id) === Number(viagem.id));
+      const absts = abastecimentosFiltradosPeriodo.filter(a => Number(a.viagem_id) === Number(viagem.id));
+      const desps = despesasFiltradasPeriodo.filter(d => Number(d.viagem_id) === Number(viagem.id));
       const custoViagem = absts.reduce((acc, a) => acc + Number(a.valor_total || 0), 0) + desps.reduce((acc, d) => acc + Number(d.valor || 0), 0);
       item.custosTotal += custoViagem;
       item.totalLitros += absts.reduce((acc, a) => acc + Number(a.litros || 0), 0);
@@ -253,7 +336,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         mediaKmL
       };
     }).sort((a, b) => b.retornoLiquido - a.retornoLiquido);
-  }, [veiculos, motoristas, viagens, fretes, abastecimentos, despesas]);
+  }, [veiculos, motoristas, viagensFiltradasPeriodo, fretes, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo]);
 
   function open(type, row = null) {
     setEditing(row); setQ('');
@@ -448,17 +531,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
   const getKpiBreakdownByPlate = (metricType) => {
     return veiculos.map(v => {
-      const viagensVeiculo = viagens.filter(item => Number(item.veiculo_id) === Number(v.id));
+      const viagensVeiculo = viagensFiltradasPeriodo.filter(item => Number(item.veiculo_id) === Number(v.id));
       const viagemIds = viagensVeiculo.map(i => i.id);
 
       const kmRodados = viagensVeiculo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
       const toneladas = viagensVeiculo.reduce((acc, item) => acc + Number(item.peso_descarga_kg || item.peso_carregado_kg || 0) / 1000, 0);
       
-      const fretesVeiculo = fretes.filter(f => viagensVeiculo.some(tg => tg.frete_id === f.id));
+      const fretesVeiculo = fretesFiltradosPeriodo.filter(f => viagensVeiculo.some(tg => tg.frete_id === f.id));
       const receita = fretesVeiculo.reduce((acc, f) => acc + Number(f.valor_frete || 0), 0);
 
-      const abstViagem = abastecimentos.filter(a => a.viagem_id && viagemIds.includes(Number(a.viagem_id)));
-      const despViagem = despesas.filter(d => d.viagem_id && viagemIds.includes(Number(d.viagem_id)));
+      const abstViagem = abastecimentosFiltradosPeriodo.filter(a => a.viagem_id && viagemIds.includes(Number(a.viagem_id)));
+      const despViagem = despesasFiltradasPeriodo.filter(d => d.viagem_id && viagemIds.includes(Number(d.viagem_id)));
       
       const custosAbst = abstViagem.reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
       const custosDesp = despViagem.reduce((acc, d) => acc + Number(d.valor || 0), 0);
@@ -502,6 +585,67 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       </div>
 
+      {/* Barra Global de Filtros de Período */}
+      {!isDriver && (
+        <div className="bg-[#161B23] border border-white/5 p-4 rounded-xl flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-white text-xs font-bold">
+            <Calendar size={16} className="text-blue-400" />
+            <span>Filtro de Período:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-1 bg-[#1A2030] p-1 rounded-lg border border-white/10">
+              <button 
+                onClick={() => setFiltroTipo('todos')} 
+                className={`px-3 py-1.5 rounded text-[10px] font-bold transition-colors ${filtroTipo === 'todos' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                TODOS
+              </button>
+              <button 
+                onClick={() => setFiltroTipo('mes_ano')} 
+                className={`px-3 py-1.5 rounded text-[10px] font-bold transition-colors ${filtroTipo === 'mes_ano' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                MÊS / ANO
+              </button>
+              <button 
+                onClick={() => setFiltroTipo('intervalo')} 
+                className={`px-3 py-1.5 rounded text-[10px] font-bold transition-colors ${filtroTipo === 'intervalo' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                DATA INÍCIO / FIM
+              </button>
+            </div>
+
+            {filtroTipo === 'mes_ano' && (
+              <input 
+                type="month" 
+                value={filtroMesAno} 
+                onChange={e => setFiltroMesAno(e.target.value)} 
+                className="bg-[#1A2030] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"
+              />
+            )}
+
+            {filtroTipo === 'intervalo' && (
+              <div className="flex items-center gap-2">
+                <input 
+                  type="date" 
+                  value={filtroDataInicio} 
+                  onChange={e => setFiltroDataInicio(e.target.value)} 
+                  className="bg-[#1A2030] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"
+                  placeholder="Início"
+                />
+                <span className="text-gray-500 text-xs">até</span>
+                <input 
+                  type="date" 
+                  value={filtroDataFim} 
+                  onChange={e => setFiltroDataFim(e.target.value)} 
+                  className="bg-[#1A2030] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"
+                  placeholder="Fim"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {error && <div className="flex gap-2 p-3 rounded-xl bg-red-950/30 border border-red-500/20 text-red-300 text-xs"><AlertCircle size={15}/>{error}</div>}
 
       {!isDriver && tab === 'dashboard' && (
@@ -509,7 +653,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           <div className="flex justify-between items-center bg-[#161B23] border border-white/5 p-4 rounded-xl">
             <h2 className="text-sm font-extrabold text-white tracking-wider">Dashboard da Frota (Clique nos cards para detalhar por placa)</h2>
             <div className="flex items-center gap-2 text-xs text-gray-400 bg-[#1A2030] px-3 py-1.5 rounded-lg border border-white/10">
-              <span>Período Geral</span>
+              <span>Período Ativo Filtrado</span>
             </div>
           </div>
 
@@ -517,42 +661,42 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <div onClick={() => setKpiModal('viagens')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-blue-100">Total de Viagens</p>
-                <h3 className="text-2xl font-black mt-1">{kpis?.total_viagens || viagens.length}</h3>
+                <h3 className="text-2xl font-black mt-1">{kpisFiltrados.total_viagens}</h3>
               </div>
               <p className="text-[10px] text-blue-200 mt-3">Clique para ver por placa →</p>
             </div>
             <div onClick={() => setKpiModal('km')} className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-emerald-100">Km Rodados</p>
-                <h3 className="text-2xl font-black mt-1">{num(kpis?.km_rodados || 0)} km</h3>
+                <h3 className="text-2xl font-black mt-1">{num(kpisFiltrados.km_rodados)} km</h3>
               </div>
               <p className="text-[10px] text-emerald-200 mt-3">Clique para ver por placa →</p>
             </div>
             <div onClick={() => setKpiModal('toneladas')} className="bg-gradient-to-br from-amber-500 to-amber-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-amber-100">Toneladas Transportadas</p>
-                <h3 className="text-2xl font-black mt-1">{num(kpis?.toneladas_transportadas || 0, 1)} t</h3>
+                <h3 className="text-2xl font-black mt-1">{num(kpisFiltrados.toneladas_transportadas, 1)} t</h3>
               </div>
               <p className="text-[10px] text-amber-200 mt-3">Clique para ver por placa →</p>
             </div>
             <div onClick={() => setKpiModal('receita')} className="bg-gradient-to-br from-purple-600 to-purple-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-purple-100">Receita de Fretes</p>
-                <h3 className="text-xl font-black mt-1">{money(kpis?.receita_fretes || fretes.reduce((acc, f) => acc + Number(f.valor_frete || 0), 0))}</h3>
+                <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.receita_fretes)}</h3>
               </div>
               <p className="text-[10px] text-purple-200 mt-3">Clique para ver por placa →</p>
             </div>
             <div onClick={() => setKpiModal('custos')} className="bg-gradient-to-br from-rose-600 to-rose-800 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-rose-100">Custos Operacionais</p>
-                <h3 className="text-xl font-black mt-1">{money(kpis?.custos_operacionais || abastecimentos.reduce((acc, a) => acc + Number(a.valor_total || 0), 0))}</h3>
+                <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.custos_operacionais)}</h3>
               </div>
               <p className="text-[10px] text-rose-200 mt-3">Clique para ver por placa →</p>
             </div>
             <div onClick={() => setKpiModal('resultado')} className="bg-gradient-to-br from-teal-500 to-teal-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
                 <p className="text-[10px] uppercase font-semibold text-teal-100">Resultado</p>
-                <h3 className="text-xl font-black mt-1">{money(kpis?.resultado || 0)}</h3>
+                <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.resultado)}</h3>
               </div>
               <p className="text-[10px] text-teal-200 mt-3">Clique para ver por placa →</p>
             </div>
@@ -564,7 +708,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <Award className="text-amber-400" size={18}/>
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">Ranking de Desempenho e Retorno por Veículo / Motorista</h3>
               </div>
-              <span className="text-[10px] text-gray-400">Atualizado a cada viagem finalizada</span>
+              <span className="text-[10px] text-gray-400">Baseado no período filtrado</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -599,7 +743,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   ))}
                   {rankingGestor.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="p-6 text-center text-gray-500">Nenhum dado para o ranking.</td>
+                      <td colSpan={9} className="p-6 text-center text-gray-500">Nenhum dado para o ranking no período selecionado.</td>
                     </tr>
                   )}
                 </tbody>
@@ -610,7 +754,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2 bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col justify-between">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xs font-bold text-white uppercase">Receitas x Custos</h3>
+                <h3 className="text-xs font-bold text-white uppercase">Receitas x Custos (Período)</h3>
                 <div className="flex gap-4 text-[10px]">
                   <span className="flex items-center gap-1.5 text-emerald-400 font-bold"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Receita</span>
                   <span className="flex items-center gap-1.5 text-rose-400 font-bold"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Custos</span>
@@ -734,14 +878,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 </div>
               </td>
             </>
-          )} empty="NENHUMA VIAGEM REGISTRADA."/>
+          )} empty="NENHUMA VIAGEM REGISTRADA NO PERÍODO."/>
         </div>
       )}
 
       {tab === 'veiculos' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Frota de Veículos e Consumo Médio</h2>
+            <h2 className="text-sm font-bold text-white">Frota de Veículos e Consumo Médio (Período)</h2>
             <button onClick={() => open('veiculo')} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Plus size={15}/>ADICIONAR VEÍCULO
             </button>
@@ -785,12 +929,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {tab === 'fretes' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Gestão de Fretes</h2>
+            <h2 className="text-sm font-bold text-white">Gestão de Fretes (Período)</h2>
             <button onClick={() => open('frete')} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Plus size={15}/>CADASTRAR FRETE
             </button>
           </div>
-          <Table rows={fretes.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || '-'}))} headers={['Código','Tipo Operação','Veículo (Placa)','Produto','Origem → Destino','Valor/Ton','Valor Frete','Status','Ações']} render={f => (
+          <Table rows={fretesFiltradosPeriodo.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || '-'}))} headers={['Código','Tipo Operação','Veículo (Placa)','Produto','Origem → Destino','Valor/Ton','Valor Frete','Status','Ações']} render={f => (
             <>
               <td className="p-3 font-bold text-blue-300">{f.codigo_frete}</td>
               <td className="p-3 font-semibold text-blue-400">{f.tipo_operacao}</td>
@@ -802,19 +946,19 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-3">{statusBadge(f.status || 'PLANEJADO')}</td>
               <td className="p-3"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
             </>
-          )} empty="NENHUM FRETE CADASTRADO."/>
+          )} empty="NENHUM FRETE CADASTRADO NO PERÍODO."/>
         </div>
       )}
 
       {tab === 'abastecimentos' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Consulta de Abastecimentos</h2>
+            <h2 className="text-sm font-bold text-white">Consulta de Abastecimentos (Período)</h2>
             <button onClick={() => open('abastecimento')} className="flex items-center gap-2 bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Fuel size={15}/>NOVO ABASTECIMENTO
             </button>
           </div>
-          <Table rows={abastecimentos.map(a => ({...a, viagem_codigo: viagens.find(v => Number(v.id) === Number(a.viagem_id))?.codigo_viagem || '-'}))} headers={['Data/Hora','Viagem','Posto','Litros','Valor Total','KM Atual','']} render={a => (
+          <Table rows={abastecimentosFiltradosPeriodo.map(a => ({...a, viagem_codigo: viagens.find(v => Number(v.id) === Number(a.viagem_id))?.codigo_viagem || '-'}))} headers={['Data/Hora','Viagem','Posto','Litros','Valor Total','KM Atual','']} render={a => (
             <>
               <td className="p-3">{a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '-'}</td>
               <td className="p-3 font-bold text-blue-300">{a.viagem_codigo}</td>
@@ -824,19 +968,19 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-3">{num(a.km_atual)} KM</td>
               <td className="p-3"><Actions del={() => del('abastecimentos', a.id, 'O ABASTECIMENTO')} /></td>
             </>
-          )} empty="NENHUM ABASTECIMENTO REGISTRADO."/>
+          )} empty="NENHUM ABASTECIMENTO REGISTRADO NO PERÍODO."/>
         </div>
       )}
 
       {tab === 'despesas' && (
         <div className="bg-[#161B23] border border-white/5 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white">Consulta de Despesas</h2>
+            <h2 className="text-sm font-bold text-white">Consulta de Despesas (Período)</h2>
             <button onClick={() => open('despesa')} className="flex items-center gap-2 bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
               <Receipt size={15}/>LANÇAR DESPESA
             </button>
           </div>
-          <Table rows={despesas.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || '-'}))} headers={['Data','Viagem','Tipo','Descrição','Valor','']} render={d => (
+          <Table rows={despesasFiltradasPeriodo.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || '-'}))} headers={['Data','Viagem','Tipo','Descrição','Valor','']} render={d => (
             <>
               <td className="p-3">{d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-'}</td>
               <td className="p-3 font-bold text-blue-300">{d.viagem_codigo}</td>
@@ -845,7 +989,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-3 font-bold">{money(d.valor)}</td>
               <td className="p-3"><Actions del={() => del('viagem_despesas', d.id, 'A DESPESA')} /></td>
             </>
-          )} empty="NENHUMA DESPESA REGISTRADA."/>
+          )} empty="NENHUMA DESPESA REGISTRADA NO PERÍODO."/>
         </div>
       )}
 
@@ -1059,7 +1203,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       {modal === 'despesa' && (
         <Modal title="Lançar Despesa de Viagem" onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form onSubmit= {e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Viagem Vinculada (Ativa ou Finalizada)">
               <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})} required>
                 <option value="">SELECIONE A VIAGEM</option>
