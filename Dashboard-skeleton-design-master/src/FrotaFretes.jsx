@@ -83,14 +83,16 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [editing, setEditing] = useState(null);
   const [kpiModal, setKpiModal] = useState(null);
 
+  // Correção aplicada: busca segura e rigorosa do motorista logado por e-mail (tratando maiúsculas/minúsculas e espaços)
   const currentMotorista = useMemo(() => {
-    if (!isDriver) return null;
-    return motoristas.find(m => m.email?.toLowerCase() === currentUserEmail?.toLowerCase()) || null;
+    if (!isDriver || !currentUserEmail) return null;
+    const cleanEmail = currentUserEmail.trim().toLowerCase();
+    return motoristas.find(m => m.email && m.email.trim().toLowerCase() === cleanEmail) || null;
   }, [isDriver, motoristas, currentUserEmail]);
 
   const viagemAtiva = useMemo(() => {
     if (!currentMotorista) return null;
-    return viagens.find(v => v.motorista_id === currentMotorista.id && v.status === 'EM_VIAGEM') || null;
+    return viagens.find(v => Number(v.motorista_id) === Number(currentMotorista.id) && v.status === 'EM_VIAGEM') || null;
   }, [viagens, currentMotorista]);
 
   const load = useCallback(async () => {
@@ -250,7 +252,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     }));
 
     if (isDriver && currentMotorista) {
-      lista = lista.filter(v => v.motorista_id === currentMotorista.id);
+      lista = lista.filter(v => Number(v.motorista_id) === Number(currentMotorista.id));
     }
     return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.produto, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
   }, [viagensFiltradasPeriodo, motoristas, isDriver, currentMotorista, q]);
@@ -387,7 +389,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           codigo_viagem: upper(tripInicio.codigo_viagem || `VAG-${Date.now().toString().slice(-6)}`),
           frete_id: tripInicio.frete_id ? Number(tripInicio.frete_id) : null,
           veiculo_id: Number(tripInicio.veiculo_id),
-          motorista_id: resolvedMotoristaId,
+          motorista_id: Number(resolvedMotoristaId),
           carreta_placa: upper(tripInicio.carreta_placa) || null,
           km_inicial: tripInicio.km_inicial ? Number(tripInicio.km_inicial) : null,
           peso_carregado_kg: pesoKg || null,
@@ -458,7 +460,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       } else if(type === 'motorista') {
         const payload = {
           nome: upper(motoristaForm.nome),
-          email: motoristaForm.email?.toLowerCase(),
+          email: motoristaForm.email?.toLowerCase().trim(),
           telefone: motoristaForm.telefone,
           status: upper(motoristaForm.status),
           veiculo_id: motoristaForm.veiculo_id ? Number(motoristaForm.veiculo_id) : null,
@@ -993,14 +995,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 ) : (
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] text-amber-400 font-bold">⚠️ E-MAIL NÃO VINCULADO AUTOMATICAMENTE. SELECIONE SEU CADASTRO:</span>
-                    <Select value={tripInicio.id} onChange={e => setTripInicio({...tripInicio, id: e.target.value})} required>
+                    <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})} required>
                       <option value="">SELECIONE SEU CADASTRO CORRETO</option>
                       {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome} ({m.email || 'SEM E-MAIL'})</option>)}
                     </Select>
                   </div>
                 )
               ) : (
-                <Select value={tripInicio.id} onChange={e => setTripInicio({...tripInicio, id: e.target.value})} required>
+                <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})} required>
                   <option value="">SELECIONE O MOTORISTA</option>
                   {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </Select>
