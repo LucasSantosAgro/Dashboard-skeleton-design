@@ -83,10 +83,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [editing, setEditing] = useState(null);
   const [kpiModal, setKpiModal] = useState(null);
 
-  // CORRIGIDO: Busca estrita por e-mail do motorista logado sem fallback incorreto para motoristas[0]
+  // CORREÇÃO APLICADA: Busca estrita e segura por e-mail (com trim e lowercase para evitar falhas de correspondência)
   const currentMotorista = useMemo(() => {
-    if (!isDriver) return null;
-    return motoristas.find(m => m.email?.toLowerCase() === currentUserEmail?.toLowerCase()) || null;
+    if (!isDriver || !currentUserEmail) return null;
+    const cleanEmail = currentUserEmail.trim().toLowerCase();
+    return motoristas.find(m => m.email?.trim().toLowerCase() === cleanEmail) || null;
   }, [isDriver, motoristas, currentUserEmail]);
 
   const viagemAtiva = useMemo(() => {
@@ -205,7 +206,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       .reduce((acc, f) => acc + Number(f.valor_frete || 0), 0);
 
     const viagemIdsPeriodo = viagensFiltradasPeriodo.map(v => Number(v.id));
-    // CORRIGIDO: Apenas custos atrelados às viagens do período para evitar inflar com registros avulsos
     const custosAbst = abastecimentosFiltradosPeriodo
       .filter(a => a.viagem_id && viagemIdsPeriodo.includes(Number(a.viagem_id)))
       .reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
@@ -227,7 +227,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     };
   }, [viagensFiltradasPeriodo, fretesFiltradosPeriodo, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo]);
 
-  // Mini Ranking de Postos (Abastecimentos)
   const rankingPostos = useMemo(() => {
     const mapaPostos = {};
     abastecimentosFiltradosPeriodo.forEach(a => {
@@ -253,7 +252,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     }));
 
     if (isDriver && currentMotorista) {
-      lista = lista.filter(v => v.motorista_id === currentMotorista.id);
+      lista = lista.filter(v => Number(v.motorista_id) === Number(currentMotorista.id));
     }
     return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.produto, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
   }, [viagensFiltradasPeriodo, motoristas, isDriver, currentMotorista, q]);
@@ -269,7 +268,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       const kmRodados = viagensVeiculo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
       
-      // CORRIGIDO: Removido o `if (!a.viagem_id) return true;` para que registros avulsos não afetem todos os veículos
       const abstsVeiculo = abastecimentosFiltradosPeriodo.filter(a => {
         if (!a.viagem_id) return false;
         return viagemIds.includes(Number(a.viagem_id));
@@ -454,7 +452,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       } else if(type === 'motorista') {
         const payload = {
           nome: upper(motoristaForm.nome),
-          email: motoristaForm.email?.toLowerCase(),
+          email: motoristaForm.email?.toLowerCase().trim(),
           telefone: motoristaForm.telefone,
           status: upper(motoristaForm.status),
           veiculo_id: motoristaForm.veiculo_id ? Number(motoristaForm.veiculo_id) : null,
@@ -525,14 +523,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       const fretesVeiculo = fretesFiltradosPeriodo.filter(f => viagensVeiculo.some(tg => tg.frete_id === f.id));
       const receita = fretesVeiculo.reduce((acc, f) => acc + Number(f.valor_frete || 0), 0);
 
-      // CORRIGIDO: Vinculação restrita às viagens do veículo
       const abstViagem = abastecimentosFiltradosPeriodo.filter(a => a.viagem_id && viagemIds.includes(Number(a.viagem_id)));
       const despViagem = despesasFiltradasPeriodo.filter(d => d.viagem_id && viagemIds.includes(Number(d.viagem_id)));
       
       const totalLitrosAbst = abstViagem.reduce((acc, a) => acc + Number(a.litros || 0), 0);
       const totalValAbst = abstViagem.reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
       
-      // Mapeamento de despesas por modalidade/tipo para este veículo
       const despesasPorModalidade = {};
       despViagem.forEach(d => {
         const tipoDesp = upper(d.tipo || 'OUTROS');
@@ -666,7 +662,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </div>
           </div>
 
-          {/* Mini Ranking de Postos com Valor Médio por Litro */}
           <div className="bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
