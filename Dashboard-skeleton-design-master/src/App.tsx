@@ -575,7 +575,7 @@ export function KanbanPatio() {
 
       if (erroBusca || !contrato) {
         console.error('Erro ao buscar contrato:', erroBusca);
-        alert('Ordem finalizada, mas houve um erro ao localizar o contrato vinculado.');
+        alert('Ordem finalizada, mais houve um erro ao localizar o contrato vinculado.');
         return;
       }
 
@@ -1379,6 +1379,10 @@ export default function App() {
       if (profile.nome) setUserName(profile.nome);
       const roleDetectado = profile.role || profile.perfil || 'gestor';
       setUserRole(roleDetectado.toLowerCase());
+      
+      if (roleDetectado.toLowerCase() === 'motorista') {
+        setAba('frota');
+      }
     }
     setLoading(false);
   }, []);
@@ -1633,7 +1637,13 @@ export default function App() {
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
         {aba === "frota" ? (
-          <FrotaFretes />
+          <FrotaFretes session={session} userRole={userRole} userName={userName} />
+        ) : userRole === 'motorista' ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-[#161B23] rounded-xl border border-white/5">
+            <Truck size={48} className="text-blue-400 mb-4 animate-bounce" />
+            <h2 className="text-lg font-bold text-white uppercase tracking-wider">Painel do Motorista</h2>
+            <p className="text-xs text-gray-400 mt-2 max-w-md">Utilize a aba <strong>Frota / Fretes</strong> no menu lateral para gerenciar suas viagens e fretes asignados.</p>
+          </div>
         ) : (
           <>
             {aba === "dashboard" && (
@@ -1863,6 +1873,14 @@ export default function App() {
                     <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
                       <History size={16} className="text-blue-400"/> Histórico de Movimentações de Caixa
                     </h3>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none">
+                        <option value="">Todos os Tipos</option>
+                        <option value="ENTRADA_TROCO">Entrada de Troco</option>
+                        <option value="SAIDA_TROCO">Saída de Troco</option>
+                        <option value="SANGRIA_GASTO">Sangria / Gasto</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
