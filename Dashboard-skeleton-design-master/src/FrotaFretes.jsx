@@ -83,16 +83,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [editing, setEditing] = useState(null);
   const [kpiModal, setKpiModal] = useState(null);
 
-  // CORRIGIDO: Busca estrita e segura do motorista logado por e-mail (tratando maiúsculas/minúsculas e espaços)[cite: 23]
   const currentMotorista = useMemo(() => {
-    if (!isDriver || !currentUserEmail) return null;
-    const cleanEmail = currentUserEmail.trim().toLowerCase();
-    return motoristas.find(m => m.email && m.email.trim().toLowerCase() === cleanEmail) || null;
+    if (!isDriver) return null;
+    return motoristas.find(m => m.email?.toLowerCase() === currentUserEmail?.toLowerCase()) || null;
   }, [isDriver, motoristas, currentUserEmail]);
 
   const viagemAtiva = useMemo(() => {
     if (!currentMotorista) return null;
-    return viagens.find(v => Number(v.motorista_id) === Number(currentMotorista.id) && v.status === 'EM_VIAGEM') || null;
+    return viagens.find(v => v.motorista_id === currentMotorista.id && v.status === 'EM_VIAGEM') || null;
   }, [viagens, currentMotorista]);
 
   const load = useCallback(async () => {
@@ -248,11 +246,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const viagensFiltradas = useMemo(() => {
     let lista = viagensFiltradasPeriodo.map(v => ({
       ...v,
-      motorista_nome: motoristas.find(m => Number(m.id) === Number(v.motorista_id))?.nome || '-'
+      motorista_nome: motoristas.find(m => m.id === v.motorista_id)?.nome || '-'
     }));
 
     if (isDriver && currentMotorista) {
-      lista = lista.filter(v => Number(v.motorista_id) === Number(currentMotorista.id));
+      lista = lista.filter(v => v.motorista_id === currentMotorista.id);
     }
     return lista.filter(x => [x.codigo_viagem, x.local_carregamento, x.local_descarga, x.numero_nf, x.produto, x.motorista_nome].join(' ').toLowerCase().includes(q.toLowerCase()));
   }, [viagensFiltradasPeriodo, motoristas, isDriver, currentMotorista, q]);
@@ -284,17 +282,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     veiculos.forEach(v => {
       mapa[v.id] = {
         veiculo_id: v.id, placa: v.placa, modelo: v.modelo || '-',
-        motorista: motoristas.find(m => Number(m.veiculo_id) === Number(v.id))?.nome || 'NÃO ATRIBUÍDO',
+        motorista: motoristas.find(m => m.veiculo_id === v.id)?.nome || 'NÃO ATRIBUÍDO',
         viagensFinalizadas: 0, kmRodados: 0, receitaTotal: 0, custosTotal: 0, totalLitros: 0
       };
     });
 
     viagensFiltradasPeriodo.forEach(viagem => {
       if (!mapa[viagem.veiculo_id]) {
-        const veh = veiculos.find(v => Number(v.id) === Number(viagem.veiculo_id));
+        const veh = veiculos.find(v => v.id === viagem.veiculo_id);
         mapa[viagem.veiculo_id] = {
           veiculo_id: viagem.veiculo_id, placa: veh?.placa || 'OUTROS', modelo: veh?.modelo || '-',
-          motorista: motoristas.find(m => Number(m.id) === Number(viagem.motorista_id))?.nome || 'N/A',
+          motorista: motoristas.find(m => m.id === viagem.motorista_id)?.nome || 'N/A',
           viagensFinalizadas: 0, kmRodados: 0, receitaTotal: 0, custosTotal: 0, totalLitros: 0
         };
       }
@@ -306,7 +304,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       item.kmRodados += km;
 
       if (viagem.frete_id) {
-        const freteObj = fretes.find(f => Number(f.id) === Number(viagem.frete_id));
+        const freteObj = fretes.find(f => f.id === viagem.frete_id);
         if (freteObj) item.receitaTotal += Number(freteObj.valor_frete || 0);
       }
 
@@ -327,7 +325,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   function open(type, row = null) {
     setEditing(row); setQ('');
     if(type === 'iniciar_viagem') {
-      const veiculoSugerido = isDriver && currentMotorista ? (currentMotorista.veiculo_id || '') : '';
+      const veiculoSugerido = currentMotorista?.veiculo_id || '';
       let freteSugeridoId = '';
       if (!row && veiculoSugerido) {
         const freteDoVeiculo = fretes.find(f => Number(f.veiculo_id) === Number(veiculoSugerido) && f.status === 'PLANEJADO');
@@ -376,14 +374,20 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     setSaving(true); setError('');
     try {
       if(type === 'iniciar_viagem') {
+        const resolvedMotoristaId = isDriver 
+          ? (currentMotorista ? currentMotorista.id : (tripInicio.motorista_id ? Number(tripInicio.motorista_id) : null))
+          : (tripInicio.motorista_id ? Number(tripInicio.motorista_id) : null);
+
+        if (!resolvedMotoristaId) {
+          throw new Error('Identificação do motorista obrigatória. Selecione seu cadastro para prosseguir.');
+        }
+
         const pesoKg = tripInicio.peso_carregado_kg ? Number(tripInicio.peso_carregado_kg) : 0;
-        const motoristaIdFinal = isDriver && currentMotorista ? currentMotorista.id : (tripInicio.motorista_id ? Number(tripInicio.motorista_id) : null);
-        
         const payload = {
           codigo_viagem: upper(tripInicio.codigo_viagem || `VAG-${Date.now().toString().slice(-6)}`),
           frete_id: tripInicio.frete_id ? Number(tripInicio.frete_id) : null,
           veiculo_id: Number(tripInicio.veiculo_id),
-          motorista_id: motoristaIdFinal,
+          motorista_id: resolvedMotoristaId,
           carreta_placa: upper(tripInicio.carreta_placa) || null,
           km_inicial: tripInicio.km_inicial ? Number(tripInicio.km_inicial) : null,
           peso_carregado_kg: pesoKg || null,
@@ -454,7 +458,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       } else if(type === 'motorista') {
         const payload = {
           nome: upper(motoristaForm.nome),
-          email: motoristaForm.email?.toLowerCase().trim(),
+          email: motoristaForm.email?.toLowerCase(),
           telefone: motoristaForm.telefone,
           status: upper(motoristaForm.status),
           veiculo_id: motoristaForm.veiculo_id ? Number(motoristaForm.veiculo_id) : null,
@@ -522,7 +526,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       const kmRodados = viagensVeiculo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
       const toneladas = viagensVeiculo.reduce((acc, item) => acc + Number(item.peso_descarga_kg || item.peso_carregado_kg || 0) / 1000, 0);
       
-      const fretesVeiculo = fretesFiltradosPeriodo.filter(f => viagensVeiculo.some(tg => Number(tg.frete_id) === Number(f.id)));
+      const fretesVeiculo = fretesFiltradosPeriodo.filter(f => viagensVeiculo.some(tg => tg.frete_id === f.id));
       const receita = fretesVeiculo.reduce((acc, f) => acc + Number(f.valor_frete || 0), 0);
 
       const abstViagem = abastecimentosFiltradosPeriodo.filter(a => a.viagem_id && viagemIds.includes(Number(a.viagem_id)));
@@ -897,7 +901,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Plus size={15}/>NOVO MOTORISTA
             </button>
           </div>
-          <Table rows={motoristas.map(m => ({...m, veiculo_placa: veiculos.find(v => Number(v.id) === Number(m.veiculo_id))?.placa || 'NENHUM'}))} headers={['Nome','E-mail','Telefone','Veículo Vinculado','Status','']} render={m => (
+          <Table rows={motoristas.map(m => ({...m, veiculo_placa: veiculos.find(v => v.id === m.veiculo_id)?.placa || 'NENHUM'}))} headers={['Nome','E-mail','Telefone','Veículo Vinculado','Status','']} render={m => (
             <>
               <td className="p-3 font-bold text-white">{m.nome}</td>
               <td className="p-3 lowercase">{m.email || '-'}</td>
@@ -984,9 +988,19 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             
             <Field label="Motorista">
               {isDriver ? (
-                <Input value={currentMotorista ? currentMotorista.nome : (currentUserEmail || 'MOTORISTA')} disabled className="bg-gray-800 text-gray-400 cursor-not-allowed"/>
+                currentMotorista ? (
+                  <Input value={currentMotorista.nome} disabled className="bg-gray-800 text-gray-400 cursor-not-allowed"/>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-amber-400 font-bold">⚠️ E-MAIL NÃO VINCULADO AUTOMATICAMENTE. SELECIONE SEU CADASTRO:</span>
+                    <Select value={tripInicio.id} onChange={e => setTripInicio({...tripInicio, id: e.target.value})} required>
+                      <option value="">SELECIONE SEU CADASTRO CORRETO</option>
+                      {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome} ({m.email || 'SEM E-MAIL'})</option>)}
+                    </Select>
+                  </div>
+                )
               ) : (
-                <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})} required>
+                <Select value={tripInicio.id} onChange={e => setTripInicio({...tripInicio, id: e.target.value})} required>
                   <option value="">SELECIONE O MOTORISTA</option>
                   {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </Select>
