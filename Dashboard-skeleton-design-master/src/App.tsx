@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabaseClient';
 import jsPDF from "jspdf";
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
-import AbaLogistica from './AbaLogistica.jsx';
 import FrotaFretes from './FrotaFretes.jsx';
 import CheckinPortaria from './app/(public)/checkin/page.jsx';
 import AgendamentoPage from './app/(public)/agendamento/page.jsx';
@@ -1380,10 +1379,6 @@ export default function App() {
       if (profile.nome) setUserName(profile.nome);
       const roleDetectado = profile.role || profile.perfil || 'gestor';
       setUserRole(roleDetectado.toLowerCase());
-      
-      if (roleDetectado.toLowerCase() === 'motorista') {
-        setAba('logistica');
-      }
     }
     setLoading(false);
   }, []);
@@ -1590,9 +1585,6 @@ export default function App() {
               <button onClick={() => setAba("caixa")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'caixa' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>CONTROLE DE CAIXA</button>
             </>
           )}
-          <button onClick={() => setAba("logistica")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'logistica' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-            {userRole === 'motorista' ? 'MEU DIÁRIO / LOGÍSTICA' : 'LOGÍSTICA / DIÁRIO'}
-          </button>
           
           <button
             onClick={() => setAba("frota")}
@@ -1640,8 +1632,8 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
-        {userRole === 'motorista' && aba !== 'frota' ? (
-          <AbaLogistica session={session} userName={userName} />
+        {aba === "frota" ? (
+          <FrotaFretes />
         ) : (
           <>
             {aba === "dashboard" && (
@@ -1871,82 +1863,13 @@ export default function App() {
                     <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
                       <History size={16} className="text-blue-400"/> Histórico de Movimentações de Caixa
                     </h3>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none">
-                        <option value="">Todos os Tipos</option>
-                        <option value="ENTRADA_TROCO">Entrada de Troco</option>
-                        <option value="SAIDA_TROCO">Saída de Troco (Vendas)</option>
-                        <option value="SANGRIA_GASTO">Sangria / Gasto</option>
-                      </select>
-                      <input type="date" value={fCaixaDataI} onChange={e => setFCaixaDataI(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none" />
-                      <input type="date" value={fCaixaDataF} onChange={e => setFCaixaDataF(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none" />
-                      <select value={fCaixaOperador} onChange={e => setFCaixaOperador(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none">
-                        <option value="">Todos Operadores</option>
-                        {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
-                      </select>
-                      <input type="text" placeholder="Buscar motivo..." value={fCaixaBusca} onChange={e => setFCaixaBusca(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none" />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 text-xs text-gray-400">
-                    <span>Total Aportes Filtrados: <strong className="text-green-400">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
-                    <span>Total Saídas/Retiradas Filtradas: <strong className="text-red-400">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
-                          {["Data/Hora", "Tipo", "Motivo", "Operador", "Valor", "Saldo Resultante"].map(h => <th key={h} className="p-2.5">{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {movimentacoesFiltradas.length === 0 ? (
-                          <tr><td colSpan="6" className="text-center py-6 text-gray-500">Nenhuma movimentação encontrada com os filtros atuais.</td></tr>
-                        ) : (
-                          movimentacoesFiltradas.map(m => (
-                            <tr key={m.id} className="hover:bg-white/[0.02]">
-                              <td className="p-2.5 text-gray-300">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
-                              <td className="p-2.5">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  m.tipo === 'ENTRADA_TROCO' ? 'bg-green-950/60 text-green-300 border border-green-500/20' :
-                                  m.tipo === 'SAIDA_TROCO' ? 'bg-amber-950/60 text-amber-300 border border-amber-500/20' :
-                                  'bg-red-950/60 text-red-300 border border-red-500/20'
-                                }`}>
-                                  {m.tipo}
-                                </span>
-                              </td>
-                              <td className="p-2.5 text-gray-200">{m.motivo}</td>
-                              <td className="p-2.5 text-gray-300">{m.operador || 'N/A'}</td>
-                              <td className={`p-2.5 font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-green-400' : 'text-red-400'}`}>
-                                {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                              </td>
-                              <td className="p-2.5 font-semibold text-white">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
                   </div>
                 </div>
               </div>
             )}
 
-            {aba === "logistica" && (
-              <AbaLogistica session={session} userName={userName} />
-            )}
-
-            {aba === "frota" && (
-              <FrotaFretes userRole={userRole} />
-            )}
-
-            {aba === "patio" && (
-              <KanbanPatio />
-            )}
-
-            {aba === "cad_contratos" && (
-              <CadastroContratos />
-            )}
+            {aba === "patio" && <KanbanPatio />}
+            {aba === "cad_contratos" && <CadastroContratos />}
           </>
         )}
       </main>
