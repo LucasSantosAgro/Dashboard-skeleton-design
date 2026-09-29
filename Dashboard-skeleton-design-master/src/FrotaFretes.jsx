@@ -83,9 +83,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [editing, setEditing] = useState(null);
   const [kpiModal, setKpiModal] = useState(null);
 
+  // CORRIGIDO: Busca estrita por e-mail do motorista logado sem fallback incorreto para motoristas[0]
   const currentMotorista = useMemo(() => {
     if (!isDriver) return null;
-    return motoristas.find(m => m.email?.toLowerCase() === currentUserEmail?.toLowerCase()) || motoristas[0] || null;
+    return motoristas.find(m => m.email?.toLowerCase() === currentUserEmail?.toLowerCase()) || null;
   }, [isDriver, motoristas, currentUserEmail]);
 
   const viagemAtiva = useMemo(() => {
@@ -204,12 +205,13 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       .reduce((acc, f) => acc + Number(f.valor_frete || 0), 0);
 
     const viagemIdsPeriodo = viagensFiltradasPeriodo.map(v => Number(v.id));
+    // CORRIGIDO: Apenas custos atrelados às viagens do período para evitar inflar com registros avulsos
     const custosAbst = abastecimentosFiltradosPeriodo
-      .filter(a => !a.viagem_id || viagemIdsPeriodo.includes(Number(a.viagem_id)))
+      .filter(a => a.viagem_id && viagemIdsPeriodo.includes(Number(a.viagem_id)))
       .reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
     
     const custosDesp = despesasFiltradasPeriodo
-      .filter(d => !d.viagem_id || viagemIdsPeriodo.includes(Number(d.viagem_id)))
+      .filter(d => d.viagem_id && viagemIdsPeriodo.includes(Number(d.viagem_id)))
       .reduce((acc, d) => acc + Number(d.valor || 0), 0);
 
     const custos_operacionais = custosAbst + custosDesp;
@@ -224,6 +226,25 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       resultado
     };
   }, [viagensFiltradasPeriodo, fretesFiltradosPeriodo, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo]);
+
+  // Mini Ranking de Postos (Abastecimentos)
+  const rankingPostos = useMemo(() => {
+    const mapaPostos = {};
+    abastecimentosFiltradosPeriodo.forEach(a => {
+      const nomePosto = upper(a.posto || 'NÃO INFORMADO');
+      if (!mapaPostos[nomePosto]) {
+        mapaPostos[nomePosto] = { posto: nomePosto, totalLitros: 0, valorTotal: 0, qtdAbastecimentos: 0 };
+      }
+      mapaPostos[nomePosto].totalLitros += Number(a.litros || 0);
+      mapaPostos[nomePosto].valorTotal += Number(a.valor_total || 0);
+      mapaPostos[nomePosto].qtdAbastecimentos += 1;
+    });
+
+    return Object.values(mapaPostos).map(p => ({
+      ...p,
+      precoMedioLitro: p.totalLitros > 0 ? p.valorTotal / p.totalLitros : 0
+    })).sort((a, b) => b.totalLitros - a.totalLitros);
+  }, [abastecimentosFiltradosPeriodo]);
 
   const viagensFiltradas = useMemo(() => {
     let lista = viagensFiltradasPeriodo.map(v => ({
@@ -248,8 +269,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       const kmRodados = viagensVeiculo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
       
+      // CORRIGIDO: Removido o `if (!a.viagem_id) return true;` para que registros avulsos não afetem todos os veículos
       const abstsVeiculo = abastecimentosFiltradosPeriodo.filter(a => {
-        if (!a.viagem_id) return true; // Contabiliza avulsos se necessário ou restringe
+        if (!a.viagem_id) return false;
         return viagemIds.includes(Number(a.viagem_id));
       });
       const totalLitros = abstsVeiculo.reduce((acc, a) => acc + Number(a.litros || 0), 0);
@@ -503,13 +525,36 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       const fretesVeiculo = fretesFiltradosPeriodo.filter(f => viagensVeiculo.some(tg => tg.frete_id === f.id));
       const receita = fretesVeiculo.reduce((acc, f) => acc + Number(f.valor_frete || 0), 0);
 
-      const abstViagem = abastecimentosFiltradosPeriodo.filter(a => !a.viagem_id || viagemIds.includes(Number(a.viagem_id)));
-      const despViagem = despesasFiltradasPeriodo.filter(d => !d.viagem_id || viagemIds.includes(Number(d.viagem_id)));
+      // CORRIGIDO: Vinculação restrita às viagens do veículo
+      const abstViagem = abastecimentosFiltradosPeriodo.filter(a => a.viagem_id && viagemIds.includes(Number(a.viagem_id)));
+      const despViagem = despesasFiltradasPeriodo.filter(d => d.viagem_id && viagemIds.includes(Number(d.viagem_id)));
       
-      const custos = abstViagem.reduce((acc, a) => acc + Number(a.valor_total || 0), 0) + despViagem.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+      const totalLitrosAbst = abstViagem.reduce((acc, a) => acc + Number(a.litros || 0), 0);
+      const totalValAbst = abstViagem.reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
+      
+      // Mapeamento de despesas por modalidade/tipo para este veículo
+      const despesasPorModalidade = {};
+      despViagem.forEach(d => {
+        const tipoDesp = upper(d.tipo || 'OUTROS');
+        despesasPorModalidade[tipoDesp] = (despesasPorModalidade[tipoDesp] || 0) + Number(d.valor || 0);
+      });
+
+      const custos = totalValAbst + despViagem.reduce((acc, d) => acc + Number(d.valor || 0), 0);
       const resultado = receita - custos;
 
-      return { placa: v.placa, modelo: v.modelo || '-', totalViagens: viagensVeiculo.length, kmRodados, toneladas, receita, custos, resultado };
+      return { 
+        placa: v.placa, 
+        modelo: v.modelo || '-', 
+        totalViagens: viagensVeiculo.length, 
+        kmRodados, 
+        toneladas, 
+        receita, 
+        custos, 
+        resultado,
+        totalLitrosAbst,
+        totalValAbst,
+        despesasPorModalidade
+      };
     });
   };
 
@@ -610,7 +655,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <p className="text-[10px] uppercase font-semibold text-rose-100">Custos Operacionais</p>
                 <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.custos_operacionais)}</h3>
               </div>
-              <p className="text-[10px] text-rose-200 mt-3">Clique para ver por placa →</p>
+              <p className="text-[10px] text-rose-200 mt-3">Clique para ver divisão por placa →</p>
             </div>
             <div onClick={() => setKpiModal('resultado')} className="bg-gradient-to-br from-teal-500 to-teal-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
@@ -618,6 +663,46 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.resultado)}</h3>
               </div>
               <p className="text-[10px] text-teal-200 mt-3">Clique para ver por placa →</p>
+            </div>
+          </div>
+
+          {/* Mini Ranking de Postos com Valor Médio por Litro */}
+          <div className="bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Fuel className="text-emerald-400" size={18}/>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Mini Ranking de Postos (Volume e Preço Médio do Combustível)</h3>
+              </div>
+              <span className="text-[10px] text-gray-400">Postos mais utilizados no período</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
+                  <tr>
+                    <th className="p-3 text-center w-12">#</th>
+                    <th className="p-3 text-left">Posto</th>
+                    <th className="p-3 text-center">Abastecimentos</th>
+                    <th className="p-3 text-right">Total Litros</th>
+                    <th className="p-3 text-right">Valor Gasto Total</th>
+                    <th className="p-3 text-right text-yellow-400">Preço Médio / Litro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankingPostos.map((p, idx) => (
+                    <tr key={p.posto} className="border-t border-white/5 hover:bg-white/[0.02]">
+                      <td className="p-3 text-center font-black text-emerald-400">{idx + 1}º</td>
+                      <td className="p-3 font-bold text-blue-300">{p.posto}</td>
+                      <td className="p-3 text-center">{p.qtdAbastecimentos}</td>
+                      <td className="p-3 text-right">{num(p.totalLitros, 2)} L</td>
+                      <td className="p-3 text-right font-bold text-gray-200">{money(p.valorTotal)}</td>
+                      <td className="p-3 text-right font-black text-yellow-400">{money(p.precoMedioLitro)} / L</td>
+                    </tr>
+                  ))}
+                  {!rankingPostos.length && (
+                    <tr><td colSpan={6} className="p-6 text-center text-gray-500">Nenhum abastecimento registrado no período.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -668,30 +753,72 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {kpiModal && (
-        <Modal title={`Detalhamento por Placa - ${kpiModal.toUpperCase()}`} onClose={() => setKpiModal(null)}>
+        <Modal 
+          title={
+            kpiModal === 'custos' 
+              ? 'Divisão de Custos por Placa (Abastecimentos e Despesas por Modalidade)' 
+              : `Detalhamento por Placa - ${kpiModal.toUpperCase()}`
+          } 
+          onClose={() => setKpiModal(null)}
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
                 <tr>
                   <th className="p-3 text-left">Placa / Veículo</th>
-                  <th className="p-3 text-center">Total Viagens</th>
-                  <th className="p-3 text-right">Km Rodados</th>
-                  <th className="p-3 text-right">Toneladas (t)</th>
-                  <th className="p-3 text-right">Receita Fretes</th>
-                  <th className="p-3 text-right">Custos</th>
-                  <th className="p-3 text-right">Resultado</th>
+                  {kpiModal === 'custos' ? (
+                    <>
+                      <th className="p-3 text-right">Abastecimento (Litros / Total)</th>
+                      <th className="p-3 text-left">Despesas por Modalidade</th>
+                      <th className="p-3 text-right">Custo Total</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="p-3 text-center">Total Viagens</th>
+                      <th className="p-3 text-right">Km Rodados</th>
+                      <th className="p-3 text-right">Toneladas (t)</th>
+                      <th className="p-3 text-right">Receita Fretes</th>
+                      <th className="p-3 text-right">Custos</th>
+                      <th className="p-3 text-right">Resultado</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {getKpiBreakdownByPlate(kpiModal).map((item, idx) => (
                   <tr key={idx} className="border-t border-white/5 hover:bg-white/[0.02]">
                     <td className="p-3 font-bold text-blue-300">{item.placa} <span className="text-gray-400 font-normal">({item.modelo})</span></td>
-                    <td className="p-3 text-center">{item.totalViagens}</td>
-                    <td className="p-3 text-right">{num(item.kmRodados)} km</td>
-                    <td className="p-3 text-right">{num(item.toneladas, 1)} t</td>
-                    <td className="p-3 text-right text-emerald-400 font-bold">{money(item.receita)}</td>
-                    <td className="p-3 text-right text-rose-400 font-bold">{money(item.custos)}</td>
-                    <td className="p-3 text-right text-teal-400 font-black">{money(item.resultado)}</td>
+                    {kpiModal === 'custos' ? (
+                      <>
+                        <td className="p-3 text-right text-emerald-400 font-bold">
+                          {num(item.totalLitrosAbst, 2)} L<br/>
+                          <span className="text-white">{money(item.totalValAbst)}</span>
+                        </td>
+                        <td className="p-3">
+                          {Object.keys(item.despesasPorModalidade).length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {Object.entries(item.despesasPorModalidade).map(([tipo, val]) => (
+                                <span key={tipo} className="text-[11px] text-amber-300">
+                                  <strong>{tipo}:</strong> {money(val)}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-500">Nenhuma despesa registrada</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right text-rose-400 font-black">{money(item.custos)}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="p-3 text-center">{item.totalViagens}</td>
+                        <td className="p-3 text-right">{num(item.kmRodados)} km</td>
+                        <td className="p-3 text-right">{num(item.toneladas, 1)} t</td>
+                        <td className="p-3 text-right text-emerald-400 font-bold">{money(item.receita)}</td>
+                        <td className="p-3 text-right text-rose-400 font-bold">{money(item.custos)}</td>
+                        <td className="p-3 text-right text-teal-400 font-black">{money(item.resultado)}</td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
