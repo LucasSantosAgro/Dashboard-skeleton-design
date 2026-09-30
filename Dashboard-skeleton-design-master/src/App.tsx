@@ -1394,6 +1394,8 @@ export default function App() {
     
     if (roleDetectado.toLowerCase() === 'motorista') {
       setAba('frota');
+    } else if (roleDetectado.toLowerCase() === 'operador') {
+      setAba('dashboard');
     }
     setLoading(false);
   }, []);
@@ -1601,25 +1603,29 @@ export default function App() {
             </>
           )}
           
-          <button
-            onClick={() => setAba("frota")}
-            className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-              aba === 'frota'
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Truck size={14} /> FROTA / FRETES
-          </button>
+          {userRole === 'gestor' && (
+            <button
+              onClick={() => setAba("frota")}
+              className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                aba === 'frota'
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Truck size={14} /> FROTA / FRETES
+            </button>
+          )}
 
           {userRole !== 'motorista' && (
             <>
               <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
                 <CheckSquare size={14} /> CONTROLE DE PÁTIO
               </button>
-              <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-                <Package size={14} /> CADASTRO DE CONTRATOS
-              </button>
+              {userRole === 'gestor' && (
+                <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                  <Package size={14} /> CADASTRO DE CONTRATOS
+                </button>
+              )}
             </>
           )}
         </nav>
@@ -1647,7 +1653,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
-        {aba === "frota" ? (
+        {aba === "frota" && userRole === 'gestor' ? (
           <FrotaFretes session={session} userRole={userRole} userName={userName} currentUserEmail={session?.user?.email || ''} />
         ) : userRole === 'motorista' ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-[#161B23] rounded-xl border border-white/5">
@@ -1946,7 +1952,7 @@ export default function App() {
             )}
 
             {aba === "patio" && <KanbanPatio />}
-            {aba === "cad_contratos" && <CadastroContratos />}
+            {aba === "cad_contratos" && userRole === 'gestor' && <CadastroContratos />}
           </>
         )}
       </main>
