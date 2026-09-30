@@ -83,7 +83,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [editing, setEditing] = useState(null);
   const [kpiModal, setKpiModal] = useState(null);
 
-  // Correção aplicada: busca segura e rigorosa do motorista logado por e-mail (tratando maiúsculas/minúsculas e espaços)
+  // Vínculo rigoroso e seguro do motorista logado por e-mail (tratando maiúsculas/minúsculas e espaços)
   const currentMotorista = useMemo(() => {
     if (!isDriver || !currentUserEmail) return null;
     const cleanEmail = currentUserEmail.trim().toLowerCase();

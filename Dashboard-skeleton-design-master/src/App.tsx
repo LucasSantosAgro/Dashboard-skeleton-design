@@ -1216,7 +1216,7 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
     e.preventDefault();
 
     if (pesoSaidaNum < pesoEntrada) {
-      alert("⚠️️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
+      alert("⚠️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
       return;
     }
 
@@ -1364,7 +1364,7 @@ export default function App() {
     link.href = faviconSvg;
   }, []);
 
-  const load = useCallback(async (userId) => {
+  const load = useCallback(async (userId, userEmail) => {
     setLoading(true);
     const { data: pesagensData } = await supabase.from('fat_pesagens').select('*').neq('status_pagamento', 'EXCLUÍDO');
     const { data: caixaData } = await supabase.from('controle_caixa').select('saldo_atual').eq('id', 1).maybeSingle();
@@ -1375,14 +1375,27 @@ export default function App() {
     setMovimentacoes(movData || []);
     setSaldoCaixa(Number(caixaData?.saldo_atual || 0));
     
-    if (profile) {
-      if (profile.nome) setUserName(profile.nome);
-      const roleDetectado = profile.role || profile.perfil || 'gestor';
-      setUserRole(roleDetectado.toLowerCase());
-      
-      if (roleDetectado.toLowerCase() === 'motorista') {
-        setAba('frota');
+    let roleDetectado = profile?.role || profile?.perfil || 'gestor';
+    let nomeFinal = profile?.nome || '';
+
+    // Se for motorista, tenta buscar o nome real cadastrado na tabela de motoristas pelo e-mail
+    if (roleDetectado.toLowerCase() === 'motorista' && userEmail) {
+      const { data: motoristaData } = await supabase
+        .from('motoristas')
+        .select('nome')
+        .ilike('email', userEmail.trim())
+        .maybeSingle();
+
+      if (motoristaData?.nome) {
+        nomeFinal = motoristaData.nome;
       }
+    }
+
+    if (nomeFinal) setUserName(nomeFinal);
+    setUserRole(roleDetectado.toLowerCase());
+    
+    if (roleDetectado.toLowerCase() === 'motorista') {
+      setAba('frota');
     }
     setLoading(false);
   }, []);
@@ -1395,11 +1408,11 @@ export default function App() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) load(session.user.id); else setLoading(false);
+      if (session) load(session.user.id, session.user.email); else setLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => { 
       setSession(session); 
-      if (session) load(session.user.id); else setLoading(false);
+      if (session) load(session.user.id, session.user.email); else setLoading(false);
     });
     return () => subscription.unsubscribe();
   }, [load, isPublicCheckin, isPublicAgendamento]);
@@ -1414,7 +1427,7 @@ export default function App() {
       saldo_resultante: novoSaldo
     }]);
     setSaldoCaixa(novoSaldo);
-    if (session?.user?.id) load(session.user.id);
+    if (session?.user?.id) load(session.user.id, session.user.email);
   };
 
   const handleAdicionarTroco = async (e) => {
@@ -1444,7 +1457,7 @@ export default function App() {
   const excluirPesagem = async (id) => {
     if (window.confirm("Confirmar o cancelamento desta pesagem?")) {
       const { error } = await supabase.from('fat_pesagens').update({ status_pagamento: 'EXCLUÍDO' }).eq('id', id);
-      if (!error && session?.user?.id) load(session.user.id);
+      if (!error && session?.user?.id) load(session.user.id, session.user.email);
     }
   };
 
@@ -1466,7 +1479,7 @@ export default function App() {
         status_pagamento: 'ABERTO', 
         operador_entrada: userName 
     }]);
-    if (error) alert(error.message); else { alert("Registrado com Sucesso: " + nextComp); e.target.reset(); if (session?.user?.id) load(session.user.id); }
+    if (error) alert(error.message); else { alert("Registrado com Sucesso: " + nextComp); e.target.reset(); if (session?.user?.id) load(session.user.id, session.user.email); }
   };
 
   const finalizarPesagem = async (p, e, calcData) => {
@@ -1497,7 +1510,7 @@ export default function App() {
     const { error } = await supabase.from('fat_pesagens').update(payload).eq('id', p.id);
 
     if (!error) {
-      if (session?.user?.id) load(session.user.id);
+      if (session?.user?.id) load(session.user.id, session.user.email);
       gerarPDF({ ...p, ...payload }, userName);
     }
   };
