@@ -11,7 +11,7 @@ const upper = v => (typeof v === 'string' ? v.toUpperCase() : v);
 const emptyTripInicio = {
   codigo_viagem: '', frete_id: '', veiculo_id: '', motorista_id: '', carreta_placa: '',
   km_inicial: '', peso_carregado_kg: '', produto: '', valor_por_tonelada: '', valor_frete_calculado: '',
-  numero_nf: '', local_carregamento: '', data_saida: '', observacao: '', status: 'EM_VIAGEM'
+  numero_nf: '', local_carregamento: '', local_descarga: '', data_saida: '', observacao: '', status: 'EM_VIAGEM'
 };
 
 const emptyTripFim = {
@@ -82,8 +82,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [modal, setModal] = useState('');
   const [editing, setEditing] = useState(null);
   const [kpiModal, setKpiModal] = useState(null);
+  const [viagemDetalheModal, setViagemDetalheModal] = useState(null);
 
-  // Vínculo rigoroso e seguro do motorista logado por e-mail (tratando maiúsculas/minúsculas e espaços)
   const currentMotorista = useMemo(() => {
     if (!isDriver || !currentUserEmail) return null;
     const cleanEmail = currentUserEmail.trim().toLowerCase();
@@ -261,6 +261,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     return fretes.filter(f => f.status === 'PLANEJADO');
   }, [fretes]);
 
+  const viagensEmTransito = useMemo(() => {
+    return viagens.filter(v => v.status === 'EM_VIAGEM').map(v => ({
+      ...v,
+      motorista_nome: motoristas.find(m => m.id === v.motorista_id)?.nome || '-',
+      veiculo_placa: veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || v.veiculos?.placa || '-'
+    }));
+  }, [viagens, motoristas, veiculos]);
+
   const veiculosComConsumo = useMemo(() => {
     return veiculos.map(v => {
       const viagensVeiculo = viagensFiltradasPeriodo.filter(item => Number(item.veiculo_id) === Number(v.id));
@@ -396,6 +404,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           produto: upper(tripInicio.produto) || null,
           numero_nf: upper(tripInicio.numero_nf) || null,
           local_carregamento: upper(tripInicio.local_carregamento) || null,
+          local_descarga: upper(tripInicio.local_descarga) || null,
           data_saida: tripInicio.data_saida || null,
           status: editing?.status || 'EM_VIAGEM',
           observacao: upper(tripInicio.observacao) || null
@@ -618,13 +627,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       {!isDriver && tab === 'dashboard' && (
         <div className="flex flex-col gap-6">
-          <div className="flex justify-between items-center bg-[#161B23] border border-white/5 p-4 rounded-xl">
-            <h2 className="text-sm font-extrabold text-white tracking-wider">Dashboard da Frota (Clique nos cards para detalhar por placa)</h2>
-            <div className="flex items-center gap-2 text-xs text-gray-400 bg-[#1A2030] px-3 py-1.5 rounded-lg border border-white/10">
-              <span>Período Ativo Filtrado</span>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             <div onClick={() => setKpiModal('viagens')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
@@ -667,6 +669,32 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.resultado)}</h3>
               </div>
               <p className="text-[10px] text-teal-200 mt-3">Clique para ver por placa →</p>
+            </div>
+          </div>
+
+          <div className="bg-[#161B23] border border-white/5 p-5 rounded-xl flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Truck className="text-blue-400" size={18}/>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Viagens em Trânsito (Clique na placa para ver detalhes)</h3>
+              </div>
+              <span className="text-[10px] text-gray-400">{viagensEmTransito.length} veiculo(s) em rota</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {viagensEmTransito.map(v => (
+                <button 
+                  key={v.id} 
+                  onClick={() => setViagemDetalheModal(v)}
+                  className="flex items-center gap-2 bg-[#1A2030] hover:bg-blue-950/40 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold text-blue-300 transition-all cursor-pointer shadow"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>{v.veiculo_placa}</span>
+                  <span className="text-gray-400 font-normal">({v.motorista_nome})</span>
+                </button>
+              ))}
+              {!viagensEmTransito.length && (
+                <p className="text-gray-500 text-xs py-2">Nenhuma viagem em trânsito no momento.</p>
+              )}
             </div>
           </div>
 
@@ -753,6 +781,45 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </div>
           </div>
         </div>
+      )}
+
+      {viagemDetalheModal && (
+        <Modal title={`Informações da Viagem: ${viagemDetalheModal.codigo_viagem}`} onClose={() => setViagemDetalheModal(null)}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Veículo / Placa</span>
+              <span className="text-white font-bold text-sm">{viagemDetalheModal.veiculo_placa}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Motorista</span>
+              <span className="text-white font-bold text-sm">{viagemDetalheModal.motorista_nome}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Produto</span>
+              <span className="text-white font-bold">{viagemDetalheModal.produto || 'NÃO INFORMADO'}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Nota Fiscal (NF)</span>
+              <span className="text-white font-bold">{viagemDetalheModal.numero_nf || 'NÃO INFORMADA'}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Carregamento</span>
+              <span className="text-white font-bold">{viagemDetalheModal.local_carregamento || 'NÃO INFORMADO'}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Descarga</span>
+              <span className="text-white font-bold">{viagemDetalheModal.local_descarga || 'EM TRÂNSITO'}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Carregado</span>
+              <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NÃO INFORMADO'}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3 rounded-lg border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saída</span>
+              <span className="text-white font-bold">{viagemDetalheModal.km_inicial ? `${num(viagemDetalheModal.km_inicial)} KM` : '-'} ({viagemDetalheModal.data_saida ? new Date(viagemDetalheModal.data_saida).toLocaleString('pt-BR') : 'N/A'})</span>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {kpiModal && (
@@ -1032,6 +1099,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   veiculo_id: selectedFrete?.veiculo_id ? String(selectedFrete.veiculo_id) : tripInicio.veiculo_id,
                   produto: selectedFrete?.produto || tripInicio.produto,
                   peso_carregado_kg: selectedFrete?.peso_previsto_kg ? String(selectedFrete.peso_previsto_kg) : tripInicio.peso_carregado_kg,
+                  local_descarga: selectedFrete?.destino || tripInicio.local_descarga,
                   valor_por_tonelada: valorTon,
                   valor_frete_calculado: valorCalculado || selectedFrete?.valor_frete || ''
                 });
@@ -1071,6 +1139,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
             <Field label="Placa Carreta (Opcional)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})}/></Field>
             <Field label="Local Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})}/></Field>
+            <Field label="Local Descarga"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} placeholder="EX: DESTINO / ARMAZÉM"/></Field>
             <Field label="Número NF"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
             <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})}/></Field>
             <Field label="Data/Hora Saída"><Input type="datetime-local" value={tripInicio.data_saida ? tripInicio.data_saida.slice(0,16) : ''} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})}/></Field>
