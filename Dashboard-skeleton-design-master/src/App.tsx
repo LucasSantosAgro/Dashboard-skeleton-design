@@ -1378,7 +1378,6 @@ export default function App() {
     let roleDetectado = profile?.role || profile?.perfil || 'gestor';
     let nomeFinal = profile?.nome || '';
 
-    // Se for motorista, tenta buscar o nome real cadastrado na tabela de motoristas pelo e-mail
     if (roleDetectado.toLowerCase() === 'motorista' && userEmail) {
       const { data: motoristaData } = await supabase
         .from('motoristas')
@@ -1894,6 +1893,55 @@ export default function App() {
                         <option value="SANGRIA_GASTO">Sangria / Gasto</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
+                          <th className="p-2.5">Data/Hora</th>
+                          <th className="p-2.5">Tipo</th>
+                          <th className="p-2.5">Motivo / Descrição</th>
+                          <th className="p-2.5">Operador</th>
+                          <th className="p-2.5 text-right">Valor</th>
+                          <th className="p-2.5 text-right">Saldo Resultante</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {movimentacoesFiltradas.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-6 text-center text-gray-500">
+                              Nenhuma movimentação registrada no caixa.
+                            </td>
+                          </tr>
+                        ) : (
+                          movimentacoesFiltradas.map(m => (
+                            <tr key={m.id} className="hover:bg-white/[0.02]">
+                              <td className="p-2.5 text-gray-300">
+                                {m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '-'}
+                              </td>
+                              <td className="p-2.5 font-bold">
+                                <span className={`px-2 py-0.5 rounded text-[10px] ${
+                                  m.tipo === 'ENTRADA_TROCO' 
+                                    ? 'bg-green-950/60 text-green-300 border border-green-500/20' 
+                                    : 'bg-red-950/60 text-red-300 border border-red-500/20'
+                                }`}>
+                                  {m.tipo}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-gray-200">{m.motivo || '-'}</td>
+                              <td className="p-2.5 text-gray-300">{m.operador || 'N/A'}</td>
+                              <td className={`p-2.5 text-right font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-green-400' : 'text-red-400'}`}>
+                                {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                              </td>
+                              <td className="p-2.5 text-right font-bold text-white">
+                                R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
