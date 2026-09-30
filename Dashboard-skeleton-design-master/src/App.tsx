@@ -122,7 +122,7 @@ export function CadastroContratos() {
   const [numeroContrato, setNumeroContrato] = useState('');
   const [cliente, setCliente] = useState('');
   const [cnpj, setCnpj] = useState('');
-  const [produto, setProduto] = useState('Milho ensacado');
+  const [produto, setProduto] = useState('Milho');
   const [quantidadeDisponivel, setQuantidadeDisponivel] = useState('');
   const [contratoEditandoId, setContratoEditandoId] = useState(null);
 
@@ -193,7 +193,7 @@ export function CadastroContratos() {
     setNumeroContrato(c.numero_contrato || '');
     setCliente(c.cliente || '');
     setCnpj(c.cnpj || c.cnpj_cliente || '');
-    setProduto(c.produto || 'Milho ensacado');
+    setProduto(c.produto || 'Milho');
     setQuantidadeDisponivel(c.quantidade_disponivel ?? '');
   };
 
@@ -203,7 +203,7 @@ export function CadastroContratos() {
     setCliente('');
     setCnpj('');
     setQuantidadeDisponivel('');
-    setProduto('Milho ensacado');
+    setProduto('Milho');
   };
 
   const finalizarContratoManual = async (id) => {
@@ -284,9 +284,8 @@ export function CadastroContratos() {
               onChange={e => setProduto(e.target.value)} 
               className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500"
             >
-              <option value="Milho ensacado">Milho ensacado</option>
-              <option value="Milho granel">Milho granel</option>
-              <option value="Quebradinho">Quebradinho</option>
+              <option value="Milho">Milho</option>
+              <option value="Soja">Soja</option>
             </select>
           </div>
           <div>
@@ -1798,9 +1797,8 @@ export default function App() {
                   <div>
                     <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
                     <select name="prod" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm outline-none border border-white/10 text-white focus:border-blue-500">
-                      <option value="Milho ensacado">Milho ensacado</option>
-                      <option value="Milho granel">Milho granel</option>
-                      <option value="Quebradinho">Quebradinho</option>
+                      <option value="Milho">Milho</option>
+                      <option value="Soja">Soja</option>
                     </select>
                   </div>
                   <div>
