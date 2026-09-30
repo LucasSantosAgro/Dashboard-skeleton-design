@@ -1216,7 +1216,7 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
     e.preventDefault();
 
     if (pesoSaidaNum < pesoEntrada) {
-      alert("⚠️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
+      alert("⚠️️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
       return;
     }
 
@@ -1637,7 +1637,7 @@ export default function App() {
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
         {aba === "frota" ? (
-          <FrotaFretes session={session} userRole={userRole} userName={userName} />
+          <FrotaFretes session={session} userRole={userRole} userName={userName} currentUserEmail={session?.user?.email || ''} />
         ) : userRole === 'motorista' ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-[#161B23] rounded-xl border border-white/5">
             <Truck size={48} className="text-blue-400 mb-4 animate-bounce" />
