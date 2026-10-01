@@ -1215,7 +1215,7 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
     e.preventDefault();
 
     if (pesoSaidaNum < pesoEntrada) {
-      alert("⚠️️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
+      alert("⚠ Erro: O peso de saída não pode ser menor que o peso de entrada!");
       return;
     }
 
@@ -1587,448 +1587,388 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#0B0F15] text-white overflow-hidden font-sans">
-      <aside className="w-56 border-r border-white/5 p-4 flex flex-col gap-3 shrink-0 bg-[#0E131B]">
-        <div className="mb-2">
-          <GraselLogo />
-        </div>
-        
-        <nav className="flex flex-col gap-1">
-          {userRole !== 'motorista' && (
-            <>
-              <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>DASHBOARD</button>
-              <button onClick={() => setAba("entrada")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'entrada' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>NOVA ENTRADA</button>
-              <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA DE VEÍCULOS</button>
-              <button onClick={() => setAba("caixa")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'caixa' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>CONTROLE DE CAIXA</button>
-            </>
-          )}
-          
-          <button
-            onClick={() => setAba("frota")}
-            className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-              aba === 'frota'
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Truck size={14} /> FROTA / FRETES
-          </button>
-
-          {userRole !== 'motorista' && (
-            <>
-              <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-                <CheckSquare size={14} /> CONTROLE DE PÁTIO
-              </button>
-              <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-                <Package size={14} /> CADASTRO DE CONTRATOS
-              </button>
-            </>
-          )}
-        </nav>
-        
-        <div className="mt-auto pt-4 border-t border-white/5">
-            <p className="text-[10px] text-gray-400 mb-0.5 font-semibold">{userName}</p>
-            <p className="text-[9px] text-blue-400 mb-2 uppercase font-bold tracking-wider">{userRole}</p>
-            <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"><LogOut size={12}/> SAIR</button>
-        </div>
-
-        {userRole !== 'motorista' && (
-          <>
-            <hr className="border-white/5 my-1" />
-            <p className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase mb-1">Filtros Vendas</p>
-            <div className="flex flex-col gap-1.5">
-              <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataI: e.target.value})}/>
-              <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataF: e.target.value})}/>
-              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, mes: e.target.value})}><option value="">Mês</option>{Array.from({length: 12}, (_, i) => <option key={i+1} value={(i+1).toString().padStart(2, '0')}>{i+1}</option>)}</select>
-              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, ano: e.target.value})}><option value="">Ano</option>{[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
-              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, prod: e.target.value})}><option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}</select>
-              <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
-            </div>
-          </>
-        )}
-      </aside>
-
-      <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
-        {aba === "frota" ? (
-          <FrotaFretes session={session} userRole={userRole} userName={userName} currentUserEmail={session?.user?.email || ''} />
-        ) : userRole === 'motorista' ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-[#161B23] rounded-xl border border-white/5">
-            <Truck size={48} className="text-blue-400 mb-4 animate-bounce" />
-            <h2 className="text-lg font-bold text-white uppercase tracking-wider">Painel do Motorista</h2>
-            <p className="text-xs text-gray-400 mt-2 max-w-md">Utilize a aba <strong>Frota / Fretes</strong> no menu lateral para gerenciar suas viagens e fretes asignados.</p>
+      {userRole !== 'motorista' && (
+        <aside className="w-56 border-r border-white/5 p-4 flex flex-col gap-3 shrink-0 bg-[#0E131B]">
+          <div className="mb-2">
+            <GraselLogo />
           </div>
-        ) : (
-          <>
-            {aba === "dashboard" && (
-              <div className="flex flex-col gap-6">
-                <div className="grid grid-cols-6 gap-3">
-                  {[ 
-                    {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Calendar, color: "from-blue-500/10 to-transparent", text: "text-blue-400"}, 
-                    {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg`, icon: Package, color: "from-purple-500/10 to-transparent", text: "text-purple-400"}, 
-                    {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: DollarSign, color: "from-emerald-500/10 to-transparent", text: "text-emerald-400"}, 
-                    {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Activity, color: "from-indigo-500/10 to-transparent", text: "text-indigo-400"}, 
-                    {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: RefreshCw, color: "from-amber-500/10 to-transparent", text: "text-amber-400"}, 
-                    {l: "TODOS", v: filt.length.toFixed(0), icon: DollarSign, color: "from-gray-500/10 to-transparent", text: "text-gray-300"} 
-                  ].map((k, i) => {
-                    const IconComponent = k.icon;
-                    const isActive = activeKpi === k.l;
-                    return (
-                      <button 
-                        key={i} 
-                        onClick={() => setActiveKpi(k.l)} 
-                        className={`relative p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 overflow-hidden bg-gradient-to-b ${k.color} ${
-                          isActive 
-                            ? 'bg-[#1A2030] border-blue-500 shadow-lg shadow-blue-500/10 scale-[1.02]' 
-                            : 'bg-[#161B23] border-white/5 hover:border-white/10 hover:bg-[#1A2030]/50'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">{k.l}</p>
-                          <IconComponent size={14} className={k.text} />
-                        </div>
-                        <p className="font-extrabold text-sm tracking-tight">{k.v}</p>
-                      </button>
-                    );
-                  })}
-                </div>
+          
+          <nav className="flex flex-col gap-1">
+            <button onClick={() => setAba("dashboard")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>DASHBOARD</button>
+            <button onClick={() => setAba("entrada")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'entrada' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>NOVA ENTRADA</button>
+            <button onClick={() => setAba("saida")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'saida' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>SAÍDA DE VEÍCULOS</button>
+            <button onClick={() => setAba("caixa")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all ${aba === 'caixa' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>CONTROLE DE CAIXA</button>
+            
+            <button
+              onClick={() => setAba("frota")}
+              className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                aba === 'frota'
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Truck size={14} /> FROTA / FRETES
+            </button>
 
-                <div className="grid grid-cols-2 gap-4 h-[240px]">
-                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
-                    <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
-                      PAGAMENTOS ({activeKpi})
-                    </p>
-                    <div className="h-[170px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie 
-                            data={[
-                              {name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, 
-                              {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}
-                            ]} 
-                            innerRadius={40} 
-                            outerRadius={60} 
-                            paddingAngle={4}
-                            labelLine={false} 
-                            label={renderCustomizedLabel} 
-                            dataKey="value"
-                          >
-                            {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
-                            formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
-                          />
-                          <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
+            <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+              <CheckSquare size={14} /> CONTROLE DE PÁTIO
+            </button>
+            <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+              <Package size={14} /> CADASTRO DE CONTRATOS
+            </button>
+          </nav>
+          
+          <div className="mt-auto pt-4 border-t border-white/5">
+              <p className="text-[10px] text-gray-400 mb-0.5 font-semibold">{userName}</p>
+              <p className="text-[9px] text-blue-400 mb-2 uppercase font-bold tracking-wider">{userRole}</p>
+              <button onClick={() => supabase.auth.signOut()} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"><LogOut size={12}/> SAIR</button>
+          </div>
 
-                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
-                    <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-purple-400 inline-block"></span>
-                      PRODUTOS ({activeKpi})
-                    </p>
-                    <div className="h-[170px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie 
-                            data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} 
-                            innerRadius={40} 
-                            outerRadius={60} 
-                            paddingAngle={4}
-                            labelLine={false} 
-                            label={renderCustomizedLabel} 
-                            dataKey="value"
-                          >
-                            {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
-                            formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
-                          />
-                          <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
+          <hr className="border-white/5 my-1" />
+          <p className="text-[10px] text-gray-500 font-semibold tracking-wider uppercase mb-1">Filtros Vendas</p>
+          <div className="flex flex-col gap-1.5">
+            <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataI: e.target.value})}/>
+            <input type="date" className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, dataF: e.target.value})}/>
+            <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, mes: e.target.value})}><option value="">Mês</option>{Array.from({length: 12}, (_, i) => <option key={i+1} value={(i+1).toString().padStart(2, '0')}>{i+1}</option>)}</select>
+            <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, ano: e.target.value})}><option value="">Ano</option>{[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}</select>
+            <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, prod: e.target.value})}><option value="">Produto</option> {[...new Set(pesagens.map(p => p.produto))].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}</select>
+            <select className="bg-[#161B23] p-1.5 rounded-lg text-[10px] border border-white/5 text-gray-300 outline-none focus:border-blue-500/50" onChange={e => setF({...f, pag: e.target.value})}><option value="">Pagamento</option><option value="PIX">PIX</option><option value="DINHEIRO">DINHEIRO</option></select>
+          </div>
+        </aside>
+      )}
 
-                <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl">
-                  <table className="w-full text-left text-[11px]">
-                    <thead>
-                      <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
-                        {["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag.", "Ação"].map(h => <th key={h} className="p-2.5">{h}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {[...filt].sort((a,b) => (b.comprovante || '').localeCompare(a.comprovante || '')).slice(0, 10).map((p, i) => (
-                        <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="p-2.5 text-gray-300">{p.data}</td>
-                          <td className="p-2.5 font-medium text-gray-200">{p.comprovante}</td>
-                          <td className="p-2.5 text-gray-300">{p.produto}</td>
-                          <td className="p-2.5 font-medium text-gray-200">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
-                          <td className="p-2.5 font-bold text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-2.5 font-medium text-amber-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                          <td className="p-2.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.forma_pagamento === 'PIX' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                              {p.forma_pagamento}
-                            </span>
-                          </td>
-                          <td className="p-2.5 flex items-center gap-2">
-                            <button onClick={() => gerarPDF(p, userName)} className="p-1 hover:bg-white/10 rounded cursor-pointer text-gray-300" title="Imprimir PDF"><Printer size={14}/></button>
-                            <button onClick={() => excluirPesagem(p.id)} className="p-1 hover:bg-red-500/20 rounded cursor-pointer text-red-400" title="Excluir"><Trash2 size={14}/></button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+      <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15] flex flex-col">
+        {userRole === 'motorista' && (
+          <div className="flex justify-between items-center bg-[#161B23] px-4 py-3 rounded-xl border border-white/5 mb-4 shrink-0">
+            <div className="flex items-center gap-3">
+              <GraselLogo />
+              <div>
+                <p className="text-xs text-white font-bold">{userName}</p>
+                <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">Motorista</p>
               </div>
-            )}
+            </div>
+            <button onClick={() => supabase.auth.signOut()} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1.5 font-semibold bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors cursor-pointer">
+              <LogOut size={14}/> Sair / Logoff
+            </button>
+          </div>
+        )}
 
-            {aba === "entrada" && (
-              <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-xl border border-white/5 shadow-xl">
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Registrar Nova Entrada (Balança)</h2>
-                <form onSubmit={registrarEntrada} className="space-y-4">
-                  <div>
-                    <label className="text-xs text-gray-400 font-bold uppercase">Placa do Veículo</label>
-                    <input name="placa" type="text" placeholder="EX: ABC1D23" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white uppercase focus:border-blue-500" required />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
-                    <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
-                      <option value="Soja">Soja</option>
-                      <option value="Milho">Milho</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 font-bold uppercase">Peso de Entrada (kg)</label>
-                    <input name="peso" type="number" step="10" placeholder="Ex: 15000" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
-                  </div>
-                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-3 rounded-lg transition-colors cursor-pointer shadow-md">Salvar Entrada</button>
-                </form>
-              </div>
-            )}
-
-            {aba === "saida" && (
-              <div className="space-y-4">
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">Saída de Veículos & Faturamento</h2>
-                {pesagensAbertas.length === 0 ? (
-                  <div className="bg-[#161B23] p-8 rounded-xl border border-white/5 text-center text-gray-500 text-xs">Nenhum veículo aguardando pesagem de saída.</div>
-                ) : (
-                  pesagensAbertas.map(p => (
-                    <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
-                  ))
-                )}
-              </div>
-            )}
-
-            {aba === "caixa" && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Saldo Atual em Caixa</span>
-                      <h2 className="text-2xl font-extrabold text-white mt-1">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
-                    </div>
-                    <div className="p-3 bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 rounded-xl">
-                      <DollarSign size={24} />
-                    </div>
+        <div className="flex-1 overflow-y-auto">
+          {aba === "frota" ? (
+            <FrotaFretes session={session} userRole={userRole} userName={userName} currentUserEmail={session?.user?.email || ''} />
+          ) : (
+            <>
+              {aba === "dashboard" && (
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-6 gap-3">
+                    {[ 
+                      {l: "DIÁRIA", v: `R$ ${dia.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Calendar, color: "from-blue-500/10 to-transparent", text: "text-blue-400"}, 
+                      {l: "PESO TOTAL", v: `${pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg`, icon: Package, color: "from-purple-500/10 to-transparent", text: "text-purple-400"}, 
+                      {l: "MENSAL", v: `R$ ${mens.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: DollarSign, color: "from-emerald-500/10 to-transparent", text: "text-emerald-400"}, 
+                      {l: "ANUAL", v: `R$ ${anu.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: Activity, color: "from-indigo-500/10 to-transparent", text: "text-indigo-400"}, 
+                      {l: "TROCO PAGO", v: `R$ ${totalTroco.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, icon: RefreshCw, color: "from-amber-500/10 to-transparent", text: "text-amber-400"}, 
+                      {l: "TODOS", v: filt.length.toFixed(0), icon: DollarSign, color: "from-gray-500/10 to-transparent", text: "text-gray-300"} 
+                    ].map((k, i) => {
+                      const IconComponent = k.icon;
+                      const isActive = activeKpi === k.l;
+                      return (
+                        <button 
+                          key={i} 
+                          onClick={() => setActiveKpi(k.l)} 
+                          className={`relative p-3.5 rounded-xl border text-left cursor-pointer transition-all duration-200 overflow-hidden bg-gradient-to-b ${k.color} ${
+                            isActive 
+                              ? 'bg-[#1A2030] border-blue-500 shadow-lg shadow-blue-500/10 scale-[1.02]' 
+                              : 'bg-[#161B23] border-white/5 hover:border-white/10 hover:bg-[#1A2030]/50'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="text-[9px] text-gray-400 font-bold tracking-wider uppercase">{k.l}</p>
+                            <IconComponent size={14} className={k.text} />
+                          </div>
+                          <p className="font-extrabold text-sm tracking-tight">{k.v}</p>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Total Aportes (Filtro)</span>
-                      <h2 className="text-2xl font-extrabold text-white mt-1">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
-                    </div>
-                    <div className="p-3 bg-blue-950/40 text-blue-400 border border-blue-500/20 rounded-xl">
-                      <PlusCircle size={24} />
-                    </div>
-                  </div>
-
-                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-red-400">Total Retiradas (Filtro)</span>
-                      <h2 className="text-2xl font-extrabold text-white mt-1">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
-                    </div>
-                    <div className="p-3 bg-red-950/40 text-red-400 border border-red-500/20 rounded-xl">
-                      <MinusCircle size={24} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
-                    <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2 text-blue-400">
-                      <PlusCircle size={16} /> Adicionar Troco (Aporte)
-                    </h3>
-                    <form onSubmit={handleAdicionarTroco} className="space-y-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Valor do Aporte (R$)</label>
-                        <input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Ex: 500.00" 
-                          value={valorAporte} 
-                          onChange={e => setValorAporte(e.target.value)} 
-                          className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
-                          required 
-                        />
+                  <div className="grid grid-cols-2 gap-4 h-[240px]">
+                    <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+                      <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                        PAGAMENTOS ({activeKpi})
+                      </p>
+                      <div className="h-[170px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie 
+                              data={[
+                                {name: 'PIX', value: dataForCharts.filter(p=>p.forma_pagamento==='PIX').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}, 
+                                {name: 'DINHEIRO', value: dataForCharts.filter(p=>p.forma_pagamento==='DINHEIRO').reduce((a,b)=>a+(Number(b.valor_total)||0),0)}
+                              ]} 
+                              innerRadius={40} 
+                              outerRadius={60} 
+                              paddingAngle={4}
+                              labelLine={false} 
+                              label={renderCustomizedLabel} 
+                              dataKey="value"
+                            >
+                              {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                              formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+                            />
+                            <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
-                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-2 rounded-lg transition-colors cursor-pointer shadow-md">
-                        Confirmar Adição de Troco
-                      </button>
-                    </form>
-                  </div>
+                    </div>
 
-                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
-                    <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2 text-red-400">
-                      <MinusCircle size={16} /> Sangria / Gasto no Caixa
-                    </h3>
-                    <form onSubmit={handleSangriaGasto} className="space-y-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Valor da Retirada (R$)</label>
-                        <input 
-                          type="number" 
-                          step="0.01" 
-                          placeholder="Ex: 150.00" 
-                          value={valorSangria} 
-                          onChange={e => setValorSangria(e.target.value)} 
-                          className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
-                          required 
-                        />
+                    <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+                      <p className="text-[11px] font-bold text-gray-300 tracking-wider uppercase flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-purple-400 inline-block"></span>
+                        PRODUTOS ({activeKpi})
+                      </p>
+                      <div className="h-[170px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie 
+                              data={Object.entries(dataForCharts.reduce((acc, p) => { acc[p.produto] = (acc[p.produto] || 0) + (Number(p.valor_total) || 0); return acc; }, {})).map(([name, value]) => ({ name, value }))} 
+                              innerRadius={40} 
+                              outerRadius={60} 
+                              paddingAngle={4}
+                              labelLine={false} 
+                              label={renderCustomizedLabel} 
+                              dataKey="value"
+                            >
+                              {COLORS.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#1F2937', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                              formatter={(v) => `R$ ${Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+                            />
+                            <Legend verticalAlign="bottom" height={24} iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Motivo / Descrição</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: Compra de material de escritório" 
-                          value={motivoSangria} 
-                          onChange={e => setMotivoSangria(e.target.value)} 
-                          className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
-                          required 
-                        />
-                      </div>
-                      <button type="submit" className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs p-2 rounded-lg transition-colors cursor-pointer shadow-md">
-                        Confirmar Sangria / Gasto
-                      </button>
-                    </form>
-                  </div>
-                </div>
-
-                <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md space-y-4">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-white/5 pb-3">
-                    <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
-                      <History size={16} className="text-blue-400" /> Histórico de Movimentações de Caixa
-                    </h3>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
-                    <select 
-                      value={fCaixaTipo} 
-                      onChange={e => setFCaixaTipo(e.target.value)} 
-                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500"
-                    >
-                      <option value="">Todos os Tipos</option>
-                      <option value="ENTRADA_TROCO">Aporte (Entrada)</option>
-                      <option value="SAIDA_TROCO">Troco Frete (Saída)</option>
-                      <option value="SANGRIA_GASTO">Sangria / Gasto</option>
-                    </select>
-
-                    <input 
-                      type="date" 
-                      value={fCaixaDataI} 
-                      onChange={e => setFCaixaDataI(e.target.value)} 
-                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500" 
-                    />
-
-                    <input 
-                      type="date" 
-                      value={fCaixaDataF} 
-                      onChange={e => setFCaixaDataF(e.target.value)} 
-                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500" 
-                    />
-
-                    <select 
-                      value={fCaixaOperador} 
-                      onChange={e => setFCaixaOperador(e.target.value)} 
-                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500"
-                    >
-                      <option value="">Todos os Operadores</option>
-                      {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
-                    </select>
-
-                    <input 
-                      type="text" 
-                      placeholder="Buscar por motivo..." 
-                      value={fCaixaBusca} 
-                      onChange={e => setFCaixaBusca(e.target.value)} 
-                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-white outline-none focus:border-blue-500" 
-                    />
-                  </div>
-
-                  {(fCaixaTipo || fCaixaDataI || fCaixaDataF || fCaixaOperador || fCaixaBusca) && (
-                    <button 
-                      onClick={() => { setFCaixaTipo(""); setFCaixaDataI(""); setFCaixaDataF(""); setFCaixaOperador(""); setFCaixaBusca(""); }} 
-                      className="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
-                    >
-                      Limpar filtros de caixa
-                    </button>
-                  )}
-
-                  <div className="overflow-x-auto pt-2">
-                    <table className="w-full text-left text-xs">
+                  <div className="bg-[#161B23] rounded-xl border border-white/5 p-4 shadow-xl">
+                    <table className="w-full text-left text-[11px]">
                       <thead>
-                        <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
-                          <th className="p-2.5">Data/Hora</th>
-                          <th className="p-2.5">Tipo</th>
-                          <th className="p-2.5">Motivo / Descrição</th>
-                          <th className="p-2.5">Operador</th>
-                          <th className="p-2.5 text-right">Valor</th>
-                          <th className="p-2.5 text-right">Saldo Resultante</th>
+                        <tr className="text-gray-400 border-b border-white/5 font-semibold uppercase tracking-wider text-[9px]">
+                          {["Data", "Comp.", "Produto", "Peso", "Valor", "Troco", "Pag.", "Ação"].map(h => <th key={h} className="p-2.5">{h}</th>)}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
-                        {movimentacoesFiltradas.length === 0 ? (
-                          <tr>
-                            <td colSpan="6" className="text-center py-6 text-gray-500">Nenhuma movimentação encontrada com os filtros atuais.</td>
+                        {[...filt].sort((a,b) => (b.comprovante || '').localeCompare(a.comprovante || '')).slice(0, 10).map((p, i) => (
+                          <tr key={p.id || i} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="p-2.5 text-gray-300">{p.data}</td>
+                            <td className="p-2.5 font-medium text-gray-200">{p.comprovante}</td>
+                            <td className="p-2.5 text-gray-300">{p.produto}</td>
+                            <td className="p-2.5 font-medium text-gray-200">{Number(p.peso_liquido||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}kg</td>
+                            <td className="p-2.5 font-bold text-emerald-400">R$ {Number(p.valor_total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td className="p-2.5 font-medium text-amber-400">R$ {Number(p.valor_troco || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td className="p-2.5">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.forma_pagamento === 'PIX' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                                {p.forma_pagamento}
+                              </span>
+                            </td>
+                            <td className="p-2.5 flex items-center gap-2">
+                              <button onClick={() => gerarPDF(p, userName)} className="p-1 hover:bg-white/10 rounded cursor-pointer text-gray-300" title="Imprimir PDF"><Printer size={14}/></button>
+                              <button onClick={() => excluirPesagem(p.id)} className="p-1 hover:bg-red-500/20 rounded cursor-pointer text-red-400" title="Excluir"><Trash2 size={14}/></button>
+                            </td>
                           </tr>
-                        ) : (
-                          movimentacoesFiltradas.map(m => {
-                            const isEntrada = m.tipo === 'ENTRADA_TROCO';
-                            return (
-                              <tr key={m.id} className="hover:bg-white/[0.02]">
-                                <td className="p-2.5 text-gray-300">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
-                                <td className="p-2.5">
-                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${isEntrada ? 'bg-blue-950/60 text-blue-300 border border-blue-500/20' : 'bg-red-950/60 text-red-300 border border-red-500/20'}`}>
-                                    {m.tipo}
-                                  </span>
-                                </td>
-                                <td className="p-2.5 text-gray-200">{m.motivo}</td>
-                                <td className="p-2.5 text-gray-400">{m.operador || 'N/A'}</td>
-                                <td className={`p-2.5 text-right font-bold ${isEntrada ? 'text-blue-400' : 'text-red-400'}`}>
-                                  {isEntrada ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                                </td>
-                                <td className="p-2.5 text-right font-semibold text-emerald-400">
-                                  R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
+                        ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {aba === "patio" && <KanbanPatio />}
+              {aba === "entrada" && (
+                <div className="max-w-xl mx-auto bg-[#161B23] p-6 rounded-xl border border-white/5 shadow-xl">
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Registrar Nova Entrada (Balança)</h2>
+                  <form onSubmit={registrarEntrada} className="space-y-4">
+                    <div>
+                      <label className="text-xs text-gray-400 font-bold uppercase">Placa do Veículo</label>
+                      <input name="placa" type="text" placeholder="EX: ABC1D23" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white uppercase focus:border-blue-500" required />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
+                      <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
+                        <option value="Soja">Soja</option>
+                        <option value="Milho">Milho</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 font-bold uppercase">Peso de Entrada (kg)</label>
+                      <input name="peso" type="number" step="10" placeholder="Ex: 15000" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-3 rounded-lg transition-colors cursor-pointer shadow-md">Salvar Entrada</button>
+                  </form>
+                </div>
+              )}
 
-            {aba === "cad_contratos" && <CadastroContratos />}
-          </>
-        )}
+              {aba === "saida" && (
+                <div className="space-y-4">
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Saída de Veículos & Faturamento</h2>
+                  {pesagensAbertas.length === 0 ? (
+                    <div className="bg-[#161B23] p-8 rounded-xl border border-white/5 text-center text-gray-500 text-xs">Nenhum veículo aguardando pesagem de saída.</div>
+                  ) : (
+                    pesagensAbertas.map(p => (
+                      <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
+                    ))
+                  )}
+                </div>
+              )}
+
+              {aba === "caixa" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Saldo Atual em Caixa</span>
+                        <h2 className="text-2xl font-extrabold text-white mt-1">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
+                      </div>
+                      <div className="p-3 bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 rounded-xl">
+                        <DollarSign size={24} />
+                      </div>
+                    </div>
+
+                    <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Total Aportes (Filtro)</span>
+                        <h2 className="text-2xl font-extrabold text-white mt-1">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
+                      </div>
+                      <div className="p-3 bg-blue-950/40 text-blue-400 border border-blue-500/20 rounded-xl">
+                        <PlusCircle size={24} />
+                      </div>
+                    </div>
+
+                    <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-red-400">Total Retiradas (Filtro)</span>
+                        <h2 className="text-2xl font-extrabold text-white mt-1">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
+                      </div>
+                      <div className="p-3 bg-red-950/40 text-red-400 border border-red-500/20 rounded-xl">
+                        <MinusCircle size={24} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
+                      <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2 text-blue-400">
+                        <PlusCircle size={16} /> Adicionar Troco (Aporte)
+                      </h3>
+                      <form onSubmit={handleAdicionarTroco} className="space-y-3">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Valor do Aporte (R$)</label>
+                          <input type="number" step="0.01" placeholder="Ex: 500.00" value={valorAporte} onChange={e => setValorAporte(e.target.value)} className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
+                        </div>
+                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-2.5 rounded-lg transition-colors cursor-pointer shadow-md">Confirmar Aporte</button>
+                      </form>
+                    </div>
+
+                    <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
+                      <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2 text-red-400">
+                        <MinusCircle size={16} /> Retirada / Sangria (Gastos)
+                      </h3>
+                      <form onSubmit={handleSangriaGasto} className="space-y-3">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Valor da Retirada (R$)</label>
+                          <input type="number" step="0.01" placeholder="Ex: 50.00" value={valorSangria} onChange={e => setValorSangria(e.target.value)} className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Motivo / Descrição</label>
+                          <input type="text" placeholder="Ex: Compra de material de limpeza" value={motivoSangria} onChange={e => setMotivoSangria(e.target.value)} className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
+                        </div>
+                        <button type="submit" className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs p-2.5 rounded-lg transition-colors cursor-pointer shadow-md">Confirmar Retirada</button>
+                      </form>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md space-y-4">
+                    <h3 className="font-bold text-white text-sm uppercase tracking-wider">Histórico de Movimentações do Caixa</h3>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-[#1A2030] p-3 rounded-xl border border-white/5">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Tipo</label>
+                        <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="w-full bg-[#161B23] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
+                          <option value="">Todos os Tipos</option>
+                          <option value="ENTRADA_TROCO">Entrada (Aporte)</option>
+                          <option value="SAIDA_TROCO">Saída (Troco Venda)</option>
+                          <option value="SANGRIA_GASTO">Sangria / Gasto</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Data Início</label>
+                        <input type="date" value={fCaixaDataI} onChange={e => setFCaixaDataI(e.target.value)} className="w-full bg-[#161B23] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Data Fim</label>
+                        <input type="date" value={fCaixaDataF} onChange={e => setFCaixaDataF(e.target.value)} className="w-full bg-[#161B23] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Operador</label>
+                        <select value={fCaixaOperador} onChange={e => setFCaixaOperador(e.target.value)} className="w-full bg-[#161B23] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
+                          <option value="">Todos Operadores</option>
+                          {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Buscar Motivo</label>
+                        <input type="text" placeholder="Filtrar motivo..." value={fCaixaBusca} onChange={e => setFCaixaBusca(e.target.value)} className="w-full bg-[#161B23] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" />
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
+                            <th className="p-2.5">Data/Hora</th>
+                            <th className="p-2.5">Tipo</th>
+                            <th className="p-2.5">Motivo</th>
+                            <th className="p-2.5">Operador</th>
+                            <th className="p-2.5 text-right">Valor</th>
+                            <th className="p-2.5 text-right">Saldo Resultante</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {movimentacoesFiltradas.length === 0 ? (
+                            <tr><td colSpan="6" className="text-center py-6 text-gray-500">Nenhuma movimentação encontrada com os filtros atuais.</td></tr>
+                          ) : (
+                            movimentacoesFiltradas.map(m => (
+                              <tr key={m.id} className="hover:bg-white/[0.02]">
+                                <td className="p-2.5 text-gray-400">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                                <td className="p-2.5">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'bg-blue-950/60 text-blue-300 border border-blue-500/20' : m.tipo === 'SAIDA_TROCO' ? 'bg-amber-950/60 text-amber-300 border border-amber-500/20' : 'bg-red-950/60 text-red-300 border border-red-500/20'}`}>
+                                    {m.tipo}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-gray-200">{m.motivo}</td>
+                                <td className="p-2.5 text-gray-300">{m.operador}</td>
+                                <td className={`p-2.5 text-right font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-blue-400' : 'text-red-400'}`}>
+                                  {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-white">R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {aba === "patio" && <KanbanPatio />}
+              {aba === "cad_contratos" && <CadastroContratos />}
+            </>
+          )}
+        </div>
       </main>
     </div>
   );
