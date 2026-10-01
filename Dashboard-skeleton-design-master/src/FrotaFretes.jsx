@@ -40,8 +40,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       return [
         ['minhas_viagens', 'Minhas Viagens', Route],
         ['abastecimentos', 'Abastecimentos', Fuel],
-        ['despesas', 'Despesas', Receipt],
-        ['relatorios', 'Relatorios', Download]
+        ['despesas', 'Despesas', Receipt]
       ];
     }
     return [
@@ -1083,7 +1082,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {tab === 'relatorios' && (
+      {!isDriver && tab === 'relatorios' && (
         <div className="bg-[#161B23] border border-white/5 p-6 rounded-2xl shadow-xl flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
@@ -1405,16 +1404,19 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Plus size={16}/>NOVO MOTORISTA
             </button>
           </div>
-          <Table rows={motoristas.map(m => ({...m, veiculo_placa: veiculos.find(v => v.id === m.veiculo_id)?.placa || 'NENHUM'}))} headers={['NOME','E-MAIL','TELEFONE','VEICULO VINCULADO','STATUS','ACOES']} render={m => (
-            <>
-              <td className="p-3.5 font-bold text-white">{m.nome}</td>
-              <td className="p-3.5 lowercase">{m.email || '-'}</td>
-              <td className="p-3.5">{m.telefone || '-'}</td>
-              <td className="p-3.5 font-semibold text-blue-400">{m.veiculo_placa}</td>
-              <td className="p-3.5">{statusBadge(m.status || 'ATIVO')}</td>
-              <td className="p-3.5"><Actions edit={() => open('motorista', m)} del={() => del('motoristas', m.id, m.nome)} /></td>
-            </>
-          )} empty="NENHUM MOTORISTA CADASTRADO."/>
+          <Table rows={motoristas} headers={['NOME','EMAIL','TELEFONE','VEICULO ATRIBUIDO','STATUS','ACOES']} render={m => {
+            const veicVinculado = veiculos.find(v => Number(v.id) === Number(m.veiculo_id));
+            return (
+              <>
+                <td className="p-3.5 font-bold text-white">{m.nome}</td>
+                <td className="p-3.5 text-gray-300 lowercase">{m.email || '-'}</td>
+                <td className="p-3.5">{m.telefone || '-'}</td>
+                <td className="p-3.5 font-semibold text-blue-300">{veicVinculado ? veicVinculado.placa : 'NAO ATRIBUIDO'}</td>
+                <td className="p-3.5">{statusBadge(m.status || 'ATIVO')}</td>
+                <td className="p-3.5"><Actions edit={() => open('motorista', m)} del={() => del('motoristas', m.id, `O MOTORISTA ${m.nome}`)} /></td>
+              </>
+            );
+          }} empty="NENHUM MOTORISTA CADASTRADO."/>
         </div>
       )}
 
@@ -1423,268 +1425,174 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
             <h2 className="text-xs sm:text-sm font-bold text-white">Gestao de Fretes</h2>
             <button onClick={() => open('frete')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
-              <Plus size={16}/>CADASTRAR FRETE
+              <Plus size={16}/>NOVO FRETE
             </button>
           </div>
-          <Table rows={fretesFiltradosPeriodo.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || '-'}))} headers={['CODIGO','TIPO OPERACAO','VEICULO (PLACA)','PRODUTO','ORIGEM -> DESTINO','VALOR/TON','VALOR FRETE','STATUS','ACOES']} render={f => (
+          <Table rows={fretes} headers={['CODIGO','CLIENTE','ORIGEM -> DESTINO','PRODUTO','PESO PREVISTO','VALOR FRETE','STATUS','ACOES']} render={f => (
             <>
               <td className="p-3.5 font-bold text-blue-300">{f.codigo_frete}</td>
-              <td className="p-3.5 font-semibold text-blue-400">{f.tipo_operacao}</td>
-              <td className="p-3.5 font-bold text-amber-400">{f.veiculo_placa}</td>
-              <td className="p-3.5 text-gray-300">{f.produto || '-'}</td>
-              <td className="p-3.5">{f.origem || '-'} → {f.destino || '-'}</td>
-              <td className="p-3.5 text-purple-300">{f.valor_por_tonelada ? money(f.valor_por_tonelada) : '-'}</td>
+              <td className="p-3.5 font-semibold text-white">{f.cliente}</td>
+              <td className="p-3.5">{f.origem} → {f.destino}</td>
+              <td className="p-3.5">{f.produto || '-'}</td>
+              <td className="p-3.5 text-gray-300">{f.peso_previsto_kg ? `${num(f.peso_previsto_kg)} KG` : '-'}</td>
               <td className="p-3.5 font-bold text-emerald-400">{money(f.valor_frete)}</td>
-              <td className="p-3.5">{statusBadge(f.status || 'PLANEJADO')}</td>
+              <td className="p-3.5">{statusBadge(f.status)}</td>
               <td className="p-3.5"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
             </>
-          )} empty="NENHUM FRETE CADASTRADO NO PERIODO."/>
-        </div>
-      )}
-
-      {tab === 'abastecimentos' && (
-        <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Consulta de Abastecimentos</h2>
-            <button onClick={() => open('abastecimento')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
-              <Fuel size={16}/>NOVO ABASTECIMENTO
-            </button>
-          </div>
-          <Table rows={abastecimentosFiltradosPeriodo.map(a => ({...a, viagem_codigo: viagens.find(v => Number(v.id) === Number(a.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['DATA/HORA','VIAGEM','POSTO','LITROS','VALOR TOTAL','KM ATUAL','ACOES']} render={a => (
-            <>
-              <td className="p-3.5">{a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '-'}</td>
-              <td className="p-3.5 font-bold text-blue-300">{a.viagem_codigo}</td>
-              <td className="p-3.5">{a.posto || '-'}</td>
-              <td className="p-3.5">{num(a.litros, 2)} L</td>
-              <td className="p-3.5 font-bold">{money(a.valor_total)}</td>
-              <td className="p-3.5">{num(a.km_atual)} KM</td>
-              <td className="p-3.5"><Actions del={() => del('abastecimentos', a.id, 'O ABASTECIMENTO')} /></td>
-            </>
-          )} empty="NENHUM ABASTECIMENTO REGISTRADO NO PERIODO."/>
-        </div>
-      )}
-
-      {tab === 'despesas' && (
-        <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Consulta de Despesas</h2>
-            <button onClick={() => open('despesa')} className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
-              <Receipt size={16}/>LANCAR DESPESA
-            </button>
-          </div>
-          <Table rows={despesasFiltradosPeriodo.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['DATA','VIAGEM','TIPO','DESCRICAO','VALOR','ACOES']} render={d => (
-            <>
-              <td className="p-3.5">{d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-'}</td>
-              <td className="p-3.5 font-bold text-blue-300">{d.viagem_codigo}</td>
-              <td className="p-3.5 font-bold text-amber-400">{d.tipo}</td>
-              <td className="p-3.5">{d.descricao || '-'}</td>
-              <td className="p-3.5 font-bold">{money(d.valor)}</td>
-              <td className="p-3.5"><Actions del={() => del('viagem_despesas', d.id, 'A DESPESA')} /></td>
-            </>
-          )} empty="NENHUMA DESPESA REGISTRADA NO PERIODO."/>
+          )} empty="NENHUM FRETE CADASTRADO."/>
         </div>
       )}
 
       {modal === 'iniciar_viagem' && (
-        <Modal title={editing ? 'Editar / Vincular Frete da Viagem' : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('iniciar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Codigo Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})} required/></Field>
+        <Modal title={editing ? `Editar Viagem: ${tripInicio.codigo_viagem}` : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Codigo da Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})}/></Field>
             
-            <Field label="Motorista">
-              {isDriver ? (
-                currentMotorista ? (
-                  <Input value={currentMotorista.nome} disabled className="bg-gray-800 text-gray-400 cursor-not-allowed"/>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-amber-400 font-bold">⚠️ SELECIONE SEU CADASTRO:</span>
-                    <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})} required>
-                      <option value="">SELECIONE SEU CADASTRO</option>
-                      {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome} ({m.email || 'SEM E-MAIL'})</option>)}
-                    </Select>
-                  </div>
-                )
-              ) : (
-                <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})} required>
-                  <option value="">SELECIONE O MOTORISTA</option>
-                  {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                </Select>
-              )}
-            </Field>
-
-            <Field label="Veiculo / Placa">
-              <Select value={tripInicio.veiculo_id} onChange={e => setTripInicio({...tripInicio, veiculo_id: e.target.value})} required>
-                <option value="">SELECIONE O VEICULO</option>
-                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
-              </Select>
-            </Field>
-
-            <Field label="Frete Associado (Opcional)">
+            <Field label="Selecione o Frete Vinculado (Opcional)">
               <Select value={tripInicio.frete_id} onChange={e => {
-                const selectedFreteId = e.target.value;
-                const selectedFrete = fretes.find(f => Number(f.id) === Number(selectedFreteId));
-                const pesoAtual = Number(tripInicio.peso_carregado_kg || selectedFrete?.peso_previsto_kg || 0);
-                const valorTon = selectedFrete?.valor_por_tonelada || '';
-                let valorCalculado = tripInicio.valor_frete_calculado;
-
-                if (valorTon && pesoAtual > 0) valorCalculado = (pesoAtual / 1000) * Number(valorTon);
-
-                setTripInicio({
-                  ...tripInicio, 
-                  frete_id: selectedFreteId,
-                  veiculo_id: selectedFrete?.veiculo_id ? String(selectedFrete.veiculo_id) : tripInicio.veiculo_id,
-                  produto: selectedFrete?.produto || tripInicio.produto,
-                  peso_carregado_kg: selectedFrete?.peso_previsto_kg ? String(selectedFrete.peso_previsto_kg) : tripInicio.peso_carregado_kg,
-                  local_descarga: selectedFrete?.destino || tripInicio.local_descarga,
-                  valor_por_tonelada: valorTon,
-                  valor_frete_calculado: valorCalculado || selectedFrete?.valor_frete || ''
-                });
+                const fId = e.target.value;
+                const frt = fretes.find(f => String(f.id) === String(fId));
+                if (frt) {
+                  setTripInicio({
+                    ...tripInicio,
+                    frete_id: fId,
+                    local_carregamento: frt.origem || tripInicio.local_carregamento,
+                    local_descarga: frt.destino || tripInicio.local_descarga,
+                    produto: frt.produto || tripInicio.produto,
+                    peso_carregado_kg: frt.peso_previsto_kg || tripInicio.peso_carregado_kg,
+                    valor_por_tonelada: frt.valor_por_tonelada || tripInicio.valor_por_tonelada,
+                    veiculo_id: frt.veiculo_id ? String(frt.veiculo_id) : tripInicio.veiculo_id
+                  });
+                } else {
+                  setTripInicio({...tripInicio, frete_id: fId});
+                }
               }}>
-                <option value="">NENHUM / VIAGEM PROPRIA</option>
-                {fretesDisponiveis.map(f => {
-                  const placaFrete = veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa;
-                  return (
-                    <option key={f.id} value={f.id}>
-                      {f.codigo_frete} - {f.origem} → {f.destino} {placaFrete ? `[Veiculo: ${placaFrete}]` : ''} ({money(f.valor_frete)})
-                    </option>
-                  );
-                })}
+                <option value="">NENHUM (VIAGEM DIRETA / PROPRIA)</option>
+                {fretesDisponiveis.map(f => (
+                  <option key={f.id} value={f.id}>{f.codigo_frete} - {f.cliente} ({f.origem} → {f.destino})</option>
+                ))}
               </Select>
             </Field>
 
-            <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} placeholder="EX: SOJA A GRANEL"/></Field>
+            <Field label="Veiculo (Placa)">
+              <Select value={tripInicio.veiculo_id} onChange={e => setTripInicio({...tripInicio, veiculo_id: e.target.value})}>
+                <option value="">SELECIONE O VEICULO</option>
+                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
+              </Select>
+            </Field>
+
+            <Field label="Motorista">
+              <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})}>
+                <option value="">SELECIONE O MOTORISTA</option>
+                {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </Select>
+            </Field>
+
+            <Field label="Placa da Carreta (Se houver)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})}/></Field>
+            <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})}/></Field>
+            <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})}/></Field>
+            <Field label="Peso Carregado (KG)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => setTripInicio({...tripInicio, peso_carregado_kg: e.target.value})}/></Field>
+            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => setTripInicio({...tripInicio, valor_por_tonelada: e.target.value})}/></Field>
+            <Field label="Numero da Nota Fiscal (NF)"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
+            <Field label="Local de Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})}/></Field>
+            <Field label="Local de Descarga (Destino)"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})}/></Field>
+            <Field label="Data e Hora de Saida"><input type="datetime-local" value={tripInicio.data_saida} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
+            <Field label="Observacao" className="sm:col-span-2 lg:col-span-3"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})}/></Field>
             
-            <Field label="Preco por Tonelada (R$)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => {
-              const valTon = e.target.value;
-              const pesoKg = Number(tripInicio.peso_carregado_kg || 0);
-              let valorCalculado = tripInicio.valor_frete_calculado;
-              if (valTon && pesoKg > 0) {
-                valorCalculado = (pesoKg / 1000) * Number(valTon);
-              }
-              setTripInicio({
-                ...tripInicio,
-                valor_por_tonelada: valTon,
-                valor_frete_calculado: valorCalculado
-              });
-            }} placeholder="EX: 120.00"/></Field>
-            
-            <Field label="Valor Frete Calculado (R$)"><Input type="number" step="0.01" value={tripInicio.valor_frete_calculado} onChange={e => setTripInicio({...tripInicio, valor_frete_calculado: e.target.value})} placeholder="EX: 4500.00"/></Field>
-            <Field label="Numero NF"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})} placeholder="EX: 12345"/></Field>
-            <Field label="Local Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})} placeholder="EX: SAO PAULO - SP"/></Field>
-            <Field label="Local Descarga"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} placeholder="EX: CURITIBA - PR"/></Field>
-            <Field label="Data e Hora Saida"><Input type="datetime-local" value={tripInicio.data_saida} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})}/></Field>
-            <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})} placeholder="EX: 150000"/></Field>
-            <Field label="Peso Carregado (KG)"><Input type="number" step="0.01" value={tripInicio.peso_carregado_kg} onChange={e => {
-              const pKg = e.target.value;
-              const valTon = Number(tripInicio.valor_por_tonelada || 0);
-              let valCalc = tripInicio.valor_frete_calculado;
-              if (valTon > 0 && pKg) {
-                valCalc = (Number(pKg) / 1000) * valTon;
-              }
-              setTripInicio({
-                ...tripInicio,
-                peso_carregado_kg: pKg,
-                valor_frete_calculado: valCalc
-              });
-            }} placeholder="EX: 35000"/></Field>
-            <Field label="Placa Carreta (Opcional)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})} placeholder="EX: ABC-1234"/></Field>
-            <Field label="Observacao" className="sm:col-span-2 lg:col-span-3"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})} placeholder="OBSERVACOES RELEVANTES"/></Field>
-            <Buttons saving={saving} close={() => setModal('')}/>
-          </form>
+            <Buttons saving={saving} close={() => setModal('')} />
+          </div>
         </Modal>
       )}
 
       {modal === 'finalizar_viagem' && (
         <Modal title={`Finalizar Viagem: ${editing?.codigo_viagem}`} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('finalizar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="KM Final"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})} required placeholder="EX: 150800"/></Field>
-            <Field label="Peso Descarga (KG)"><Input type="number" step="0.01" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} placeholder="EX: 34900"/></Field>
-            <Field label="Local Descarga"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})} placeholder="EX: DESTINO FINAL"/></Field>
-            <Field label="Data e Hora Chegada"><Input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} required/></Field>
-            <div className="sm:col-span-2">
-              <Buttons saving={saving} close={() => setModal('')}/>
-            </div>
-          </form>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="KM Final"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})}/></Field>
+            <Field label="Peso na Descarga (KG)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})}/></Field>
+            <Field label="Local de Descarga Realizado"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})}/></Field>
+            <Field label="Data e Hora Chegada"><input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
+            <Buttons saving={saving} close={() => setModal('')} />
+          </div>
         </Modal>
       )}
 
       {modal === 'abastecimento' && (
         <Modal title={editing ? 'Editar Abastecimento' : 'Novo Abastecimento'} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Viagem Associada">
               <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})}>
-                <option value="">ABASTECIMENTO AVULSO / SEM VIAGEM</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.produto || 'GERAL'}</option>)}
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento} → {v.local_descarga || 'EM TRANSITO'})</option>)}
               </Select>
             </Field>
-            <Field label="Posto"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} placeholder="EX: POSTO BR 163"/></Field>
-            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required placeholder="EX: 450"/></Field>
-            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} required placeholder="EX: 2700.00"/></Field>
-            <Field label="KM Atual"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} required placeholder="EX: 150400"/></Field>
-            <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} placeholder="EX: 98765"/></Field>
-            <Buttons saving={saving} close={() => setModal('')}/>
-          </form>
+            <Field label="Posto / Local"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})}/></Field>
+            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})}/></Field>
+            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})}/></Field>
+            <Field label="KM Atual do Veiculo"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})}/></Field>
+            <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})}/></Field>
+            <Buttons saving={saving} close={() => setModal('')} />
+          </div>
         </Modal>
       )}
 
       {modal === 'despesa' && (
         <Modal title={editing ? 'Editar Despesa' : 'Nova Despesa de Viagem'} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Viagem Associada">
               <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})}>
-                <option value="">DESPESA AVULSA</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.produto || 'GERAL'}</option>)}
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento} → {v.local_descarga || 'EM TRANSITO'})</option>)}
               </Select>
             </Field>
             <Field label="Tipo de Despesa">
               <Select value={despesaForm.tipo} onChange={e => setDespesaForm({...despesaForm, tipo: e.target.value})}>
                 <option value="PEDAGIO">PEDAGIO</option>
-                <option value="BORRACHARIA">BORRACHARIA</option>
-                <option value="MANUTENCAO">MANUTENCAO</option>
-                <option value="ALIMENTACAO">ALIMENTACAO</option>
                 <option value="ESTADIA">ESTADIA</option>
+                <option value="BORRACHARIA">BORRACHARIA</option>
+                <option value="MANUTENCAO">MANUTENCAO CORRETIVA</option>
+                <option value="ALIMENTACAO">ALIMENTACAO</option>
                 <option value="OUTROS">OUTROS</option>
               </Select>
             </Field>
-            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} required placeholder="EX: 150.00"/></Field>
-            <Field label="Data"><Input type="date" value={despesaForm.data ? despesaForm.data.slice(0,10) : ''} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} required/></Field>
-            <Field label="Descricao" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} placeholder="DETALHES DA DESPESA"/></Field>
-            <Buttons saving={saving} close={() => setModal('')}/>
-          </form>
+            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})}/></Field>
+            <Field label="Data"><input type="date" value={despesaForm.data ? despesaForm.data.slice(0,10) : ''} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
+            <Field label="Descricao / Local" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})}/></Field>
+            <Buttons saving={saving} close={() => setModal('')} />
+          </div>
         </Modal>
       )}
 
       {modal === 'motorista' && (
         <Modal title={editing ? 'Editar Motorista' : 'Novo Motorista'} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('motorista'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})} required placeholder="EX: JOAO SILVA"/></Field>
-            <Field label="E-mail (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} placeholder="EX: JOAO@EMAIL.COM"/></Field>
-            <Field label="Telefone"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})} placeholder="EX: (45) 99999-9999"/></Field>
-            <Field label="Veiculo Vinculado">
-              <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
-                <option value="">NENHUM VEICULO FIXO</option>
-                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
-              </Select>
-            </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})}/></Field>
+            <Field label="E-mail de Acesso"><input type="email" value={motoristaForm.email || ''} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
+            <Field label="Telefone / WhatsApp"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})}/></Field>
             <Field label="Status">
               <Select value={motoristaForm.status} onChange={e => setMotoristaForm({...motoristaForm, status: e.target.value})}>
                 <option value="ATIVO">ATIVO</option>
                 <option value="INATIVO">INATIVO</option>
+                <option value="FERIAS">FERIAS</option>
               </Select>
             </Field>
-            <div className="sm:col-span-2">
-              <Buttons saving={saving} close={() => setModal('')}/>
-            </div>
-          </form>
+            <Field label="Veiculo Fixo Vinculado">
+              <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
+                <option value="">NENHUM (FROTA LIVRE)</option>
+                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
+              </Select>
+            </Field>
+            <Buttons saving={saving} close={() => setModal('')} />
+          </div>
         </Modal>
       )}
 
       {modal === 'veiculo' && (
         <Modal title={editing ? 'Editar Veiculo' : 'Novo Veiculo'} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('veiculo'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Placa"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})} required placeholder="EX: ABC-1234"/></Field>
-            <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})} placeholder="EX: VOLVO"/></Field>
-            <Field label="Modelo"><Input value={veiculoForm.modelo} onChange={e => setVeiculoForm({...veiculoForm, modelo: e.target.value})} placeholder="EX: FH 540"/></Field>
-            <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})} placeholder="EX: 2023"/></Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Placa"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})}/></Field>
+            <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})}/></Field>
+            <Field label="Modelo"><Input value={veiculoForm.modelo} onChange={e => setVeiculoForm({...veiculoForm, modelo: e.target.value})}/></Field>
+            <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})}/></Field>
             <Field label="Status">
               <Select value={veiculoForm.status} onChange={e => setVeiculoForm({...veiculoForm, status: e.target.value})}>
                 <option value="DISPONIVEL">DISPONIVEL</option>
@@ -1693,60 +1601,22 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <option value="INATIVO">INATIVO</option>
               </Select>
             </Field>
-            <div className="sm:col-span-3">
-              <Buttons saving={saving} close={() => setModal('')}/>
-            </div>
-          </form>
+            <Buttons saving={saving} close={() => setModal('')} />
+          </div>
         </Modal>
       )}
 
       {modal === 'frete' && (
-        <Modal title={editing ? 'Editar Frete' : 'Cadastrar Novo Frete'} onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('frete'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Codigo Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})} required/></Field>
-            <Field label="Tipo de Operacao">
-              <Select value={freteForm.tipo_operacao} onChange={e => setFreteForm({...freteForm, tipo_operacao: e.target.value})}>
-                <option value="FRETE_PROPRIO">FRETE PROPRIO</option>
-                <option value="TERCEIRIZADO">TERCEIRIZADO</option>
-              </Select>
-            </Field>
-            <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} required placeholder="EX: COOPERALFA"/></Field>
-            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} placeholder="EX: MILHO A GRANEL"/></Field>
-            <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required placeholder="EX: MARECHAL C. RONDON - PR"/></Field>
-            <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required placeholder="EX: PARANAGUA - PR"/></Field>
-            <Field label="Peso Previsto (KG)"><Input type="number" step="0.01" value={freteForm.peso_previsto_kg} onChange={e => {
-              const pPrev = e.target.value;
-              const valTon = Number(freteForm.valor_por_tonelada || 0);
-              let valTotal = freteForm.valor_frete;
-              if (valTon > 0 && pPrev) {
-                valTotal = (Number(pPrev) / 1000) * valTon;
-              }
-              setFreteForm({
-                ...freteForm,
-                peso_previsto_kg: pPrev,
-                valor_frete: valTotal
-              });
-            }} placeholder="EX: 35000"/></Field>
-            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => {
-              const vTon = e.target.value;
-              const pPrev = Number(freteForm.peso_previsto_kg || 0);
-              let valTotal = freteForm.valor_frete;
-              if (vTon && pPrev > 0) {
-                valTotal = (pPrev / 1000) * Number(vTon);
-              }
-              setFreteForm({
-                ...freteForm,
-                valor_por_tonelada: vTon,
-                valor_frete: valTotal
-              });
-            }} placeholder="EX: 130.00"/></Field>
-            <Field label="Valor Total Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required placeholder="EX: 4550.00"/></Field>
-            <Field label="Veiculo Sugerido">
-              <Select value={freteForm.veiculo_id} onChange={e => setFreteForm({...freteForm, veiculo_id: e.target.value})}>
-                <option value="">NENHUM VEICULO PRE-VINCULADO</option>
-                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
-              </Select>
-            </Field>
+        <Modal title={editing ? 'Editar Frete' : 'Novo Frete'} onClose={() => setModal('')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Codigo do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})}/></Field>
+            <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})}/></Field>
+            <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})}/></Field>
+            <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})}/></Field>
+            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})}/></Field>
+            <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => setFreteForm({...freteForm, peso_previsto_kg: e.target.value})}/></Field>
+            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => setFreteForm({...freteForm, valor_por_tonelada: e.target.value})}/></Field>
+            <Field label="Valor Total Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})}/></Field>
             <Field label="Status">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
                 <option value="PLANEJADO">PLANEJADO</option>
@@ -1755,8 +1625,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <option value="CANCELADO">CANCELADO</option>
               </Select>
             </Field>
-            <Buttons saving={saving} close={() => setModal('')}/>
-          </form>
+            <Buttons saving={saving} close={() => setModal('')} />
+          </div>
         </Modal>
       )}
     </div>
