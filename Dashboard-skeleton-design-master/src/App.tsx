@@ -1215,7 +1215,7 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
     e.preventDefault();
 
     if (pesoSaidaNum < pesoEntrada) {
-      alert("⚠️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
+      alert("⚠️️ Erro: O peso de saída não pode ser menor que o peso de entrada!");
       return;
     }
 
@@ -1390,12 +1390,11 @@ export default function App() {
     }
 
     if (nomeFinal) setUserName(nomeFinal);
-    setUserRole(roleDetectado.toLowerCase());
+    const roleLower = roleDetectado.toLowerCase();
+    setUserRole(roleLower);
     
-    if (roleDetectado.toLowerCase() === 'motorista') {
+    if (roleLower === 'motorista') {
       setAba('frota');
-    } else if (roleDetectado.toLowerCase() === 'operador') {
-      setAba('dashboard');
     }
     setLoading(false);
   }, []);
@@ -1603,29 +1602,25 @@ export default function App() {
             </>
           )}
           
-          {userRole === 'gestor' && (
-            <button
-              onClick={() => setAba("frota")}
-              className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-                aba === 'frota'
-                  ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Truck size={14} /> FROTA / FRETES
-            </button>
-          )}
+          <button
+            onClick={() => setAba("frota")}
+            className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+              aba === 'frota'
+                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Truck size={14} /> FROTA / FRETES
+          </button>
 
           {userRole !== 'motorista' && (
             <>
               <button onClick={() => setAba("patio")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'patio' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
                 <CheckSquare size={14} /> CONTROLE DE PÁTIO
               </button>
-              {userRole === 'gestor' && (
-                <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-                  <Package size={14} /> CADASTRO DE CONTRATOS
-                </button>
-              )}
+              <button onClick={() => setAba("cad_contratos")} className={`text-xs text-left p-2 rounded-lg font-medium transition-all flex items-center gap-2 ${aba === 'cad_contratos' ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                <Package size={14} /> CADASTRO DE CONTRATOS
+              </button>
             </>
           )}
         </nav>
@@ -1653,7 +1648,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-y-auto bg-[#0B0F15]">
-        {aba === "frota" && userRole === 'gestor' ? (
+        {aba === "frota" ? (
           <FrotaFretes session={session} userRole={userRole} userName={userName} currentUserEmail={session?.user?.email || ''} />
         ) : userRole === 'motorista' ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-[#161B23] rounded-xl border border-white/5">
@@ -1798,29 +1793,29 @@ export default function App() {
                 <form onSubmit={registrarEntrada} className="space-y-4">
                   <div>
                     <label className="text-xs text-gray-400 font-bold uppercase">Placa do Veículo</label>
-                    <input name="placa" type="text" placeholder="EX: ABC1D23" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm uppercase outline-none border border-white/10 text-white focus:border-blue-500" required />
+                    <input name="placa" type="text" placeholder="EX: ABC1D23" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white uppercase focus:border-blue-500" required />
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
-                    <select name="prod" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm outline-none border border-white/10 text-white focus:border-blue-500">
-                      <option value="Milho">Milho</option>
+                    <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
                       <option value="Soja">Soja</option>
+                      <option value="Milho">Milho</option>
                     </select>
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 font-bold uppercase">Peso de Entrada (kg)</label>
-                    <input name="peso" type="number" step="10" placeholder="Ex: 15400" className="w-full mt-1 bg-[#1A2030] p-2.5 rounded-lg text-sm outline-none border border-white/10 text-white focus:border-blue-500" required />
+                    <input name="peso" type="number" step="10" placeholder="Ex: 15000" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
                   </div>
-                  <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-3 rounded-lg transition-colors cursor-pointer shadow-lg">REGISTRAR ENTRADA</button>
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-3 rounded-lg transition-colors cursor-pointer shadow-md">Salvar Entrada</button>
                 </form>
               </div>
             )}
 
             {aba === "saida" && (
               <div className="space-y-4">
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">Veículos em Aberto / Aguardando Saída</h2>
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider">Saída de Veículos & Faturamento</h2>
                 {pesagensAbertas.length === 0 ? (
-                  <div className="text-center text-gray-500 py-12 text-xs bg-[#161B23] rounded-xl border border-white/5">Nenhum veículo aguardando finalização.</div>
+                  <div className="bg-[#161B23] p-8 rounded-xl border border-white/5 text-center text-gray-500 text-xs">Nenhum veículo aguardando pesagem de saída.</div>
                 ) : (
                   pesagensAbertas.map(p => (
                     <PesagemItem key={p.id} p={p} onFinalizar={finalizarPesagem} onExcluir={excluirPesagem} saldoCaixa={saldoCaixa} />
@@ -1831,75 +1826,158 @@ export default function App() {
 
             {aba === "caixa" && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-green-400">Saldo Atual em Caixa (Troco)</span>
-                      <h2 className="text-3xl font-extrabold text-white mt-1">
-                        R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                      </h2>
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Saldo Atual em Caixa</span>
+                      <h2 className="text-2xl font-extrabold text-white mt-1">R$ {saldoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
                     </div>
-                    <form onSubmit={handleAdicionarTroco} className="mt-4 pt-4 border-t border-white/5 flex gap-2">
-                      <input 
-                        type="number" 
-                        step="0.01" 
-                        placeholder="Valor do Aporte / Troco" 
-                        value={valorAporte} 
-                        onChange={e => setValorAporte(e.target.value)} 
-                        className="bg-[#1A2030] p-2 rounded-lg text-xs flex-1 outline-none border border-white/10 text-white focus:border-green-500" 
-                      />
-                      <button type="submit" className="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1">
-                        <PlusCircle size={14}/> Adicionar Troco
+                    <div className="p-3 bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 rounded-xl">
+                      <DollarSign size={24} />
+                    </div>
+                  </div>
+
+                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Total Aportes (Filtro)</span>
+                      <h2 className="text-2xl font-extrabold text-white mt-1">R$ {resumoCaixaFiltro.totalAportes.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
+                    </div>
+                    <div className="p-3 bg-blue-950/40 text-blue-400 border border-blue-500/20 rounded-xl">
+                      <PlusCircle size={24} />
+                    </div>
+                  </div>
+
+                  <div className="bg-[#161B23] p-4 rounded-xl border border-white/5 shadow-md flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-red-400">Total Retiradas (Filtro)</span>
+                      <h2 className="text-2xl font-extrabold text-white mt-1">R$ {resumoCaixaFiltro.totalSaidas.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h2>
+                    </div>
+                    <div className="p-3 bg-red-950/40 text-red-400 border border-red-500/20 rounded-xl">
+                      <MinusCircle size={24} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
+                    <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2 text-blue-400">
+                      <PlusCircle size={16} /> Adicionar Troco (Aporte)
+                    </h3>
+                    <form onSubmit={handleAdicionarTroco} className="space-y-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Valor do Aporte (R$)</label>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          placeholder="Ex: 500.00" 
+                          value={valorAporte} 
+                          onChange={e => setValorAporte(e.target.value)} 
+                          className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+                          required 
+                        />
+                      </div>
+                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-2 rounded-lg transition-colors cursor-pointer shadow-md">
+                        Confirmar Adição de Troco
                       </button>
                     </form>
                   </div>
 
-                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl flex flex-col justify-between">
-                    <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-red-400">Retirada / Sangria de Caixa</span>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Retire valores para despesas ou acertos</p>
-                    </div>
-                    <form onSubmit={handleSangriaGasto} className="mt-3 space-y-2">
-                      <div className="flex gap-2">
+                  <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md">
+                    <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4 flex items-center gap-2 text-red-400">
+                      <MinusCircle size={16} /> Sangria / Gasto no Caixa
+                    </h3>
+                    <form onSubmit={handleSangriaGasto} className="space-y-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Valor da Retirada (R$)</label>
                         <input 
                           type="number" 
                           step="0.01" 
-                          placeholder="Valor" 
+                          placeholder="Ex: 150.00" 
                           value={valorSangria} 
                           onChange={e => setValorSangria(e.target.value)} 
-                          className="bg-[#1A2030] p-2 rounded-lg text-xs w-1/3 outline-none border border-white/10 text-white focus:border-red-500" 
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="Motivo da retirada (obrigatório)" 
-                          value={motivoSangria} 
-                          onChange={e => setMotivoSangria(e.target.value)} 
-                          className="bg-[#1A2030] p-2 rounded-lg text-xs flex-1 outline-none border border-white/10 text-white focus:border-red-500" 
+                          className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+                          required 
                         />
                       </div>
-                      <button type="submit" className="w-full bg-red-900/40 hover:bg-red-800 text-red-300 hover:text-white text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 border border-red-500/30">
-                        <MinusCircle size={14}/> Realizar Retirada / Sangria
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Motivo / Descrição</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ex: Compra de material de escritório" 
+                          value={motivoSangria} 
+                          onChange={e => setMotivoSangria(e.target.value)} 
+                          className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+                          required 
+                        />
+                      </div>
+                      <button type="submit" className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs p-2 rounded-lg transition-colors cursor-pointer shadow-md">
+                        Confirmar Sangria / Gasto
                       </button>
                     </form>
                   </div>
                 </div>
 
-                <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-xl space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-white/5 pb-3">
+                <div className="bg-[#161B23] p-5 rounded-xl border border-white/5 shadow-md space-y-4">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-white/5 pb-3">
                     <h3 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-2">
-                      <History size={16} className="text-blue-400"/> Histórico de Movimentações de Caixa
+                      <History size={16} className="text-blue-400" /> Histórico de Movimentações de Caixa
                     </h3>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <select value={fCaixaTipo} onChange={e => setFCaixaTipo(e.target.value)} className="bg-[#1A2030] p-1.5 rounded border border-white/10 text-gray-300 outline-none">
-                        <option value="">Todos os Tipos</option>
-                        <option value="ENTRADA_TROCO">Entrada de Troco</option>
-                        <option value="SAIDA_TROCO">Saída de Troco</option>
-                        <option value="SANGRIA_GASTO">Sangria / Gasto</option>
-                      </select>
-                    </div>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
+                    <select 
+                      value={fCaixaTipo} 
+                      onChange={e => setFCaixaTipo(e.target.value)} 
+                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500"
+                    >
+                      <option value="">Todos os Tipos</option>
+                      <option value="ENTRADA_TROCO">Aporte (Entrada)</option>
+                      <option value="SAIDA_TROCO">Troco Frete (Saída)</option>
+                      <option value="SANGRIA_GASTO">Sangria / Gasto</option>
+                    </select>
+
+                    <input 
+                      type="date" 
+                      value={fCaixaDataI} 
+                      onChange={e => setFCaixaDataI(e.target.value)} 
+                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500" 
+                    />
+
+                    <input 
+                      type="date" 
+                      value={fCaixaDataF} 
+                      onChange={e => setFCaixaDataF(e.target.value)} 
+                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500" 
+                    />
+
+                    <select 
+                      value={fCaixaOperador} 
+                      onChange={e => setFCaixaOperador(e.target.value)} 
+                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-gray-300 outline-none focus:border-blue-500"
+                    >
+                      <option value="">Todos os Operadores</option>
+                      {operadoresCaixa.map(op => <option key={op} value={op}>{op}</option>)}
+                    </select>
+
+                    <input 
+                      type="text" 
+                      placeholder="Buscar por motivo..." 
+                      value={fCaixaBusca} 
+                      onChange={e => setFCaixaBusca(e.target.value)} 
+                      className="bg-[#1A2030] p-2 rounded-lg text-xs border border-white/10 text-white outline-none focus:border-blue-500" 
+                    />
+                  </div>
+
+                  {(fCaixaTipo || fCaixaDataI || fCaixaDataF || fCaixaOperador || fCaixaBusca) && (
+                    <button 
+                      onClick={() => { setFCaixaTipo(""); setFCaixaDataI(""); setFCaixaDataF(""); setFCaixaOperador(""); setFCaixaBusca(""); }} 
+                      className="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                    >
+                      Limpar filtros de caixa
+                    </button>
+                  )}
+
+                  <div className="overflow-x-auto pt-2">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="text-gray-400 border-b border-white/5 uppercase text-[9px] tracking-wider">
@@ -1914,35 +1992,30 @@ export default function App() {
                       <tbody className="divide-y divide-white/5">
                         {movimentacoesFiltradas.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="p-6 text-center text-gray-500">
-                              Nenhuma movimentação registrada no caixa.
-                            </td>
+                            <td colSpan="6" className="text-center py-6 text-gray-500">Nenhuma movimentação encontrada com os filtros atuais.</td>
                           </tr>
                         ) : (
-                          movimentacoesFiltradas.map(m => (
-                            <tr key={m.id} className="hover:bg-white/[0.02]">
-                              <td className="p-2.5 text-gray-300">
-                                {m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '-'}
-                              </td>
-                              <td className="p-2.5 font-bold">
-                                <span className={`px-2 py-0.5 rounded text-[10px] ${
-                                  m.tipo === 'ENTRADA_TROCO' 
-                                    ? 'bg-green-950/60 text-green-300 border border-green-500/20' 
-                                    : 'bg-red-950/60 text-red-300 border border-red-500/20'
-                                }`}>
-                                  {m.tipo}
-                                </span>
-                              </td>
-                              <td className="p-2.5 text-gray-200">{m.motivo || '-'}</td>
-                              <td className="p-2.5 text-gray-300">{m.operador || 'N/A'}</td>
-                              <td className={`p-2.5 text-right font-bold ${m.tipo === 'ENTRADA_TROCO' ? 'text-green-400' : 'text-red-400'}`}>
-                                {m.tipo === 'ENTRADA_TROCO' ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                              </td>
-                              <td className="p-2.5 text-right font-bold text-white">
-                                R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                              </td>
-                            </tr>
-                          ))
+                          movimentacoesFiltradas.map(m => {
+                            const isEntrada = m.tipo === 'ENTRADA_TROCO';
+                            return (
+                              <tr key={m.id} className="hover:bg-white/[0.02]">
+                                <td className="p-2.5 text-gray-300">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                                <td className="p-2.5">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${isEntrada ? 'bg-blue-950/60 text-blue-300 border border-blue-500/20' : 'bg-red-950/60 text-red-300 border border-red-500/20'}`}>
+                                    {m.tipo}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-gray-200">{m.motivo}</td>
+                                <td className="p-2.5 text-gray-400">{m.operador || 'N/A'}</td>
+                                <td className={`p-2.5 text-right font-bold ${isEntrada ? 'text-blue-400' : 'text-red-400'}`}>
+                                  {isEntrada ? '+' : '-'} R$ {Number(m.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-emerald-400">
+                                  R$ {Number(m.saldo_resultante || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
@@ -1952,7 +2025,8 @@ export default function App() {
             )}
 
             {aba === "patio" && <KanbanPatio />}
-            {aba === "cad_contratos" && userRole === 'gestor' && <CadastroContratos />}
+
+            {aba === "cad_contratos" && <CadastroContratos />}
           </>
         )}
       </main>
