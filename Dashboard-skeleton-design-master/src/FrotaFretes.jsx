@@ -153,7 +153,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
   useEffect(() => { load(); }, [load]);
 
-  // Função auxiliar para validar KM (nunca menor que o último registrado para o veículo)
   const validarUltimoKm = useCallback((veiculoId, kmInformado, viagemAtualId = null) => {
     if (!veiculoId || !kmInformado) return true;
     let maxKm = 0;
@@ -415,7 +414,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const veiculoIdNum = Number(tripInicio.veiculo_id);
         const kmInicialNum = tripInicio.km_inicial ? Number(tripInicio.km_inicial) : 0;
 
-        // Validação de KM mínimo
         if (kmInicialNum > 0 && !validarUltimoKm(veiculoIdNum, kmInicialNum, editing?.id)) {
           throw new Error('O KM inicial informado não pode ser menor que o último KM registrado para este veículo.');
         }
@@ -424,7 +422,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const valorTon = tripInicio.valor_por_tonelada ? Number(tripInicio.valor_por_tonelada) : 0;
         let assignedFreteId = tripInicio.frete_id ? Number(tripInicio.frete_id) : null;
 
-        // CORREÇÃO: Se a viagem não tiver frete vinculado mas tiver dados financeiros/peso, criamos um frete interno automaticamente
         if (!assignedFreteId && (pesoKg > 0 || valorTon > 0 || tripInicio.produto)) {
           const valorFreteCalc = valorTon > 0 && pesoKg > 0 ? (pesoKg / 1000) * valorTon : Number(tripInicio.valor_frete_calculado || 0);
           const novoFretePayload = {
@@ -646,7 +643,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 uppercase pb-10">
-      {/* Cabeçalho Responsivo */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#161B23] border border-white/5 p-4 sm:p-5 rounded-2xl shadow-xl">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">Gestão Operacional</p>
@@ -991,7 +987,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </div>
           </div>
 
-          {/* Versão Mobile em Cards para motoristas / telas pequenas */}
           <div className="block sm:hidden p-4 space-y-3">
             {viagensFiltradas.map(v => (
               <div key={v.id} className="bg-[#1A2030] border border-white/10 rounded-2xl p-4 flex flex-col gap-3 shadow">
@@ -1025,7 +1020,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             )}
           </div>
 
-          {/* Versão Tabela para desktop */}
           <div className="hidden sm:block">
             <Table rows={viagensFiltradas} headers={['Código','Veículo','Motorista','Produto','Origem → Destino','Status','Ações']} render={v => (
               <>
@@ -1149,7 +1143,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Receipt size={16}/>LANÇAR DESPESA
             </button>
           </div>
-          <Table rows={despesasFiltradasPeriodo.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['Data','Viagem','Tipo','Descrição','Valor','']} render={d => (
+          <Table rows={despesasFiltradosPeriodo.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['Data','Viagem','Tipo','Descrição','Valor','']} render={d => (
             <>
               <td className="p-3.5">{d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-'}</td>
               <td className="p-3.5 font-bold text-blue-300">{d.viagem_codigo}</td>
@@ -1236,12 +1230,15 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               setTripInicio({...tripInicio, valor_por_tonelada: valTon, valor_frete_calculado: calc});
             }} placeholder="R$ por TON"/></Field>
             
-            <Field label="Peso Carga (kg)">
-              <Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => {
-                const pesoKg = e.target.value;
-                const valTon = Number(tripInicio.valor_por_tonelada || 0);
-                const calc = valTon > 0 && pesoKg ? (Number(pesoKg) / 1000) * valTon : '';
-                setTripInicio({...tripInicio, peso_carregado_kg: pesoKg, valor_frete_calculado: calc});
+            <Field label="Peso Carga (kg) [Máx. 5 dígitos]">
+              <Input type="number" maxLength={5} max={99999} value={tripInicio.peso_carregado_kg} onChange={e => {
+                const val = e.target.value;
+                if (val.length <= 5 && Number(val) <= 99999) {
+                  const pesoKg = val;
+                  const valTon = Number(tripInicio.valor_por_tonelada || 0);
+                  const calc = valTon > 0 && pesoKg ? (Number(pesoKg) / 1000) * valTon : '';
+                  setTripInicio({...tripInicio, peso_carregado_kg: pesoKg, valor_frete_calculado: calc});
+                }
               }} placeholder="Ex: 35000"/>
             </Field>
 
@@ -1253,7 +1250,16 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Local Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})}/></Field>
             <Field label="Local Descarga"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} placeholder="EX: ARMAZÉM"/></Field>
             <Field label="Número NF"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
-            <Field label="KM Inicial (Bloqueado se menor)"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})} required/></Field>
+            
+            <Field label="KM Inicial [Máx. 6 dígitos]">
+              <Input type="number" maxLength={6} max={999999} value={tripInicio.km_inicial} onChange={e => {
+                const val = e.target.value;
+                if (val.length <= 6 && Number(val) <= 999999) {
+                  setTripInicio({...tripInicio, km_inicial: val});
+                }
+              }} required/>
+            </Field>
+
             <Field label="Data/Hora Saída"><Input type="datetime-local" value={tripInicio.data_saida ? tripInicio.data_saida.slice(0,16) : ''} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})}/></Field>
             <Field label="Observação" className="sm:col-span-2"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})}/></Field>
             
@@ -1265,8 +1271,25 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'finalizar_viagem' && (
         <Modal title={`Finalizar Viagem: ${editing?.codigo_viagem || ''}`} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('finalizar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="KM Final (Deve ser maior que o inicial)"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})} required/></Field>
-            <Field label="Peso Destino (kg)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} required/></Field>
+            
+            <Field label="KM Final [Máx. 6 dígitos]">
+              <Input type="number" maxLength={6} max={999999} value={tripFim.km_final} onChange={e => {
+                const val = e.target.value;
+                if (val.length <= 6 && Number(val) <= 999999) {
+                  setTripFim({...tripFim, km_final: val});
+                }
+              }} required/>
+            </Field>
+
+            <Field label="Peso Destino (kg) [Máx. 5 dígitos]">
+              <Input type="number" maxLength={5} max={99999} value={tripFim.peso_descarga_kg} onChange={e => {
+                const val = e.target.value;
+                if (val.length <= 5 && Number(val) <= 99999) {
+                  setTripFim({...tripFim, peso_descarga_kg: val});
+                }
+              }} required/>
+            </Field>
+
             <Field label="Local Descarga"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})} required/></Field>
             <Field label="Data/Hora Chegada"><Input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} required/></Field>
             
@@ -1335,12 +1358,19 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </Field>
             <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} required placeholder="CLIENTE"/></Field>
             <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} placeholder="EX: SOJA, MILHO"/></Field>
-            <Field label="Peso Previsto (kg)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => {
-              const peso = e.target.value;
-              const ton = Number(freteForm.valor_por_tonelada || 0);
-              const total = ton > 0 && peso ? (Number(peso) / 1000) * ton : freteForm.valor_frete;
-              setFreteForm({...freteForm, peso_previsto_kg: peso, valor_frete: total});
-            }} placeholder="EX: 35000"/></Field>
+            
+            <Field label="Peso Previsto (kg) [Máx. 5 dígitos]">
+              <Input type="number" maxLength={5} max={99999} value={freteForm.peso_previsto_kg} onChange={e => {
+                const val = e.target.value;
+                if (val.length <= 5 && Number(val) <= 99999) {
+                  const peso = val;
+                  const ton = Number(freteForm.valor_por_tonelada || 0);
+                  const total = ton > 0 && peso ? (Number(peso) / 1000) * ton : freteForm.valor_frete;
+                  setFreteForm({...freteForm, peso_previsto_kg: peso, valor_frete: total});
+                }
+              }} placeholder="EX: 35000"/>
+            </Field>
+
             <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => {
               const ton = e.target.value;
               const peso = Number(freteForm.peso_previsto_kg || 0);
@@ -1371,7 +1401,16 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </Field>
             <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required/></Field>
             <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} required/></Field>
-            <Field label="KM Atual"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})}/></Field>
+            
+            <Field label="KM Atual [Máx. 6 dígitos]">
+              <Input type="number" maxLength={6} max={999999} value={abastecimentoForm.km_atual} onChange={e => {
+                const val = e.target.value;
+                if (val.length <= 6 && Number(val) <= 999999) {
+                  setAbastecimentoForm({...abastecimentoForm, km_atual: val});
+                }
+              }}/>
+            </Field>
+
             <Field label="Posto"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})}/></Field>
             <Field label="Nota Fiscal"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})}/></Field>
             <Buttons saving={saving} close={() => setModal('')}/>
