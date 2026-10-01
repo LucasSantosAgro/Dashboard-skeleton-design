@@ -386,6 +386,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         'Destino': v.local_descarga || '-',
         'Peso Origem (kg)': v.peso_carregado_kg ? num(v.peso_carregado_kg) : '0',
         'Peso Destino (kg)': v.peso_descarga_kg ? num(v.peso_descarga_kg) : '0',
+        'Dif. Peso (Origem-Destino)': v.peso_carregado_kg && v.peso_descarga_kg ? num(Number(v.peso_carregado_kg) - Number(v.peso_descarga_kg)) : '0',
         'KM Inicial': v.km_inicial || 0,
         'KM Final': v.km_final || 0,
         'Status': v.status
@@ -1063,6 +1064,18 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NAO INFORMADO'}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Descarga</span>
+              <span className="text-amber-400 font-bold">{viagemDetalheModal.peso_descarga_kg ? `${num(viagemDetalheModal.peso_descarga_kg)} kg` : 'NAO INFORMADO'}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5 sm:col-span-2">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Diferenca de Peso (Origem - Destino)</span>
+              <span className="text-purple-300 font-bold">
+                {viagemDetalheModal.peso_carregado_kg && viagemDetalheModal.peso_descarga_kg 
+                  ? `${num(Number(viagemDetalheModal.peso_carregado_kg) - Number(viagemDetalheModal.peso_descarga_kg))} kg` 
+                  : 'N/A'}
+              </span>
+            </div>
+            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5 sm:col-span-2">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saida</span>
               <span className="text-white font-bold">{viagemDetalheModal.km_inicial ? `${num(viagemDetalheModal.km_inicial)} KM` : '-'} ({viagemDetalheModal.data_saida ? new Date(viagemDetalheModal.data_saida).toLocaleString('pt-BR') : 'N/A'})</span>
             </div>
@@ -1179,6 +1192,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   <p><strong>Rota:</strong> {v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</p>
                   <p><strong>Peso Origem:</strong> {v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</p>
                   <p><strong>Peso Destino:</strong> {v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</p>
+                  <p><strong>Dif. Peso (Origem - Destino):</strong> <span className="text-purple-300 font-bold">{v.peso_carregado_kg && v.peso_descarga_kg ? `${num(Number(v.peso_carregado_kg) - Number(v.peso_descarga_kg))} KG` : '-'}</span></p>
                 </div>
                 <div className="flex items-center gap-2 pt-2 border-t border-white/5">
                   {v.status !== 'FINALIZADO' && (
@@ -1201,7 +1215,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           </div>
 
           <div className="hidden sm:block">
-            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','STATUS','ACOES']} render={v => (
+            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','STATUS','ACOES']} render={v => (
               <>
                 <td className="p-3.5 font-bold text-blue-300">{v.codigo_viagem}</td>
                 <td className="p-3.5">{v.veiculos?.placa || '-'}</td>
@@ -1210,6 +1224,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <td className="p-3.5">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</td>
                 <td className="p-3.5 font-medium text-emerald-400">{v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</td>
                 <td className="p-3.5 font-medium text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
+                <td className="p-3.5 font-bold text-purple-300">{v.peso_carregado_kg && v.peso_descarga_kg ? `${num(Number(v.peso_carregado_kg) - Number(v.peso_descarga_kg))} KG` : '-'}</td>
                 <td className="p-3.5">{statusBadge(v.status)}</td>
                 <td className="p-3.5">
                   <div className="flex items-center gap-2">
@@ -1547,22 +1562,20 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 if (val.length <= 5 && Number(val) <= 99999) {
                   const peso = val;
                   const ton = Number(freteForm.valor_por_tonelada || 0);
-                  const total = ton > 0 && peso ? (Number(peso) / 1000) * ton : freteForm.valor_frete;
+                  const total = ton > 0 && peso ? (Number(peso) / 1000) * ton : Number(freteForm.valor_frete || 0);
                   setFreteForm({...freteForm, peso_previsto_kg: peso, valor_frete: total});
                 }
-              }} placeholder="EX: 35000"/>
+              }} placeholder="Ex: 35000"/>
             </Field>
-
             <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => {
               const ton = e.target.value;
               const peso = Number(freteForm.peso_previsto_kg || 0);
-              const total = peso > 0 && ton ? (peso / 1000) * Number(ton) : freteForm.valor_frete;
+              const total = peso > 0 && ton ? (peso / 1000) * Number(ton) : Number(freteForm.valor_frete || 0);
               setFreteForm({...freteForm, valor_por_tonelada: ton, valor_frete: total});
             }} placeholder="R$ por TON"/></Field>
-            
-            <Field label="Valor do Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required placeholder="R$ VALOR TOTAL"/></Field>
-            <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required placeholder="ORIGEM"/></Field>
-            <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required placeholder="DESTINO"/></Field>
+            <Field label="Valor Frete Total (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required/></Field>
+            <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required/></Field>
+            <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required/></Field>
             <Field label="Status">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
                 <option value="PLANEJADO">PLANEJADO</option>
@@ -1575,88 +1588,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           </form>
         </Modal>
       )}
-
-      {modal === 'abastecimento' && (
-        <Modal title="Novo Abastecimento" onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Viagem Associada">
-              <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})}>
-                <option value="">ABASTECIMENTO AVULSO / SEM VIAGEM</option>
-                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.codigo_viagem} - {veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || ''} ({v.local_carregamento} → {v.local_descarga || 'EM TRANSITO'})
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Posto / Local"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} required placeholder="NOME DO POSTO"/></Field>
-            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required placeholder="QTD LITROS"/></Field>
-            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} required placeholder="R$ VALOR TOTAL"/></Field>
-            <Field label="KM Atual [Max. 6 digitos]">
-              <Input type="number" maxLength={6} max={999999} value={abastecimentoForm.km_atual} onChange={e => {
-                const val = e.target.value;
-                if (val.length <= 6 && Number(val) <= 999999) {
-                  setAbastecimentoForm({...abastecimentoForm, km_atual: val});
-                }
-              }} required placeholder="KM ATUAL DO VEICULO"/>
-            </Field>
-            <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} placeholder="NUMERO DA NF"/></Field>
-            <Buttons saving={saving} close={() => setModal('')}/>
-          </form>
-        </Modal>
-      )}
-
-      {modal === 'despesa' && (
-        <Modal title="Lancar Despesa" onClose={() => setModal('')}>
-          <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Viagem Associada">
-              <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})}>
-                <option value="">DESPESA AVULSA / SEM VIAGEM</option>
-                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.codigo_viagem} - {veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || ''}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Tipo de Despesa">
-              <Select value={despesaForm.tipo} onChange={e => setDespesaForm({...despesaForm, tipo: e.target.value})}>
-                {['PEDAGIO','MANUTENCAO','BORRACHARIA','LAVAGEM','ALIMENTACAO','ESTADIA','OUTROS'].map(t => <option key={t}>{t}</option>)}
-              </Select>
-            </Field>
-            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} required placeholder="R$ VALOR"/></Field>
-            <Field label="Data"><Input type="date" value={despesaForm.data} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} required/></Field>
-            <Field label="Descricao" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} placeholder="DETALHES DA DESPESA"/></Field>
-            <Buttons saving={saving} close={() => setModal('')}/>
-          </form>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-function Table({rows, headers, render, empty}) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs text-left">
-        <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
-          <tr>
-            {headers.map((h, i) => <th key={i} className="p-3.5">{h}</th>)}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
-          {rows.map((row, index) => (
-            <tr key={row.id || index} className="hover:bg-white/[0.02]">
-              {render(row)}
-            </tr>
-          ))}
-          {!rows.length && (
-            <tr>
-              <td colSpan={headers.length} className="p-8 text-center text-gray-500 font-bold">{empty}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
     </div>
   );
 }
