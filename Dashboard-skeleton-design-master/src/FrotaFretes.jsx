@@ -88,25 +88,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [kpiModal, setKpiModal] = useState(null);
   const [viagemDetalheModal, setViagemDetalheModal] = useState(null);
 
-  // Geração automática de códigos sequenciais padronizados (Ex: VAG-000001, FRT-000001)
-  const proximoCodigoViagem = useMemo(() => {
-    const numeros = viagens.map(v => {
-      const match = (v.codigo_viagem || '').match(/(\d+)$/);
-      return match ? parseInt(match[1], 10) : 0;
-    });
-    const maxNum = numeros.length ? Math.max(...numeros) : 0;
-    return `VAG-${String(maxNum + 1).padStart(6, '0')}`;
-  }, [viagens]);
-
-  const proximoCodigoFrete = useMemo(() => {
-    const numeros = fretes.map(f => {
-      const match = (f.codigo_frete || '').match(/(\d+)$/);
-      return match ? parseInt(match[1], 10) : 0;
-    });
-    const maxNum = numeros.length ? Math.max(...numeros) : 0;
-    return `FRT-${String(maxNum + 1).padStart(6, '0')}`;
-  }, [fretes]);
-
   const currentMotorista = useMemo(() => {
     if (!isDriver || !currentUserEmail) return null;
     const cleanEmail = currentUserEmail.trim().toLowerCase();
@@ -267,7 +248,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       custos_operacionais,
       resultado
     };
-  }, [viagensFiltradasPeriodo, fretesFiltradosPeriodo, abastecimentosFiltradosPeriodo, despesasFiltradosPeriodo]);
+  }, [viagensFiltradasPeriodo, fretesFiltradosPeriodo, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo]);
 
   const rankingPostos = useMemo(() => {
     const mapaPostos = {};
@@ -396,25 +377,20 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
     if (relatorioTipo === 'viagens') {
       tituloRelatorio = 'Relatorio de Viagens';
-      dadosExportacao = viagensFiltradasPeriodo.map(v => {
-        const pesoOrigem = Number(v.peso_carregado_kg || 0);
-        const pesoDestino = Number(v.peso_descarga_kg || 0);
-        const diffPeso = (v.peso_descarga_kg && v.peso_carregado_kg) ? pesoDestino - pesoOrigem : null;
-        return {
-          'Codigo Viagem': v.codigo_viagem,
-          'Veiculo (Placa)': veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || '-',
-          'Motorista': motoristas.find(m => Number(m.id) === Number(v.motorista_id))?.nome || '-',
-          'Produto': v.produto || '-',
-          'Origem': v.local_carregamento || '-',
-          'Destino': v.local_descarga || '-',
-          'Peso Origem (kg)': pesoOrigem ? num(pesoOrigem) : '0',
-          'Peso Destino (kg)': pesoDestino ? num(pesoDestino) : '0',
-          'Dif. Peso (Dest - Orig)': diffPeso !== null ? `${diffPeso > 0 ? '+' : ''}${num(diffPeso)}` : '-',
-          'KM Inicial': v.km_inicial || 0,
-          'KM Final': v.km_final || 0,
-          'Status': v.status
-        };
-      });
+      dadosExportacao = viagensFiltradasPeriodo.map(v => ({
+        'Codigo Viagem': v.codigo_viagem,
+        'Veiculo (Placa)': veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || '-',
+        'Motorista': motoristas.find(m => Number(m.id) === Number(v.motorista_id))?.nome || '-',
+        'Produto': v.produto || '-',
+        'Origem': v.local_carregamento || '-',
+        'Destino': v.local_descarga || '-',
+        'Peso Origem (kg)': v.peso_carregado_kg ? num(v.peso_carregado_kg) : '0',
+        'Peso Destino (kg)': v.peso_descarga_kg ? num(v.peso_descarga_kg) : '0',
+        'Dif. Peso (kg)': (v.peso_descarga_kg && v.peso_carregado_kg) ? num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg)) : '0',
+        'KM Inicial': v.km_inicial || 0,
+        'KM Final': v.km_final || 0,
+        'Status': v.status
+      }));
     } else if (relatorioTipo === 'fretes') {
       tituloRelatorio = 'Relatorio de Fretes';
       dadosExportacao = fretesFiltradosPeriodo.map(f => ({
@@ -516,9 +492,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       if(row) {
         setTripInicio({...row, valor_por_tonelada: '', valor_frete_calculado: ''});
       } else {
+        const proximoNumVag = viagens.length > 0 ? (Math.max(...viagens.map(v => parseInt(String(v.codigo_viagem || '').replace(/\D/g, '') || '0'))) + 1) : 1;
         setTripInicio({
           ...emptyTripInicio,
-          codigo_viagem: proximoCodigoViagem, // Sequencial automático (VAG-000001...)
+          codigo_viagem: `VAG - ${String(proximoNumVag).padStart(6, '0')}`,
           motorista_id: currentMotorista ? currentMotorista.id : '',
           veiculo_id: veiculoSugerido,
           frete_id: freteSugeridoId,
@@ -546,7 +523,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     } else if(type === 'veiculo') {
       setVeiculoForm(row ? {...row} : {...emptyVeiculo});
     } else if(type === 'frete') {
-      setFreteForm(row ? {...row} : {...emptyFrete, codigo_frete: proximoCodigoFrete}); // Sequencial automático (FRT-000001...)
+      const proximoNumFrt = fretes.length > 0 ? (Math.max(...fretes.map(f => parseInt(String(f.codigo_frete || '').replace(/\D/g, '') || '0'))) + 1) : 1;
+      setFreteForm(row ? {...row} : {...emptyFrete, codigo_frete: `FRT - ${String(proximoNumFrt).padStart(6, '0')}`});
     }
     setModal(type);
   }
@@ -576,8 +554,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
         if (!assignedFreteId && (pesoKg > 0 || valorTon > 0 || tripInicio.produto)) {
           const valorFreteCalc = valorTon > 0 && pesoKg > 0 ? (pesoKg / 1000) * valorTon : Number(tripInicio.valor_frete_calculado || 0);
+          const proximoNumFrtAuto = fretes.length > 0 ? (Math.max(...fretes.map(f => parseInt(String(f.codigo_frete || '').replace(/\D/g, '') || '0'))) + 1) : 1;
           const novoFretePayload = {
-            codigo_frete: proximoCodigoFrete,
+            codigo_frete: `FRT - ${String(proximoNumFrtAuto).padStart(6, '0')}`,
             tipo_operacao: 'FRETE_PROPRIO',
             origem: upper(tripInicio.local_carregamento) || 'N/A',
             destino: upper(tripInicio.local_descarga) || 'N/A',
@@ -596,7 +575,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         }
 
         const payload = {
-          codigo_viagem: upper(tripInicio.codigo_viagem || proximoCodigoViagem),
+          codigo_viagem: upper(tripInicio.codigo_viagem),
           frete_id: assignedFreteId,
           veiculo_id: veiculoIdNum,
           motorista_id: Number(resolvedMotoristaId),
@@ -718,7 +697,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const valorTotalFinal = pesoPrev > 0 && valorTon > 0 ? (pesoPrev / 1000) * valorTon : Number(freteForm.valor_frete || 0);
 
         const payload = {
-          codigo_frete: upper(freteForm.codigo_frete || proximoCodigoFrete),
+          codigo_frete: upper(freteForm.codigo_frete),
           tipo_operacao: upper(freteForm.tipo_operacao || 'FRETE_PROPRIO'),
           origem: upper(freteForm.origem),
           destino: upper(freteForm.destino),
@@ -1088,6 +1067,18 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NAO INFORMADO'}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Destino</span>
+              <span className="text-amber-400 font-bold">{viagemDetalheModal.peso_descarga_kg ? `${num(viagemDetalheModal.peso_descarga_kg)} kg` : 'NAO INFORMADO'}</span>
+            </div>
+            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Diferença Peso (Destino - Origem)</span>
+              <span className="text-blue-400 font-bold">
+                {viagemDetalheModal.peso_descarga_kg && viagemDetalheModal.peso_carregado_kg 
+                  ? `${num(Number(viagemDetalheModal.peso_descarga_kg) - Number(viagemDetalheModal.peso_carregado_kg))} kg` 
+                  : 'N/A'}
+              </span>
+            </div>
+            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saida</span>
               <span className="text-white font-bold">{viagemDetalheModal.km_inicial ? `${num(viagemDetalheModal.km_inicial)} KM` : '-'} ({viagemDetalheModal.data_saida ? new Date(viagemDetalheModal.data_saida).toLocaleString('pt-BR') : 'N/A'})</span>
             </div>
@@ -1191,75 +1182,67 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           </div>
 
           <div className="block sm:hidden p-4 space-y-3">
-            {viagensFiltradas.map(v => {
-              const diffPeso = (v.peso_descarga_kg && v.peso_carregado_kg) ? Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg) : null;
-              return (
-                <div key={v.id} className="bg-[#1A2030] border border-white/10 rounded-2xl p-4 flex flex-col gap-3 shadow">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-blue-300 text-sm">{v.codigo_viagem}</span>
-                    {statusBadge(v.status)}
-                  </div>
-                  <div className="text-xs space-y-1 text-gray-300">
-                    <p><strong>Veiculo:</strong> {v.veiculos?.placa || '-'}</p>
-                    <p><strong>Motorista:</strong> {v.motorista_nome}</p>
-                    <p><strong>Produto:</strong> {v.produto || '-'}</p>
-                    <p><strong>Rota:</strong> {v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</p>
-                    <p><strong>Peso Origem:</strong> {v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</p>
-                    <p><strong>Peso Destino:</strong> {v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</p>
-                    <p><strong>Diferença (Dest - Orig):</strong> <span className={diffPeso !== null ? (diffPeso >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold') : 'text-gray-400'}>{diffPeso !== null ? `${diffPeso > 0 ? '+' : ''}${num(diffPeso)} KG` : '-'}</span></p>
-                  </div>
-                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                    {v.status !== 'FINALIZADO' && (
-                      <button onClick={() => open('finalizar_viagem', v)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">
-                        <CheckCircle2 size={15}/> FINALIZAR VIAGEM
-                      </button>
-                    )}
-                    <button onClick={() => open('iniciar_viagem', v)} className="p-2.5 rounded-xl bg-blue-950/60 text-blue-400">
-                      <Pencil size={16}/>
-                    </button>
-                    <button onClick={() => del('viagens', v.id, `A VIAGEM ${v.codigo_viagem}`)} className="p-2.5 rounded-xl bg-red-950/60 text-red-400">
-                      <Trash2 size={16}/>
-                    </button>
-                  </div>
+            {viagensFiltradas.map(v => (
+              <div key={v.id} className="bg-[#1A2030] border border-white/10 rounded-2xl p-4 flex flex-col gap-3 shadow">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-blue-300 text-sm">{v.codigo_viagem}</span>
+                  {statusBadge(v.status)}
                 </div>
-              );
-            })}
+                <div className="text-xs space-y-1 text-gray-300">
+                  <p><strong>Veiculo:</strong> {v.veiculos?.placa || '-'}</p>
+                  <p><strong>Motorista:</strong> {v.motorista_nome}</p>
+                  <p><strong>Produto:</strong> {v.produto || '-'}</p>
+                  <p><strong>Rota:</strong> {v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</p>
+                  <p><strong>Peso Origem:</strong> {v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</p>
+                  <p><strong>Peso Destino:</strong> {v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</p>
+                  <p><strong>Diferença Peso:</strong> {(v.peso_descarga_kg && v.peso_carregado_kg) ? `${num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg))} KG` : '-'}</p>
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                  {v.status !== 'FINALIZADO' && (
+                    <button onClick={() => open('finalizar_viagem', v)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">
+                      <CheckCircle2 size={15}/> FINALIZAR VIAGEM
+                    </button>
+                  )}
+                  <button onClick={() => open('iniciar_viagem', v)} className="p-2.5 rounded-xl bg-blue-950/60 text-blue-400">
+                    <Pencil size={16}/>
+                  </button>
+                  <button onClick={() => del('viagens', v.id, `A VIAGEM ${v.codigo_viagem}`)} className="p-2.5 rounded-xl bg-red-950/60 text-red-400">
+                    <Trash2 size={16}/>
+                  </button>
+                </div>
+              </div>
+            ))}
             {!viagensFiltradas.length && (
               <p className="text-center text-gray-500 py-8 text-xs">NENHUMA VIAGEM REGISTRADA NO PERIODO.</p>
             )}
           </div>
 
           <div className="hidden sm:block">
-            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIFERENÇA (DEST - ORIG)','STATUS','ACOES']} render={v => {
-              const diffPeso = (v.peso_descarga_kg && v.peso_carregado_kg) ? Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg) : null;
-              return (
-                <>
-                  <td className="p-3.5 font-bold text-blue-300">{v.codigo_viagem}</td>
-                  <td className="p-3.5">{v.veiculos?.placa || '-'}</td>
-                  <td className="p-3.5">{v.motorista_nome}</td>
-                  <td className="p-3.5 font-semibold text-gray-300">{v.produto || '-'}</td>
-                  <td className="p-3.5">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</td>
-                  <td className="p-3.5 font-medium text-emerald-400">{v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</td>
-                  <td className="p-3.5 font-medium text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
-                  <td className="p-3.5 font-bold">
-                    <span className={diffPeso !== null ? (diffPeso >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-gray-500'}>
-                      {diffPeso !== null ? `${diffPeso > 0 ? '+' : ''}${num(diffPeso)} KG` : '-'}
-                    </span>
-                  </td>
-                  <td className="p-3.5">{statusBadge(v.status)}</td>
-                  <td className="p-3.5">
-                    <div className="flex items-center gap-2">
-                      {v.status !== 'FINALIZADO' && (
-                        <button onClick={() => open('finalizar_viagem', v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow">
-                          <CheckCircle2 size={14}/> FINALIZAR
-                        </button>
-                      )}
-                      <Actions edit={() => open('iniciar_viagem', v)} del={() => del('viagens', v.id, `A VIAGEM ${v.codigo_viagem}`)} />
-                    </div>
-                  </td>
-                </>
-              );
-            }} empty="NENHUMA VIAGEM REGISTRADA NO PERIODO."/>
+            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','STATUS','ACOES']} render={v => (
+              <>
+                <td className="p-3.5 font-bold text-blue-300">{v.codigo_viagem}</td>
+                <td className="p-3.5">{v.veiculos?.placa || '-'}</td>
+                <td className="p-3.5">{v.motorista_nome}</td>
+                <td className="p-3.5 font-semibold text-gray-300">{v.produto || '-'}</td>
+                <td className="p-3.5">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</td>
+                <td className="p-3.5 font-medium text-emerald-400">{v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</td>
+                <td className="p-3.5 font-medium text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
+                <td className="p-3.5 font-bold text-blue-400">
+                  {v.peso_descarga_kg && v.peso_carregado_kg ? `${num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg))} KG` : '-'}
+                </td>
+                <td className="p-3.5">{statusBadge(v.status)}</td>
+                <td className="p-3.5">
+                  <div className="flex items-center gap-2">
+                    {v.status !== 'FINALIZADO' && (
+                      <button onClick={() => open('finalizar_viagem', v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow">
+                        <CheckCircle2 size={14}/> FINALIZAR
+                      </button>
+                    )}
+                    <Actions edit={() => open('iniciar_viagem', v)} del={() => del('viagens', v.id, `A VIAGEM ${v.codigo_viagem}`)} />
+                  </div>
+                </td>
+              </>
+            )} empty="NENHUMA VIAGEM REGISTRADA NO PERIODO."/>
           </div>
         </div>
       )}
@@ -1582,20 +1565,30 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Input type="number" maxLength={5} max={99999} value={freteForm.peso_previsto_kg} onChange={e => {
                 const val = e.target.value;
                 if (val.length <= 5 && Number(val) <= 99999) {
-                  const pesoPrev = val;
+                  const pesoKg = val;
                   const valTon = Number(freteForm.valor_por_tonelada || 0);
-                  const calc = valTon > 0 && pesoPrev ? (Number(pesoPrev) / 1000) * valTon : freteForm.valor_frete;
-                  setFreteForm({...freteForm, peso_previsto_kg: pesoPrev, valor_frete: calc});
+                  const calc = valTon > 0 && pesoKg ? (Number(pesoKg) / 1000) * valTon : '';
+                  setFreteForm({...freteForm, peso_previsto_kg: pesoKg, valor_frete: calc || freteForm.valor_frete});
                 }
               }} placeholder="Ex: 35000"/>
             </Field>
-            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => {
-              const valTon = e.target.value;
-              const pesoPrev = Number(freteForm.peso_previsto_kg || 0);
-              const calc = pesoPrev > 0 && valTon ? (pesoPrev / 1000) * Number(valTon) : freteForm.valor_frete;
-              setFreteForm({...freteForm, valor_por_tonelada: valTon, valor_frete: calc});
-            }} placeholder="R$ por TON"/></Field>
-            <Field label="Valor Total do Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required placeholder="R$ Total"/></Field>
+
+            <Field label="Valor por Tonelada (R$)">
+              <Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => {
+                const valTon = e.target.value;
+                const pesoKg = Number(freteForm.peso_previsto_kg || 0);
+                const calc = pesoKg > 0 && valTon ? (pesoKg / 1000) * Number(valTon) : '';
+                setFreteForm({...freteForm, valor_por_tonelada: valTon, valor_frete: calc || freteForm.valor_frete});
+              }} placeholder="R$ por TON"/>
+            </Field>
+
+            <Field label="Valor Total do Frete (R$)">
+              <Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required placeholder="R$ Total"/>
+            </Field>
+
+            <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required placeholder="CIDADE / ORIGEM"/></Field>
+            <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required placeholder="CIDADE / DESTINO"/></Field>
+            
             <Field label="Status">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
                 <option value="PLANEJADO">PLANEJADO</option>
@@ -1604,10 +1597,86 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <option value="CANCELADO">CANCELADO</option>
               </Select>
             </Field>
+
             <Buttons saving={saving} close={() => setModal('')}/>
           </form>
         </Modal>
       )}
+
+      {modal === 'abastecimento' && (
+        <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
+          <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Viagem Associada">
+              <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})} required>
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => (
+                  <option key={v.id} value={v.id}>{v.codigo_viagem} - {veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || ''}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Posto"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} required placeholder="NOME DO POSTO"/></Field>
+            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required placeholder="QTD LITROS"/></Field>
+            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} required placeholder="R$ TOTAL"/></Field>
+            <Field label="KM Atual"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} required placeholder="KM ATUAL DO VEICULO"/></Field>
+            <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} placeholder="NUMERO DA NF"/></Field>
+            
+            <Buttons saving={saving} close={() => setModal('')}/>
+          </form>
+        </Modal>
+      )}
+
+      {modal === 'despesa' && (
+        <Modal title="Lancar Despesa de Viagem" onClose={() => setModal('')}>
+          <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Viagem Associada">
+              <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})} required>
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => (
+                  <option key={v.id} value={v.id}>{v.codigo_viagem} - {veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || ''}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Tipo de Despesa">
+              <Select value={despesaForm.tipo} onChange={e => setDespesaForm({...despesaForm, tipo: e.target.value})}>
+                {['PEDAGIO','BORRACHARIA','OFICINA','ESTADIA','ALIMENTACAO','LUBRIFICANTE','OUTROS'].map(t => <option key={t}>{t}</option>)}
+              </Select>
+            </Field>
+            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} required placeholder="R$ VALOR"/></Field>
+            <Field label="Data"><Input type="date" value={despesaForm.data ? despesaForm.data.slice(0,10) : ''} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} required/></Field>
+            <Field label="Descricao" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} placeholder="DESCRICAO DETALHADA"/></Field>
+            
+            <Buttons saving={saving} close={() => setModal('')}/>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function Table({ rows, headers, render, empty }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs text-left">
+        <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
+          <tr>
+            {headers.map((h, i) => <th key={i} className="p-3.5 font-bold">{h}</th>)}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {rows.map((r, i) => (
+            <tr key={r.id || i} className="hover:bg-white/[0.02] transition-colors">
+              {render(r)}
+            </tr>
+          ))}
+          {!rows.length && (
+            <tr>
+              <td colSpan={headers.length} className="p-8 text-center text-gray-500 font-medium">
+                {empty}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
