@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2, Award, Calendar } from 'lucide-react';
+import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2, Award, Calendar, Download, Printer } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { supabase } from './lib/supabaseClient';
 
@@ -39,7 +39,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       return [
         ['minhas_viagens', 'Minhas Viagens', Route],
         ['abastecimentos', 'Abastecimentos', Fuel],
-        ['despesas', 'Despesas', Receipt]
+        ['despesas', 'Despesas', Receipt],
+        ['relatorios', 'Relatórios', Download]
       ];
     }
     return [
@@ -47,7 +48,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       ['viagens', 'Viagens', Route],
       ['veiculos', 'Veículos', Truck],
       ['motoristas', 'Motoristas', Users],
-      ['fretes', 'Fretes', FileText]
+      ['fretes', 'Fretes', FileText],
+      ['relatorios', 'Relatórios & Exportação', Download]
     ];
   }, [isDriver]);
 
@@ -69,6 +71,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [filtroMesAno, setFiltroMesAno] = useState(new Date().toISOString().slice(0, 7));
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
   const [filtroDataFim, setFiltroDataFim] = useState('');
+
+  // Estados para Relatórios
+  const [relatorioTipo, setRelatorioTipo] = useState('viagens');
 
   const [tripInicio, setTripInicio] = useState(emptyTripInicio);
   const [tripFim, setTripFim] = useState(emptyTripFim);
@@ -350,6 +355,126 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       return { ...item, retornoLiquido, mediaPorKm, mediaKmL };
     }).sort((a, b) => b.retornoLiquido - a.retornoLiquido);
   }, [veiculos, motoristas, viagensFiltradasPeriodo, fretes, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo]);
+
+  // Funções de Exportação de Relatórios (CSV / Excel / PDF)
+  const exportarCSV = (dados, nomeArquivo) => {
+    if (!dados || !dados.length) {
+      alert('Não há dados para exportar no período selecionado.');
+      return;
+    }
+    const chaves = Object.keys(dados[0]);
+    let csvContent = "data:text/csv;charset=utf-8," + [chaves.join(';'), ...dados.map(row => chaves.map(k => `"${String(row[k] ?? '').replace(/"/g, '""')}"`).join(';'))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${nomeArquivo}_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportarRelatorioGeral = (formato) => {
+    let dadosExportacao = [];
+    let tituloRelatorio = '';
+
+    if (relatorioTipo === 'viagens') {
+      tituloRelatorio = 'Relatório de Viagens';
+      dadosExportacao = viagensFiltradasPeriodo.map(v => ({
+        'Código Viagem': v.codigo_viagem,
+        'Veículo (Placa)': veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || '-',
+        'Motorista': motoristas.find(m => Number(m.id) === Number(v.motorista_id))?.nome || '-',
+        'Produto': v.produto || '-',
+        'Origem': v.local_carregamento || '-',
+        'Destino': v.local_descarga || '-',
+        'KM Inicial': v.km_inicial || 0,
+        'KM Final': v.km_final || 0,
+        'Status': v.status
+      }));
+    } else if (relatorioTipo === 'fretes') {
+      tituloRelatorio = 'Relatório de Fretes';
+      dadosExportacao = fretesFiltradosPeriodo.map(f => ({
+        'Código Frete': f.codigo_frete,
+        'Operação': f.tipo_operacao,
+        'Cliente': f.cliente,
+        'Produto': f.produto || '-',
+        'Origem': f.origem,
+        'Destino': f.destino,
+        'Valor Frete (R$)': f.valor_frete || 0,
+        'Status': f.status
+      }));
+    } else if (relatorioTipo === 'abastecimentos') {
+      tituloRelatorio = 'Relatório de Abastecimentos';
+      dadosExportacao = abastecimentosFiltradosPeriodo.map(a => ({
+        'Data': a.created_at ? new Date(a.created_at).toLocaleDateString('pt-BR') : '-',
+        'Posto': a.posto || '-',
+        'Litros': a.litros || 0,
+        'Valor Total (R$)': a.valor_total || 0,
+        'KM Atual': a.km_atual || 0,
+        'Nota Fiscal': a.nota_fiscal || '-'
+      }));
+    } else if (relatorioTipo === 'despesas') {
+      tituloRelatorio = 'Relatório de Despesas';
+      dadosExportacao = despesasFiltradasPeriodo.map(d => ({
+        'Data': d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-',
+        'Tipo': d.tipo,
+        'Descrição': d.descricao || '-',
+        'Valor (R$)': d.valor || 0
+      }));
+    } else if (relatorioTipo === 'veiculos') {
+      tituloRelatorio = 'Relatório de Desempenho de Veículos';
+      dadosExportacao = rankingGestor.map(r => ({
+        'Placa': r.placa,
+        'Modelo': r.modelo,
+        'Motorista': r.motorista,
+        'Viagens Finalizadas': r.viagensFinalizadas,
+        'KM Rodados': r.kmRodados,
+        'Média KM/L': Number(r.mediaKmL).toFixed(2),
+        'Receita Total (R$)': r.receitaTotal,
+        'Custos Totais (R$)': r.custosTotal,
+        'Retorno Líquido (R$)': r.retornoLiquido
+      }));
+    }
+
+    if (formato === 'csv') {
+      exportarCSV(dadosExportacao, `${relatorioTipo}_frota`);
+    } else if (formato === 'print' || formato === 'pdf') {
+      const janelaPrint = window('', '_blank');
+      janelaPrint.document.write(`
+        <html>
+          <head>
+            <title>${tituloRelatorio}</title>
+            <style>
+              body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; }
+              h2 { text-align: center; color: #1e3a8a; margin-bottom: 5px; }
+              p { text-align: center; font-size: 10px; color: #555; margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+              th { background-color: #1e3a8a; color: #fff; font-size: 10px; }
+              tr:nth-child(even) { background-color: #f9f9f9; }
+            </style>
+          </head>
+          <body>
+            <h2>${tituloRelatorio.toUpperCase()}</h2>
+            <p>Gerado em: ${new Date().toLocaleString('pt-BR')} | Filtro: ${filtroTipo.toUpperCase()}</p>
+            <table>
+              <thead>
+                <tr>
+                  ${Object.keys(dadosExportacao[0] || {}).map(k => `<th>${k}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${dadosExportacao.map(row => `<tr>${Object.values(row).map(val => `<td>${val}</td>`).join('')}</tr>`).join('')}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() { window.print(); }
+            </script>
+          </body>
+        </html>
+      `);
+      janelaPrint.document.close();
+    }
+  };
 
   function open(type, row = null) {
     setEditing(row); setQ('');
@@ -848,6 +973,58 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aba dedicada a Relatórios Detalhados e Exportáveis */}
+      {tab === 'relatorios' && (
+        <div className="bg-[#161B23] border border-white/5 p-6 rounded-2xl shadow-xl flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Download size={18} className="text-blue-400"/> Central de Relatórios Detalhados e Exportáveis
+              </h2>
+              <p className="text-xs text-gray-400 mt-1">Exporte dados consolidados em formato CSV (compatível com Excel) ou versão para Impressão/PDF.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            <button onClick={() => setRelatorioTipo('viagens')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'viagens' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+              <Route size={20} className="mb-2 text-blue-300"/>
+              Viagens e Rotas
+            </button>
+            <button onClick={() => setRelatorioTipo('fretes')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'fretes' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+              <FileText size={20} className="mb-2 text-purple-300"/>
+              Fretes
+            </button>
+            <button onClick={() => setRelatorioTipo('abastecimentos')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'abastecimentos' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+              <Fuel size={20} className="mb-2 text-emerald-300"/>
+              Abastecimentos
+            </button>
+            <button onClick={() => setRelatorioTipo('despesas')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'despesas' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+              <Receipt size={20} className="mb-2 text-amber-300"/>
+              Despesas
+            </button>
+            <button onClick={() => setRelatorioTipo('veiculos')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'veiculos' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+              <Truck size={20} className="mb-2 text-teal-300"/>
+              Desempenho Frota
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-[#1A2030] p-4 rounded-xl border border-white/5">
+            <div>
+              <span className="text-xs font-bold text-white uppercase block">Módulo Selecionado: {relatorioTipo.toUpperCase()}</span>
+              <span className="text-[10px] text-gray-400">Respeita o filtro de período configurado acima (Todos, Mês/Ano ou Intervalo).</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={() => exportarRelatorioGeral('csv')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition-all">
+                <Download size={15}/> EXPORTAR CSV / EXCEL
+              </button>
+              <button onClick={() => exportarRelatorioGeral('print')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition-all">
+                <Printer size={15}/> IMPRIMIR / GERAR PDF
+              </button>
             </div>
           </div>
         </div>
