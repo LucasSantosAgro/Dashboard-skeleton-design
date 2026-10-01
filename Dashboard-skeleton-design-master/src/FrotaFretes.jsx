@@ -40,16 +40,16 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         ['minhas_viagens', 'Minhas Viagens', Route],
         ['abastecimentos', 'Abastecimentos', Fuel],
         ['despesas', 'Despesas', Receipt],
-        ['relatorios', 'Relatórios', Download]
+        ['relatorios', 'Relatorios', Download]
       ];
     }
     return [
       ['dashboard', 'Dashboard', TrendingUp],
       ['viagens', 'Viagens', Route],
-      ['veiculos', 'Veículos', Truck],
+      ['veiculos', 'Veiculos', Truck],
       ['motoristas', 'Motoristas', Users],
       ['fretes', 'Fretes', FileText],
-      ['relatorios', 'Relatórios & Exportação', Download]
+      ['relatorios', 'Relatorios & Exportacao', Download]
     ];
   }, [isDriver]);
 
@@ -72,7 +72,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
   const [filtroDataFim, setFiltroDataFim] = useState('');
 
-  // Estados para Relatórios
   const [relatorioTipo, setRelatorioTipo] = useState('viagens');
 
   const [tripInicio, setTripInicio] = useState(emptyTripInicio);
@@ -254,7 +253,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const rankingPostos = useMemo(() => {
     const mapaPostos = {};
     abastecimentosFiltradosPeriodo.forEach(a => {
-      const nomePosto = upper(a.posto || 'NÃO INFORMADO');
+      const nomePosto = upper(a.posto || 'NAO INFORMADO');
       if (!mapaPostos[nomePosto]) {
         mapaPostos[nomePosto] = { posto: nomePosto, totalLitros: 0, valorTotal: 0, qtdAbastecimentos: 0 };
       }
@@ -316,7 +315,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     veiculos.forEach(v => {
       mapa[v.id] = {
         veiculo_id: v.id, placa: v.placa, modelo: v.modelo || '-',
-        motorista: motoristas.find(m => m.veiculo_id === v.id)?.nome || 'NÃO ATRIBUÍDO',
+        motorista: motoristas.find(m => m.veiculo_id === v.id)?.nome || 'NAO ATRIBUIDO',
         viagensFinalizadas: 0, kmRodados: 0, receitaTotal: 0, custosTotal: 0, totalLitros: 0
       };
     });
@@ -356,10 +355,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     }).sort((a, b) => b.retornoLiquido - a.retornoLiquido);
   }, [veiculos, motoristas, viagensFiltradasPeriodo, fretes, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo]);
 
-  // Funções de Exportação de Relatórios (CSV / Excel / PDF)
   const exportarCSV = (dados, nomeArquivo) => {
     if (!dados || !dados.length) {
-      alert('Não há dados para exportar no período selecionado.');
+      alert('Nao ha dados para exportar no periodo selecionado.');
       return;
     }
     const chaves = Object.keys(dados[0]);
@@ -378,101 +376,105 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     let tituloRelatorio = '';
 
     if (relatorioTipo === 'viagens') {
-      tituloRelatorio = 'Relatório de Viagens';
+      tituloRelatorio = 'Relatorio de Viagens';
       dadosExportacao = viagensFiltradasPeriodo.map(v => ({
-        'Código Viagem': v.codigo_viagem,
-        'Veículo (Placa)': veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || '-',
+        'Codigo Viagem': v.codigo_viagem,
+        'Veiculo (Placa)': veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || '-',
         'Motorista': motoristas.find(m => Number(m.id) === Number(v.motorista_id))?.nome || '-',
         'Produto': v.produto || '-',
         'Origem': v.local_carregamento || '-',
         'Destino': v.local_descarga || '-',
+        'Peso Origem (kg)': v.peso_carregado_kg ? num(v.peso_carregado_kg) : '0',
+        'Peso Destino (kg)': v.peso_descarga_kg ? num(v.peso_descarga_kg) : '0',
         'KM Inicial': v.km_inicial || 0,
         'KM Final': v.km_final || 0,
         'Status': v.status
       }));
     } else if (relatorioTipo === 'fretes') {
-      tituloRelatorio = 'Relatório de Fretes';
+      tituloRelatorio = 'Relatorio de Fretes';
       dadosExportacao = fretesFiltradosPeriodo.map(f => ({
-        'Código Frete': f.codigo_frete,
-        'Operação': f.tipo_operacao,
+        'Codigo Frete': f.codigo_frete,
+        'Operacao': f.tipo_operacao,
         'Cliente': f.cliente,
         'Produto': f.produto || '-',
         'Origem': f.origem,
         'Destino': f.destino,
-        'Valor Frete (R$)': f.valor_frete || 0,
+        'Valor Frete (R$)': money(f.valor_frete || 0),
         'Status': f.status
       }));
     } else if (relatorioTipo === 'abastecimentos') {
-      tituloRelatorio = 'Relatório de Abastecimentos';
+      tituloRelatorio = 'Relatorio de Abastecimentos';
       dadosExportacao = abastecimentosFiltradosPeriodo.map(a => ({
         'Data': a.created_at ? new Date(a.created_at).toLocaleDateString('pt-BR') : '-',
         'Posto': a.posto || '-',
-        'Litros': a.litros || 0,
-        'Valor Total (R$)': a.valor_total || 0,
+        'Litros': num(a.litros || 0, 2),
+        'Valor Total (R$)': money(a.valor_total || 0),
         'KM Atual': a.km_atual || 0,
         'Nota Fiscal': a.nota_fiscal || '-'
       }));
     } else if (relatorioTipo === 'despesas') {
-      tituloRelatorio = 'Relatório de Despesas';
+      tituloRelatorio = 'Relatorio de Despesas';
       dadosExportacao = despesasFiltradasPeriodo.map(d => ({
         'Data': d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-',
         'Tipo': d.tipo,
-        'Descrição': d.descricao || '-',
-        'Valor (R$)': d.valor || 0
+        'Descricao': d.descricao || '-',
+        'Valor (R$)': money(d.valor || 0)
       }));
     } else if (relatorioTipo === 'veiculos') {
-      tituloRelatorio = 'Relatório de Desempenho de Veículos';
+      tituloRelatorio = 'Relatorio de Desempenho de Veiculos';
       dadosExportacao = rankingGestor.map(r => ({
         'Placa': r.placa,
         'Modelo': r.modelo,
         'Motorista': r.motorista,
         'Viagens Finalizadas': r.viagensFinalizadas,
         'KM Rodados': r.kmRodados,
-        'Média KM/L': Number(r.mediaKmL).toFixed(2),
-        'Receita Total (R$)': r.receitaTotal,
-        'Custos Totais (R$)': r.custosTotal,
-        'Retorno Líquido (R$)': r.retornoLiquido
+        'Media KM/L': Number(r.mediaKmL).toFixed(2),
+        'Receita Total (R$)': money(r.receitaTotal),
+        'Custos Totais (R$)': money(r.custosTotal),
+        'Retorno Liquido (R$)': money(r.retornoLiquido)
       }));
     }
 
     if (formato === 'csv') {
       exportarCSV(dadosExportacao, `${relatorioTipo}_frota`);
     } else if (formato === 'print' || formato === 'pdf') {
-      const janelaPrint = window('', '_blank');
-      janelaPrint.document.write(`
-        <html>
-          <head>
-            <title>${tituloRelatorio}</title>
-            <style>
-              body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; }
-              h2 { text-align: center; color: #1e3a8a; margin-bottom: 5px; }
-              p { text-align: center; font-size: 10px; color: #555; margin-bottom: 20px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-              th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
-              th { background-color: #1e3a8a; color: #fff; font-size: 10px; }
-              tr:nth-child(even) { background-color: #f9f9f9; }
-            </style>
-          </head>
-          <body>
-            <h2>${tituloRelatorio.toUpperCase()}</h2>
-            <p>Gerado em: ${new Date().toLocaleString('pt-BR')} | Filtro: ${filtroTipo.toUpperCase()}</p>
-            <table>
-              <thead>
-                <tr>
-                  ${Object.keys(dadosExportacao[0] || {}).map(k => `<th>${k}</th>`).join('')}
-                </tr>
-              </thead>
-              <tbody>
-                ${dadosExportacao.map(row => `<tr>${Object.values(row).map(val => `<td>${val}</td>`).join('')}</tr>`).join('')}
-              </tbody>
-            </table>
-            <script>
-              window.onload = function() { window.print(); }
-            </script>
-          </body>
-        </html>
-      `);
-      janelaPrint.document.close();
+      const janelaPrint = window.open('', '_blank');
+      if (janelaPrint) {
+        janelaPrint.document.write(`
+          <html>
+            <head>
+              <title>${tituloRelatorio}</title>
+              <style>
+                body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; }
+                h2 { text-align: center; color: #1e3a8a; margin-bottom: 5px; }
+                p { text-align: center; font-size: 10px; color: #555; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+                th { background-color: #1e3a8a; color: #fff; font-size: 10px; }
+                tr:nth-child(even) { background-color: #f9f9f9; }
+              </style>
+            </head>
+            <body>
+              <h2>${tituloRelatorio.toUpperCase()}</h2>
+              <p>Gerado em: ${new Date().toLocaleString('pt-BR')} | Filtro: ${filtroTipo.toUpperCase()}</p>
+              <table>
+                <thead>
+                  <tr>
+                    ${Object.keys(dadosExportacao[0] || {}).map(k => `<th>${k}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${dadosExportacao.map(row => `<tr>${Object.values(row).map(val => `<td>${val}</td>`).join('')}</tr>`).join('')}
+                </tbody>
+              </table>
+              <script>
+                window.onload = function() { window.print(); }
+              </script>
+            </body>
+          </html>
+        `);
+        janelaPrint.document.close();
+      }
     }
   };
 
@@ -533,14 +535,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           : (tripInicio.motorista_id ? Number(tripInicio.motorista_id) : null);
 
         if (!resolvedMotoristaId) {
-          throw new Error('Identificação do motorista obrigatória. Selecione seu cadastro para prosseguir.');
+          throw new Error('Identificacao do motorista obrigatoria. Selecione seu cadastro para prosseguir.');
         }
 
         const veiculoIdNum = Number(tripInicio.veiculo_id);
         const kmInicialNum = tripInicio.km_inicial ? Number(tripInicio.km_inicial) : 0;
 
         if (kmInicialNum > 0 && !validarUltimoKm(veiculoIdNum, kmInicialNum, editing?.id)) {
-          throw new Error('O KM inicial informado não pode ser menor que o último KM registrado para este veículo.');
+          throw new Error('O KM inicial informado nao pode ser menor que o ultimo KM registrado para este veiculo.');
         }
 
         const pesoKg = tripInicio.peso_carregado_kg ? Number(tripInicio.peso_carregado_kg) : 0;
@@ -554,7 +556,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             tipo_operacao: 'FRETE_PROPRIO',
             origem: upper(tripInicio.local_carregamento) || 'N/A',
             destino: upper(tripInicio.local_descarga) || 'N/A',
-            cliente: 'VIAGEM PRÓPRIA / DIRETA',
+            cliente: 'VIAGEM PROPRIA / DIRETA',
             produto: upper(tripInicio.produto) || null,
             peso_previsto_kg: pesoKg || null,
             valor_por_tonelada: valorTon || null,
@@ -602,12 +604,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const kmInicialAtual = Number(editing?.km_inicial || 0);
 
         if (kmFinalNum < kmInicialAtual) {
-          throw new Error('O KM final não pode ser menor que o KM inicial da viagem.');
+          throw new Error('O KM final nao pode ser menor que o KM inicial da viagem.');
         }
 
         const veiculoIdViagem = Number(editing?.veiculo_id);
         if (veiculoIdViagem && !validarUltimoKm(veiculoIdViagem, kmFinalNum, editing?.id)) {
-          throw new Error('O KM final informado não pode ser menor que o último KM registrado na frota.');
+          throw new Error('O KM final informado nao pode ser menor que o ultimo KM registrado na frota.');
         }
 
         const payload = {
@@ -631,7 +633,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         if (abastecimentoForm.viagem_id) {
           const viagemObj = viagens.find(v => Number(v.id) === Number(abastecimentoForm.viagem_id));
           if (viagemObj && kmAtualAbst > 0 && !validarUltimoKm(viagemObj.veiculo_id, kmAtualAbst)) {
-            throw new Error('O KM atual do abastecimento não pode ser menor que o último KM registrado para este veículo.');
+            throw new Error('O KM atual do abastecimento nao pode ser menor que o ultimo KM registrado para este veiculo.');
           }
         }
 
@@ -770,12 +772,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     <div className="flex flex-col gap-4 sm:gap-6 uppercase pb-10">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#161B23] border border-white/5 p-4 sm:p-5 rounded-2xl shadow-xl">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">Gestão Operacional</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">Gestao Operacional</p>
           <h1 className="text-lg sm:text-2xl font-extrabold text-white mt-1">
             {isDriver ? `Painel Mobile: ${currentMotorista?.nome || currentUserEmail}` : 'Frota & Fretes'}
           </h1>
           <p className="text-xs text-gray-400 mt-1 normal-case">
-            {isDriver ? 'Gerencie suas viagens ativas, abastecimentos e despesas direto do smartphone.' : 'Veículos próprios, motoristas vinculados, fretes e viagens.'}
+            {isDriver ? 'Gerencie suas viagens ativas, abastecimentos e despesas direto do smartphone.' : 'Veiculos proprios, motoristas vinculados, fretes e viagens.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -794,12 +796,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         <div className="bg-[#161B23] border border-white/5 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-lg">
           <div className="flex items-center gap-2 text-white text-xs font-bold">
             <Calendar size={16} className="text-blue-400" />
-            <span>Filtro de Período:</span>
+            <span>Filtro de Periodo:</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex gap-1 bg-[#1A2030] p-1 rounded-xl border border-white/10">
               <button onClick={() => setFiltroTipo('todos')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${filtroTipo === 'todos' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>TODOS</button>
-              <button onClick={() => setFiltroTipo('mes_ano')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${filtroTipo === 'mes_ano' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>MÊS / ANO</button>
+              <button onClick={() => setFiltroTipo('mes_ano')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${filtroTipo === 'mes_ano' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>MES / ANO</button>
               <button onClick={() => setFiltroTipo('intervalo')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${filtroTipo === 'intervalo' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>INTERVALO</button>
             </div>
 
@@ -810,7 +812,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             {filtroTipo === 'intervalo' && (
               <div className="flex items-center gap-2">
                 <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-xl px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
-                <span className="text-gray-500 text-xs">até</span>
+                <span className="text-gray-500 text-xs">ate</span>
                 <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-xl px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
               </div>
             )}
@@ -856,11 +858,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <p className="text-[10px] uppercase font-semibold text-rose-100">Custos Operacionais</p>
                 <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.custos_operacionais)}</h3>
               </div>
-              <p className="text-[10px] text-rose-200 mt-3 font-semibold">Ver divisão →</p>
+              <p className="text-[10px] text-rose-200 mt-3 font-semibold">Ver divisao →</p>
             </div>
             <div onClick={() => setKpiModal('resultado')} className="bg-gradient-to-br from-teal-500 to-teal-700 p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-teal-100">Resultado Líquido</p>
+                <p className="text-[10px] uppercase font-semibold text-teal-100">Resultado Liquido</p>
                 <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.resultado)}</h3>
               </div>
               <p className="text-[10px] text-teal-200 mt-3 font-semibold">Ver por placa →</p>
@@ -871,7 +873,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Truck className="text-blue-400" size={18}/>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Viagens em Trânsito (Toque na placa para detalhes)</h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Viagens em Transito (Toque na placa para detalhes)</h3>
               </div>
               <span className="text-[10px] text-gray-400 font-bold">{viagensEmTransito.length} ativo(s)</span>
             </div>
@@ -888,7 +890,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 </button>
               ))}
               {!viagensEmTransito.length && (
-                <p className="text-gray-500 text-xs py-2">Nenhuma viagem em trânsito no momento.</p>
+                <p className="text-gray-500 text-xs py-2">Nenhuma viagem em transito no momento.</p>
               )}
             </div>
           </div>
@@ -897,7 +899,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Fuel className="text-emerald-400" size={18}/>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Mini Ranking de Postos (Volume e Preço Médio)</h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Mini Ranking de Postos (Volume e Preco Medio)</h3>
               </div>
               <span className="text-[10px] text-gray-400">Postos mais utilizados</span>
             </div>
@@ -910,7 +912,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                     <th className="p-3 text-center">Abastecimentos</th>
                     <th className="p-3 text-right">Total Litros</th>
                     <th className="p-3 text-right">Valor Total</th>
-                    <th className="p-3 text-right text-yellow-400">Preço Médio / L</th>
+                    <th className="p-3 text-right text-yellow-400">Preco Medio / L</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -925,7 +927,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                     </tr>
                   ))}
                   {!rankingPostos.length && (
-                    <tr><td colSpan={6} className="p-6 text-center text-gray-500">Nenhum abastecimento registrado no período.</td></tr>
+                    <tr><td colSpan={6} className="p-6 text-center text-gray-500">Nenhum abastecimento registrado no periodo.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -936,9 +938,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Award className="text-amber-400" size={18}/>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Ranking de Desempenho por Veículo / Motorista</h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Ranking de Desempenho por Veiculo / Motorista</h3>
               </div>
-              <span className="text-[10px] text-gray-400">Período filtrado</span>
+              <span className="text-[10px] text-gray-400">Periodo filtrado</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -949,10 +951,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                     <th className="p-3 text-left">Motorista</th>
                     <th className="p-3 text-center">Viagens Finalizadas</th>
                     <th className="p-3 text-right">Km Rodados</th>
-                    <th className="p-3 text-right">Média KM/L</th>
+                    <th className="p-3 text-right">Media KM/L</th>
                     <th className="p-3 text-right">Faturamento/KM</th>
                     <th className="p-3 text-right">Faturamento Total</th>
-                    <th className="p-3 text-right">Retorno Líquido</th>
+                    <th className="p-3 text-right">Retorno Liquido</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -978,15 +980,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* Aba dedicada a Relatórios Detalhados e Exportáveis */}
       {tab === 'relatorios' && (
         <div className="bg-[#161B23] border border-white/5 p-6 rounded-2xl shadow-xl flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Download size={18} className="text-blue-400"/> Central de Relatórios Detalhados e Exportáveis
+                <Download size={18} className="text-blue-400"/> Central de Relatorios Detalhados e Exportaveis
               </h2>
-              <p className="text-xs text-gray-400 mt-1">Exporte dados consolidados em formato CSV (compatível com Excel) ou versão para Impressão/PDF.</p>
+              <p className="text-xs text-gray-400 mt-1">Exporte dados consolidados em formato CSV (compativel com Excel) ou versao para Impressao/PDF.</p>
             </div>
           </div>
 
@@ -1015,8 +1016,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
           <div className="flex flex-wrap items-center justify-between gap-4 bg-[#1A2030] p-4 rounded-xl border border-white/5">
             <div>
-              <span className="text-xs font-bold text-white uppercase block">Módulo Selecionado: {relatorioTipo.toUpperCase()}</span>
-              <span className="text-[10px] text-gray-400">Respeita o filtro de período configurado acima (Todos, Mês/Ano ou Intervalo).</span>
+              <span className="text-xs font-bold text-white uppercase block">Modulo Selecionado: {relatorioTipo.toUpperCase()}</span>
+              <span className="text-[10px] text-gray-400">Respeita o filtro de periodo configurado acima (Todos, Mes/Ano ou Intervalo).</span>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={() => exportarRelatorioGeral('csv')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition-all">
@@ -1034,7 +1035,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         <Modal title={`Detalhes da Viagem: ${viagemDetalheModal.codigo_viagem}`} onClose={() => setViagemDetalheModal(null)}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Veículo / Placa</span>
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Veiculo / Placa</span>
               <span className="text-white font-bold text-sm">{viagemDetalheModal.veiculo_placa}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
@@ -1043,26 +1044,26 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Produto</span>
-              <span className="text-white font-bold">{viagemDetalheModal.produto || 'NÃO INFORMADO'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.produto || 'NAO INFORMADO'}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Nota Fiscal (NF)</span>
-              <span className="text-white font-bold">{viagemDetalheModal.numero_nf || 'NÃO INFORMADA'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.numero_nf || 'NAO INFORMADA'}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Carregamento</span>
-              <span className="text-white font-bold">{viagemDetalheModal.local_carregamento || 'NÃO INFORMADO'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.local_carregamento || 'NAO INFORMADO'}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Descarga</span>
-              <span className="text-white font-bold">{viagemDetalheModal.local_descarga || 'EM TRÂNSITO'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.local_descarga || 'EM TRANSITO'}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Carregado</span>
-              <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NÃO INFORMADO'}</span>
+              <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NAO INFORMADO'}</span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saída</span>
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saida</span>
               <span className="text-white font-bold">{viagemDetalheModal.km_inicial ? `${num(viagemDetalheModal.km_inicial)} KM` : '-'} ({viagemDetalheModal.data_saida ? new Date(viagemDetalheModal.data_saida).toLocaleString('pt-BR') : 'N/A'})</span>
             </div>
           </div>
@@ -1073,7 +1074,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         <Modal 
           title={
             kpiModal === 'custos' 
-              ? 'Divisão de Custos por Placa (Abastecimentos e Despesas)' 
+              ? 'Divisao de Custos por Placa (Abastecimentos e Despesas)' 
               : `Detalhamento por Placa - ${kpiModal.toUpperCase()}`
           } 
           onClose={() => setKpiModal(null)}
@@ -1082,7 +1083,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <table className="w-full text-xs">
               <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
                 <tr>
-                  <th className="p-3 text-left">Placa / Veículo</th>
+                  <th className="p-3 text-left">Placa / Veiculo</th>
                   {kpiModal === 'custos' ? (
                     <>
                       <th className="p-3 text-right">Abastecimentos (L / Total)</th>
@@ -1172,10 +1173,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   {statusBadge(v.status)}
                 </div>
                 <div className="text-xs space-y-1 text-gray-300">
-                  <p><strong>Veículo:</strong> {v.veiculos?.placa || '-'}</p>
+                  <p><strong>Veiculo:</strong> {v.veiculos?.placa || '-'}</p>
                   <p><strong>Motorista:</strong> {v.motorista_nome}</p>
                   <p><strong>Produto:</strong> {v.produto || '-'}</p>
-                  <p><strong>Rota:</strong> {v.local_carregamento || '-'} → {v.local_descarga || 'EM TRÂNSITO'}</p>
+                  <p><strong>Rota:</strong> {v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</p>
+                  <p><strong>Peso Origem:</strong> {v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</p>
+                  <p><strong>Peso Destino:</strong> {v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</p>
                 </div>
                 <div className="flex items-center gap-2 pt-2 border-t border-white/5">
                   {v.status !== 'FINALIZADO' && (
@@ -1193,18 +1196,20 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               </div>
             ))}
             {!viagensFiltradas.length && (
-              <p className="text-center text-gray-500 py-8 text-xs">NENHUMA VIAGEM REGISTRADA NO PERÍODO.</p>
+              <p className="text-center text-gray-500 py-8 text-xs">NENHUMA VIAGEM REGISTRADA NO PERIODO.</p>
             )}
           </div>
 
           <div className="hidden sm:block">
-            <Table rows={viagensFiltradas} headers={['Código','Veículo','Motorista','Produto','Origem → Destino','Status','Ações']} render={v => (
+            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','STATUS','ACOES']} render={v => (
               <>
                 <td className="p-3.5 font-bold text-blue-300">{v.codigo_viagem}</td>
                 <td className="p-3.5">{v.veiculos?.placa || '-'}</td>
                 <td className="p-3.5">{v.motorista_nome}</td>
                 <td className="p-3.5 font-semibold text-gray-300">{v.produto || '-'}</td>
-                <td className="p-3.5">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRÂNSITO'}</td>
+                <td className="p-3.5">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</td>
+                <td className="p-3.5 font-medium text-emerald-400">{v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</td>
+                <td className="p-3.5 font-medium text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
                 <td className="p-3.5">{statusBadge(v.status)}</td>
                 <td className="p-3.5">
                   <div className="flex items-center gap-2">
@@ -1217,7 +1222,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   </div>
                 </td>
               </>
-            )} empty="NENHUMA VIAGEM REGISTRADA NO PERÍODO."/>
+            )} empty="NENHUMA VIAGEM REGISTRADA NO PERIODO."/>
           </div>
         </div>
       )}
@@ -1225,12 +1230,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {tab === 'veiculos' && (
         <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Frota de Veículos e Consumo Médio</h2>
+            <h2 className="text-xs sm:text-sm font-bold text-white">Frota de Veiculos e Consumo Medio</h2>
             <button onClick={() => open('veiculo')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
-              <Plus size={16}/>NOVO VEÍCULO
+              <Plus size={16}/>NOVO VEICULO
             </button>
           </div>
-          <Table rows={veiculosComConsumo} headers={['Placa','Marca','Modelo','Ano','Km Rodados','Média KM/L','Status','Ações']} render={v => (
+          <Table rows={veiculosComConsumo} headers={['PLACA','MARCA','MODELO','ANO','KM RODADOS','MEDIA KM/L','STATUS','ACOES']} render={v => (
             <>
               <td className="p-3.5 font-bold text-blue-300">{v.placa}</td>
               <td className="p-3.5">{v.marca || '-'}</td>
@@ -1239,21 +1244,21 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-3.5 text-gray-300">{num(v.kmRodados)} km</td>
               <td className="p-3.5 font-bold text-yellow-400">{num(v.mediaKmL, 2)} KM/L</td>
               <td className="p-3.5">{statusBadge(v.status || 'DISPONIVEL')}</td>
-              <td className="p-3.5"><Actions edit={() => open('veiculo', v)} del={() => del('veiculos', v.id, `O VEÍCULO ${v.placa}`)} /></td>
+              <td className="p-3.5"><Actions edit={() => open('veiculo', v)} del={() => del('veiculos', v.id, `O VEICULO ${v.placa}`)} /></td>
             </>
-          )} empty="NENHUM VEÍCULO CADASTRADO."/>
+          )} empty="NENHUM VEICULO CADASTRADO."/>
         </div>
       )}
 
       {tab === 'motoristas' && (
         <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Motoristas & Vínculo de Veículos</h2>
+            <h2 className="text-xs sm:text-sm font-bold text-white">Motoristas & Vinculo de Veiculos</h2>
             <button onClick={() => open('motorista')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
               <Plus size={16}/>NOVO MOTORISTA
             </button>
           </div>
-          <Table rows={motoristas.map(m => ({...m, veiculo_placa: veiculos.find(v => v.id === m.veiculo_id)?.placa || 'NENHUM'}))} headers={['Nome','E-mail','Telefone','Veículo Vinculado','Status','']} render={m => (
+          <Table rows={motoristas.map(m => ({...m, veiculo_placa: veiculos.find(v => v.id === m.veiculo_id)?.placa || 'NENHUM'}))} headers={['NOME','E-MAIL','TELEFONE','VEICULO VINCULADO','STATUS','ACOES']} render={m => (
             <>
               <td className="p-3.5 font-bold text-white">{m.nome}</td>
               <td className="p-3.5 lowercase">{m.email || '-'}</td>
@@ -1269,12 +1274,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {tab === 'fretes' && (
         <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Gestão de Fretes</h2>
+            <h2 className="text-xs sm:text-sm font-bold text-white">Gestao de Fretes</h2>
             <button onClick={() => open('frete')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
               <Plus size={16}/>CADASTRAR FRETE
             </button>
           </div>
-          <Table rows={fretesFiltradosPeriodo.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || '-'}))} headers={['Código','Tipo Operação','Veículo (Placa)','Produto','Origem → Destino','Valor/Ton','Valor Frete','Status','Ações']} render={f => (
+          <Table rows={fretesFiltradosPeriodo.map(f => ({...f, veiculo_placa: veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa || '-'}))} headers={['CODIGO','TIPO OPERACAO','VEICULO (PLACA)','PRODUTO','ORIGEM -> DESTINO','VALOR/TON','VALOR FRETE','STATUS','ACOES']} render={f => (
             <>
               <td className="p-3.5 font-bold text-blue-300">{f.codigo_frete}</td>
               <td className="p-3.5 font-semibold text-blue-400">{f.tipo_operacao}</td>
@@ -1286,7 +1291,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-3.5">{statusBadge(f.status || 'PLANEJADO')}</td>
               <td className="p-3.5"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
             </>
-          )} empty="NENHUM FRETE CADASTRADO NO PERÍODO."/>
+          )} empty="NENHUM FRETE CADASTRADO NO PERIODO."/>
         </div>
       )}
 
@@ -1298,7 +1303,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Fuel size={16}/>NOVO ABASTECIMENTO
             </button>
           </div>
-          <Table rows={abastecimentosFiltradosPeriodo.map(a => ({...a, viagem_codigo: viagens.find(v => Number(v.id) === Number(a.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['Data/Hora','Viagem','Posto','Litros','Valor Total','KM Atual','']} render={a => (
+          <Table rows={abastecimentosFiltradosPeriodo.map(a => ({...a, viagem_codigo: viagens.find(v => Number(v.id) === Number(a.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['DATA/HORA','VIAGEM','POSTO','LITROS','VALOR TOTAL','KM ATUAL','ACOES']} render={a => (
             <>
               <td className="p-3.5">{a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '-'}</td>
               <td className="p-3.5 font-bold text-blue-300">{a.viagem_codigo}</td>
@@ -1308,7 +1313,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-3.5">{num(a.km_atual)} KM</td>
               <td className="p-3.5"><Actions del={() => del('abastecimentos', a.id, 'O ABASTECIMENTO')} /></td>
             </>
-          )} empty="NENHUM ABASTECIMENTO REGISTRADO NO PERÍODO."/>
+          )} empty="NENHUM ABASTECIMENTO REGISTRADO NO PERIODO."/>
         </div>
       )}
 
@@ -1317,10 +1322,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
             <h2 className="text-xs sm:text-sm font-bold text-white">Consulta de Despesas</h2>
             <button onClick={() => open('despesa')} className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
-              <Receipt size={16}/>LANÇAR DESPESA
+              <Receipt size={16}/>LANCAR DESPESA
             </button>
           </div>
-          <Table rows={despesasFiltradosPeriodo.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['Data','Viagem','Tipo','Descrição','Valor','']} render={d => (
+          <Table rows={despesasFiltradosPeriodo.map(d => ({...d, viagem_codigo: viagens.find(v => Number(v.id) === Number(d.viagem_id))?.codigo_viagem || 'AVULSO'}))} headers={['DATA','VIAGEM','TIPO','DESCRICAO','VALOR','ACOES']} render={d => (
             <>
               <td className="p-3.5">{d.data ? new Date(d.data).toLocaleDateString('pt-BR') : '-'}</td>
               <td className="p-3.5 font-bold text-blue-300">{d.viagem_codigo}</td>
@@ -1329,14 +1334,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-3.5 font-bold">{money(d.valor)}</td>
               <td className="p-3.5"><Actions del={() => del('viagem_despesas', d.id, 'A DESPESA')} /></td>
             </>
-          )} empty="NENHUMA DESPESA REGISTRADA NO PERÍODO."/>
+          )} empty="NENHUMA DESPESA REGISTRADA NO PERIODO."/>
         </div>
       )}
 
       {modal === 'iniciar_viagem' && (
         <Modal title={editing ? 'Editar / Vincular Frete da Viagem' : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('iniciar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Código Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})} required/></Field>
+            <Field label="Codigo Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})} required/></Field>
             
             <Field label="Motorista">
               {isDriver ? (
@@ -1359,9 +1364,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               )}
             </Field>
 
-            <Field label="Veículo / Placa">
+            <Field label="Veiculo / Placa">
               <Select value={tripInicio.veiculo_id} onChange={e => setTripInicio({...tripInicio, veiculo_id: e.target.value})} required>
-                <option value="">SELECIONE O VEÍCULO</option>
+                <option value="">SELECIONE O VEICULO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
               </Select>
             </Field>
@@ -1387,12 +1392,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   valor_frete_calculado: valorCalculado || selectedFrete?.valor_frete || ''
                 });
               }}>
-                <option value="">NENHUM / VIAGEM PRÓPRIA</option>
+                <option value="">NENHUM / VIAGEM PROPRIA</option>
                 {fretesDisponiveis.map(f => {
                   const placaFrete = veiculos.find(v => Number(v.id) === Number(f.veiculo_id))?.placa;
                   return (
                     <option key={f.id} value={f.id}>
-                      {f.codigo_frete} - {f.origem} → {f.destino} {placaFrete ? `[Veículo: ${placaFrete}]` : ''} ({money(f.valor_frete)})
+                      {f.codigo_frete} - {f.origem} → {f.destino} {placaFrete ? `[Veiculo: ${placaFrete}]` : ''} ({money(f.valor_frete)})
                     </option>
                   );
                 })}
@@ -1400,14 +1405,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </Field>
 
             <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} placeholder="EX: SOJA A GRANEL"/></Field>
-            <Field label="Preço por Tonelada (R$)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => {
+            <Field label="Preco por Tonelada (R$)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => {
               const valTon = e.target.value;
               const pesoKg = Number(tripInicio.peso_carregado_kg || 0);
               const calc = pesoKg > 0 && valTon ? (pesoKg / 1000) * Number(valTon) : '';
               setTripInicio({...tripInicio, valor_por_tonelada: valTon, valor_frete_calculado: calc});
             }} placeholder="R$ por TON"/></Field>
             
-            <Field label="Peso Carga (kg) [Máx. 5 dígitos]">
+            <Field label="Peso Carga (kg) [Max. 5 digitos]">
               <Input type="number" maxLength={5} max={99999} value={tripInicio.peso_carregado_kg} onChange={e => {
                 const val = e.target.value;
                 if (val.length <= 5 && Number(val) <= 99999) {
@@ -1425,10 +1430,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
             <Field label="Placa Carreta"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})}/></Field>
             <Field label="Local Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})}/></Field>
-            <Field label="Local Descarga"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} placeholder="EX: ARMAZÉM"/></Field>
-            <Field label="Número NF"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
+            <Field label="Local Descarga"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} placeholder="EX: ARMAZEM"/></Field>
+            <Field label="Numero NF"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
             
-            <Field label="KM Inicial [Máx. 6 dígitos]">
+            <Field label="KM Inicial [Max. 6 digitos]">
               <Input type="number" maxLength={6} max={999999} value={tripInicio.km_inicial} onChange={e => {
                 const val = e.target.value;
                 if (val.length <= 6 && Number(val) <= 999999) {
@@ -1437,8 +1442,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               }} required/>
             </Field>
 
-            <Field label="Data/Hora Saída"><Input type="datetime-local" value={tripInicio.data_saida ? tripInicio.data_saida.slice(0,16) : ''} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})}/></Field>
-            <Field label="Observação" className="sm:col-span-2"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})}/></Field>
+            <Field label="Data/Hora Saida"><Input type="datetime-local" value={tripInicio.data_saida ? tripInicio.data_saida.slice(0,16) : ''} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})}/></Field>
+            <Field label="Observacao" className="sm:col-span-2"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})}/></Field>
             
             <Buttons saving={saving} close={() => setModal('')}/>
           </form>
@@ -1449,7 +1454,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         <Modal title={`Finalizar Viagem: ${editing?.codigo_viagem || ''}`} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('finalizar_viagem'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
-            <Field label="KM Final [Máx. 6 dígitos]">
+            <Field label="KM Final [Max. 6 digitos]">
               <Input type="number" maxLength={6} max={999999} value={tripFim.km_final} onChange={e => {
                 const val = e.target.value;
                 if (val.length <= 6 && Number(val) <= 999999) {
@@ -1458,7 +1463,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               }} required/>
             </Field>
 
-            <Field label="Peso Destino (kg) [Máx. 5 dígitos]">
+            <Field label="Peso Destino (kg) [Max. 5 digitos]">
               <Input type="number" maxLength={5} max={99999} value={tripFim.peso_descarga_kg} onChange={e => {
                 const val = e.target.value;
                 if (val.length <= 5 && Number(val) <= 99999) {
@@ -1481,9 +1486,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})} required/></Field>
             <Field label="E-mail (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} required className="lowercase"/></Field>
             <Field label="Telefone"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})}/></Field>
-            <Field label="Veículo Vinculado Padrão">
+            <Field label="Veiculo Vinculado Padrao">
               <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
-                <option value="">NENHUM VEÍCULO VINCULADO</option>
+                <option value="">NENHUM VEICULO VINCULADO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
               </Select>
             </Field>
@@ -1499,7 +1504,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'veiculo' && (
-        <Modal title={editing ? 'Editar Veículo' : 'Novo Veículo'} onClose={() => setModal('')}>
+        <Modal title={editing ? 'Editar Veiculo' : 'Novo Veiculo'} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('veiculo'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Placa"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})} required placeholder="EX: ABC-1234"/></Field>
             <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})} placeholder="EX: VOLVO"/></Field>
@@ -1507,9 +1512,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})} placeholder="EX: 2023"/></Field>
             <Field label="Status">
               <Select value={veiculoForm.status} onChange={e => setVeiculoForm({...veiculoForm, status: e.target.value})}>
-                <option value="DISPONIVEL">DISPONÍVEL</option>
+                <option value="DISPONIVEL">DISPONIVEL</option>
                 <option value="EM_VIAGEM">EM VIAGEM</option>
-                <option value="MANUTENCAO">MANUTENÇÃO</option>
+                <option value="MANUTENCAO">MANUTENCAO</option>
                 <option value="INATIVO">INATIVO</option>
               </Select>
             </Field>
@@ -1521,22 +1526,22 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'frete' && (
         <Modal title={editing ? 'Editar Frete' : 'Cadastrar Frete'} onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('frete'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Código do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})} required/></Field>
-            <Field label="Tipo de Operação">
+            <Field label="Codigo do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})} required/></Field>
+            <Field label="Tipo de Operacao">
               <Select value={freteForm.tipo_operacao} onChange={e => setFreteForm({...freteForm, tipo_operacao: e.target.value})}>
                 {['FRETE_PROPRIO','FRETE_TERCEIRO','TRANSFERENCIA','RETORNO','DESLOCAMENTO','OUTROS'].map(op => <option key={op}>{op}</option>)}
               </Select>
             </Field>
-            <Field label="Veículo / Placa">
+            <Field label="Veiculo / Placa">
               <Select value={freteForm.veiculo_id} onChange={e => setFreteForm({...freteForm, veiculo_id: e.target.value})}>
-                <option value="">SELECIONE O VEÍCULO</option>
+                <option value="">SELECIONE O VEICULO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo})</option>)}
               </Select>
             </Field>
             <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} required placeholder="CLIENTE"/></Field>
             <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} placeholder="EX: SOJA, MILHO"/></Field>
             
-            <Field label="Peso Previsto (kg) [Máx. 5 dígitos]">
+            <Field label="Peso Previsto (kg) [Max. 5 digitos]">
               <Input type="number" maxLength={5} max={99999} value={freteForm.peso_previsto_kg} onChange={e => {
                 const val = e.target.value;
                 if (val.length <= 5 && Number(val) <= 99999) {
@@ -1554,12 +1559,16 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               const total = peso > 0 && ton ? (peso / 1000) * Number(ton) : freteForm.valor_frete;
               setFreteForm({...freteForm, valor_por_tonelada: ton, valor_frete: total});
             }} placeholder="R$ por TON"/></Field>
-            <Field label="Valor do Frete Total (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required/></Field>
+            
+            <Field label="Valor do Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} required placeholder="R$ VALOR TOTAL"/></Field>
             <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} required placeholder="ORIGEM"/></Field>
             <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} required placeholder="DESTINO"/></Field>
             <Field label="Status">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
-                {['PLANEJADO','AGUARDANDO_CARREGAMENTO','CARREGADO','EM_VIAGEM','NO_DESTINO','FINALIZADO','CANCELADO'].map(st => <option key={st}>{st}</option>)}
+                <option value="PLANEJADO">PLANEJADO</option>
+                <option value="EM_VIAGEM">EM VIAGEM</option>
+                <option value="FINALIZADO">FINALIZADO</option>
+                <option value="CANCELADO">CANCELADO</option>
               </Select>
             </Field>
             <Buttons saving={saving} close={() => setModal('')}/>
@@ -1568,50 +1577,56 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'abastecimento' && (
-        <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
+        <Modal title="Novo Abastecimento" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('abastecimento'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Viagem Vinculada (Opcional)">
+            <Field label="Viagem Associada">
               <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})}>
-                <option value="">NENHUMA / LANÇAMENTO AVULSO</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'ROTA'} - {v.status})</option>)}
+                <option value="">ABASTECIMENTO AVULSO / SEM VIAGEM</option>
+                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.codigo_viagem} - {veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || ''} ({v.local_carregamento} → {v.local_descarga || 'EM TRANSITO'})
+                  </option>
+                ))}
               </Select>
             </Field>
-            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required/></Field>
-            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} required/></Field>
-            
-            <Field label="KM Atual [Máx. 6 dígitos]">
+            <Field label="Posto / Local"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} required placeholder="NOME DO POSTO"/></Field>
+            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} required placeholder="QTD LITROS"/></Field>
+            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} required placeholder="R$ VALOR TOTAL"/></Field>
+            <Field label="KM Atual [Max. 6 digitos]">
               <Input type="number" maxLength={6} max={999999} value={abastecimentoForm.km_atual} onChange={e => {
                 const val = e.target.value;
                 if (val.length <= 6 && Number(val) <= 999999) {
                   setAbastecimentoForm({...abastecimentoForm, km_atual: val});
                 }
-              }}/>
+              }} required placeholder="KM ATUAL DO VEICULO"/>
             </Field>
-
-            <Field label="Posto"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})}/></Field>
-            <Field label="Nota Fiscal"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})}/></Field>
+            <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} placeholder="NUMERO DA NF"/></Field>
             <Buttons saving={saving} close={() => setModal('')}/>
           </form>
         </Modal>
       )}
 
       {modal === 'despesa' && (
-        <Modal title="Lançar Despesa" onClose={() => setModal('')}>
+        <Modal title="Lancar Despesa" onClose={() => setModal('')}>
           <form onSubmit={e => { e.preventDefault(); save('despesa'); }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Viagem Vinculada (Opcional)">
+            <Field label="Viagem Associada">
               <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})}>
-                <option value="">NENHUMA / LANÇAMENTO AVULSO</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento || 'ROTA'} - {v.status})</option>)}
+                <option value="">DESPESA AVULSA / SEM VIAGEM</option>
+                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.codigo_viagem} - {veiculos.find(ve => Number(ve.id) === Number(v.veiculo_id))?.placa || ''}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Tipo de Despesa">
               <Select value={despesaForm.tipo} onChange={e => setDespesaForm({...despesaForm, tipo: e.target.value})}>
-                {['BORRACHARIA','PEDAGIO','ALIMENTACAO','ESTACIONAMENTO','MANUTENCAO','OUTROS'].map(c => <option key={c}>{c}</option>)}
+                {['PEDAGIO','MANUTENCAO','BORRACHARIA','LAVAGEM','ALIMENTACAO','ESTADIA','OUTROS'].map(t => <option key={t}>{t}</option>)}
               </Select>
             </Field>
-            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} required/></Field>
-            <Field label="Data da Despesa"><Input type="date" value={despesaForm.data ? despesaForm.data.slice(0,10) : ''} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} required/></Field>
-            <Field label="Descrição" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} placeholder="EX: REPARO DE PNEU"/></Field>
+            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} required placeholder="R$ VALOR"/></Field>
+            <Field label="Data"><Input type="date" value={despesaForm.data} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} required/></Field>
+            <Field label="Descricao" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} placeholder="DETALHES DA DESPESA"/></Field>
             <Buttons saving={saving} close={() => setModal('')}/>
           </form>
         </Modal>
@@ -1623,13 +1638,23 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 function Table({rows, headers, render, empty}) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+      <table className="w-full text-xs text-left">
         <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
-          <tr>{headers.map(h => <th key={h} className="text-left p-3.5">{h}</th>)}</tr>
+          <tr>
+            {headers.map((h, i) => <th key={i} className="p-3.5">{h}</th>)}
+          </tr>
         </thead>
-        <tbody>
-          {rows.map(r => <tr key={r.id} className="border-t border-white/5 hover:bg-white/[0.02]">{render(r)}</tr>)}
-          {!rows.length && <tr><td colSpan={headers.length} className="p-8 text-center text-gray-500">{empty}</td></tr>}
+        <tbody className="divide-y divide-white/5">
+          {rows.map((row, index) => (
+            <tr key={row.id || index} className="hover:bg-white/[0.02]">
+              {render(row)}
+            </tr>
+          ))}
+          {!rows.length && (
+            <tr>
+              <td colSpan={headers.length} className="p-8 text-center text-gray-500 font-bold">{empty}</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
