@@ -262,59 +262,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     });
   }, [despesas, viagens, validarFiltroData, filtroPlacaRelatorio, filtroMotoristaRelatorio]);
 
-  const rankingGestorFiltrado = useMemo(() => {
-    const veiculosAlvo = filtroPlacaRelatorio !== 'todos' 
-      ? veiculos.filter(v => String(v.id) === String(filtroPlacaRelatorio)) 
-      : veiculos;
-
-    const mapa = {};
-    veiculosAlvo.forEach(v => {
-      mapa[v.id] = {
-        veiculo_id: v.id, placa: v.placa, modelo: v.modelo || '-',
-        motorista: motoristas.find(m => m.veiculo_id === v.id)?.nome || 'NAO ATRIBUIDO',
-        viagensFinalizadas: 0, kmRodados: 0, receitaTotal: 0, custosTotal: 0, totalLitros: 0
-      };
-    });
-
-    viagensFiltradasPeriodo.forEach(viagem => {
-      if (!mapa[viagem.veiculo_id]) {
-        const veh = veiculos.find(v => v.id === viagem.veiculo_id);
-        if (filtroPlacaRelatorio === 'todos' || String(viagem.veiculo_id) === String(filtroPlacaRelatorio)) {
-          mapa[viagem.veiculo_id] = {
-            veiculo_id: viagem.veiculo_id, placa: veh?.placa || 'OUTROS', modelo: veh?.modelo || '-',
-            motorista: motoristas.find(m => m.id === viagem.motorista_id)?.nome || 'N/A',
-            viagensFinalizadas: 0, kmRodados: 0, receitaTotal: 0, custosTotal: 0, totalLitros: 0
-          };
-        } else {
-          return;
-        }
-      }
-
-      const item = mapa[viagem.veiculo_id];
-      if (viagem.status === 'FINALIZADO') item.viagensFinalizadas += 1;
-
-      const km = Math.max(0, Number(viagem.km_final || 0) - Number(viagem.km_inicial || 0));
-      item.kmRodados += km;
-
-      if (viagem.frete_id) {
-        const freteObj = fretes.find(f => f.id === viagem.frete_id);
-        if (freteObj) item.receitaTotal += Number(freteObj.valor_frete || 0);
-      }
-
-      const absts = abastecimentosFiltradosPeriodo.filter(a => Number(a.viagem_id) === Number(viagem.id));
-      const desps = despesasFiltradasPeriodo.filter(d => Number(d.viagem_id) === Number(viagem.id));
-      item.custosTotal += absts.reduce((acc, a) => acc + Number(a.valor_total || 0), 0) + desps.reduce((acc, d) => acc + Number(d.valor || 0), 0);
-      item.totalLitros += absts.reduce((acc, a) => acc + Number(a.litros || 0), 0);
-    });
-
-    return Object.values(mapa).map(item => {
-      const retornoLiquido = item.receitaTotal - item.custosTotal;
-      const mediaPorKm = item.kmRodados > 0 ? item.receitaTotal / item.kmRodados : 0;
-      const mediaKmL = item.totalLitros > 0 ? item.kmRodados / item.totalLitros : 0;
-      return { ...item, retornoLiquido, mediaPorKm, mediaKmL };
-    }).sort((a, b) => b.retornoLiquido - a.retornoLiquido);
-  }, [veiculos, motoristas, viagensFiltradasPeriodo, fretes, abastecimentosFiltradosPeriodo, despesasFiltradasPeriodo, filtroPlacaRelatorio]);
-
   const kpisFiltrados = useMemo(() => {
     const total_viagens = viagensFiltradasPeriodo.length;
     const km_rodados = viagensFiltradasPeriodo.reduce((acc, item) => acc + Math.max(0, Number(item.km_final || 0) - Number(item.km_inicial || 0)), 0);
@@ -873,7 +820,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
   return (
     <div className="flex flex-col gap-6 uppercase pb-12 max-w-7xl mx-auto px-3 sm:px-6">
-      {/* Header com Estilo Moderno */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 bg-gradient-to-r from-[#161B23] to-[#1F2937] border border-white/10 p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div>
@@ -901,7 +847,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       </div>
 
-      {/* Banner de Viagem Ativa para Motoristas (Mobile-First de Alto Impacto) */}
       {isDriver && (
         <div className="bg-gradient-to-r from-blue-950/80 via-[#161B23] to-emerald-950/80 border border-blue-500/40 p-5 sm:p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -932,7 +877,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* Filtro de Período Global para o Gestor */}
       {!isDriver && (
         <div className="bg-[#161B23] border border-white/10 p-4 sm:p-5 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-2.5 text-white text-xs font-bold">
@@ -963,7 +907,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       {error && <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-950/50 border border-red-500/40 text-red-300 text-xs shadow-xl"><AlertCircle size={20} className="shrink-0"/><span>{error}</span></div>}
 
-      {/* DASHBOARD MODERNO DO GESTOR */}
       {!isDriver && tab === 'dashboard' && (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -1116,7 +1059,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* ABA DE RELATÓRIOS */}
       {!isDriver && tab === 'relatorios' && (
         <div className="bg-[#161B23] border border-white/10 p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
@@ -1326,7 +1268,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </Modal>
       )}
 
-      {/* ABA DE VIAGENS (COM VISUALIZAÇÃO MOBILE OTIMIZADA PARA MOTORISTAS) */}
       {(tab === 'viagens' || tab === 'minhas_viagens') && (
         <div className="bg-[#161B23] border border-white/10 rounded-3xl shadow-xl overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1347,7 +1288,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </div>
           </div>
 
-          {/* Cards em formato Mobile Otimizado */}
           <div className="block sm:hidden p-4 space-y-4">
             {viagensFiltradas.map(v => (
               <div key={v.id} className="bg-[#1A2030] border border-white/10 rounded-3xl p-5 flex flex-col gap-3.5 shadow-xl">
@@ -1386,7 +1326,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             )}
           </div>
 
-          {/* Tabela Desktop */}
           <div className="hidden sm:block">
             <Table rows={viagensFiltradas} headers={['CÓDIGO','VEÍCULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','KM TOTAL','DATA CHEGADA','STATUS','AÇÕES']} render={v => (
               <>
@@ -1492,7 +1431,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
-      {/* MODAIS DE CADASTRO / EDIÇÃO */}
       {modal === 'iniciar_viagem' && (
         <Modal title={editing ? `Editar Viagem: ${tripInicio.codigo_viagem}` : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1526,11 +1464,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Valor por Tonelada (R$) (Opcional)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => setTripInicio({...tripInicio, valor_por_tonelada: e.target.value})} /></Field>
             <Field label="Número da Nota Fiscal (NF)"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})} /></Field>
             <Field label="Local de Carregamento (Origem)"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})} /></Field>
-            <Field label="Local de Descarga (Destino)"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} /></Field>
+            <Field label="Local de Descarga"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} /></Field>
             <Field label="Data e Hora de Saída"><Input type="datetime-local" value={tripInicio.data_saida} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})} /></Field>
-            <Field label="Observações" className="sm:col-span-2 lg:col-span-3"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})} /></Field>
-            <Buttons saving={saving} close={() => setModal('')} />
+            <Field label="Observação" className="sm:col-span-2"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})} /></Field>
           </div>
+          <Buttons saving={saving} close={() => setModal('')} />
         </Modal>
       )}
 
@@ -1538,88 +1476,88 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         <Modal title={`Finalizar Viagem: ${editing?.codigo_viagem}`} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="KM Final"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})} /></Field>
-            <Field label="Peso no Destino (KG)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} /></Field>
-            <Field label="Local de Descarga Efetivo"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})} /></Field>
+            <Field label="Peso na Descarga (KG)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} /></Field>
+            <Field label="Local de Descarga"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})} /></Field>
             <Field label="Data e Hora de Chegada"><Input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} /></Field>
-            <Buttons saving={saving} close={() => setModal('')} />
           </div>
+          <Buttons saving={saving} close={() => setModal('')} />
         </Modal>
       )}
 
       {modal === 'abastecimento' && (
-        <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
+        <Modal title={editing ? 'Editar Abastecimento' : 'Registrar Abastecimento'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Viagem Associada">
+            <Field label="Viagem Vinculada">
               <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})}>
-                <option value="">SELECIONE A VIAGEM ATIVA</option>
-                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'}</option>)}
               </Select>
             </Field>
-            <Field label="Posto de Combustível"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} /></Field>
+            <Field label="Posto / Local"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} /></Field>
             <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} /></Field>
-            <Field label="Litros Abastecidos"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} /></Field>
+            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} /></Field>
             <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} /></Field>
             <Field label="KM Atual do Veículo"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} /></Field>
-            <Buttons saving={saving} close={() => setModal('')} />
           </div>
+          <Buttons saving={saving} close={() => setModal('')} />
         </Modal>
       )}
 
       {modal === 'despesa' && (
-        <Modal title="Registrar Despesa de Viagem" onClose={() => setModal('')}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Viagem Associada">
+        <Modal title={editing ? 'Editar Despesa' : 'Registrar Despesa de Viagem'} onClose={() => setModal('')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Viagem Vinculada">
               <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})}>
-                <option value="">SELECIONE A VIAGEM ATIVA</option>
-                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
+                <option value="">SELECIONE A VIAGEM</option>
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'}</option>)}
               </Select>
             </Field>
             <Field label="Tipo de Despesa">
               <Select value={despesaForm.tipo} onChange={e => setDespesaForm({...despesaForm, tipo: e.target.value})}>
                 <option value="PEDAGIO">PEDÁGIO</option>
-                <option value="MANUTENCAO">MANUTENÇÃO / OFICINA</option>
                 <option value="BORRACHARIA">BORRACHARIA</option>
+                <option value="OFICINA_MECANICA">OFICINA / MECÂNICA</option>
+                <option value="ESTADIA">ESTADIA / DIÁRIA</option>
                 <option value="ALIMENTACAO">ALIMENTAÇÃO</option>
-                <option value="ESTADIA">ESTADIA / PERNOITE</option>
                 <option value="OUTROS">OUTROS</option>
               </Select>
             </Field>
             <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} /></Field>
             <Field label="Data da Despesa"><Input type="date" value={despesaForm.data} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} /></Field>
             <Field label="Descrição / Detalhes" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} /></Field>
-            <Buttons saving={saving} close={() => setModal('')} />
           </div>
+          <Buttons saving={saving} close={() => setModal('')} />
         </Modal>
       )}
 
       {modal === 'motorista' && (
-        <Modal title={editing ? 'Editar Motorista' : 'Novo Motorista'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Motorista: ${motoristaForm.nome}` : 'Cadastrar Novo Motorista'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})} /></Field>
-            <Field label="E-mail de Acesso (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} /></Field>
+            <Field label="E-mail de Acesso (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} className="lowercase" /></Field>
             <Field label="Telefone / WhatsApp"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})} /></Field>
-            <Field label="Veículo Fixo Vinculado">
+            <Field label="Veículo Fixo Atribuído">
               <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
-                <option value="">NENHUM VEÍCULO FIXO</option>
+                <option value="">NENHUM (SEM VÍNCULO FIXO)</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
               </Select>
             </Field>
-            <Field label="Status">
+            <Field label="Status do Motorista">
               <Select value={motoristaForm.status} onChange={e => setMotoristaForm({...motoristaForm, status: e.target.value})}>
                 <option value="ATIVO">ATIVO</option>
                 <option value="INATIVO">INATIVO</option>
                 <option value="FERIAS">FÉRIAS</option>
               </Select>
             </Field>
-            <Buttons saving={saving} close={() => setModal('')} />
           </div>
+          <Buttons saving={saving} close={() => setModal('')} />
         </Modal>
       )}
 
       {modal === 'veiculo' && (
-        <Modal title={editing ? 'Editar Veículo' : 'Novo Veículo'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Veículo: ${veiculoForm.placa}` : 'Cadastrar Novo Veículo'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Placa"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})} /></Field>
+            <Field label="Placa do Veículo"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})} /></Field>
             <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})} /></Field>
             <Field label="Modelo"><Input value={veiculoForm.modelo} onChange={e => setVeiculoForm({...veiculoForm, modelo: e.target.value})} /></Field>
             <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})} /></Field>
@@ -1631,18 +1569,18 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <option value="INATIVO">INATIVO</option>
               </Select>
             </Field>
-            <Buttons saving={saving} close={() => setModal('')} />
           </div>
+          <Buttons saving={saving} close={() => setModal('')} />
         </Modal>
       )}
 
       {modal === 'frete' && (
-        <Modal title={editing ? 'Editar Frete' : 'Novo Frete'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Frete: ${freteForm.codigo_frete}` : 'Cadastrar Novo Frete'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Código do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})} /></Field>
             <Field label="Tipo de Operação">
               <Select value={freteForm.tipo_operacao} onChange={e => setFreteForm({...freteForm, tipo_operacao: e.target.value})}>
-                <option value="FRETE_PROPRIO">FRETE PRÓPRIO / DIRETO</option>
+                <option value="FRETE_PROPRIO">FRETE PRÓPRIO</option>
                 <option value="TERCEIRIZADO">TERCEIRIZADO</option>
               </Select>
             </Field>
@@ -1652,18 +1590,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} /></Field>
             <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => setFreteForm({...freteForm, peso_previsto_kg: e.target.value})} /></Field>
             <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => setFreteForm({...freteForm, valor_por_tonelada: e.target.value})} /></Field>
-            <Field label="Valor Total do Frete (R$)">
-              <Input 
-                type="number" 
-                step="0.01" 
-                value={
-                  freteForm.peso_previsto_kg && freteForm.valor_por_tonelada 
-                    ? (Number(freteForm.peso_previsto_kg) / 1000) * Number(freteForm.valor_por_tonelada) 
-                    : freteForm.valor_frete
-                } 
-                onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})}
-              />
-            </Field>
+            <Field label="Valor Total do Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} /></Field>
             <Field label="Status do Frete">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
                 <option value="PLANEJADO">PLANEJADO</option>
@@ -1672,8 +1599,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <option value="CANCELADO">CANCELADO</option>
               </Select>
             </Field>
-            <Buttons saving={saving} close={() => setModal('')} />
           </div>
+          <Buttons saving={saving} close={() => setModal('')} />
         </Modal>
       )}
     </div>
