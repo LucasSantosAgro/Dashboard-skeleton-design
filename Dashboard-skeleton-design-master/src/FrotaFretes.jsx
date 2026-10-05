@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2, Award, Calendar, Download, Printer } from 'lucide-react';
+import { Truck, Users, FileText, Route, Plus, Search, RefreshCw, Pencil, Trash2, X, Save, DollarSign, Package, Gauge, TrendingUp, AlertCircle, Fuel, Receipt, PlayCircle, CheckCircle2, Award, Calendar, Download, Printer, Navigation, Smartphone } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { supabase } from './lib/supabaseClient';
 
@@ -24,13 +24,13 @@ const emptyMotorista = { nome: '', email: '', telefone: '', status: 'ATIVO', vei
 const emptyVeiculo = { placa: '', marca: '', modelo: '', ano: '', status: 'DISPONIVEL' };
 const emptyFrete = { codigo_frete: '', tipo_operacao: 'FRETE_PROPRIO', origem: '', destino: '', cliente: '', produto: '', peso_previsto_kg: '', valor_por_tonelada: '', valor_frete: '', status: 'PLANEJADO', veiculo_id: '' };
 
-function Input(p){return <input {...p} value={p.value ?? ''} onChange={e => { e.target.value = upper(e.target.value); if(p.onChange) p.onChange(e); }} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs sm:text-xs text-white uppercase outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
-function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs sm:text-xs text-white uppercase outline-none focus:border-blue-500/60 '+(p.className||'')}/>}
-function Field({label,children,className=''}){return <div className={className}><label className="block mb-1.5 text-[10px] sm:text-[10px] uppercase tracking-wider font-bold text-gray-400">{label}</label>{children}</div>}
-function Modal({title,onClose,children}){return <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"><div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#161B23] border border-white/10 rounded-2xl shadow-2xl"><div className="sticky top-0 z-10 flex justify-between items-center px-4 sm:px-5 py-3 sm:py-4 bg-[#161B23] border-b border-white/10"><h3 className="text-xs sm:text-sm font-bold text-white uppercase">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-white p-1"><X size={20}/></button></div><div className="p-4 sm:p-5">{children}</div></div></div>}
-function Actions({edit,del}){return <div className="flex justify-end gap-1.5">{edit && <button onClick={edit} className="p-2 rounded-lg bg-blue-950/60 text-blue-400"><Pencil size={15}/></button>}{del && <button onClick={del} className="p-2 rounded-lg bg-red-950/60 text-red-400"><Trash2 size={15}/></button>}</div>}
-function Buttons({saving,close}){return <div className="sm:col-span-2 lg:col-span-3 flex items-center justify-end gap-3 pt-4 border-t border-white/5"><button type="button" onClick={close} className="px-4 py-2.5 rounded-xl text-xs text-gray-400 border border-white/10">CANCELAR</button><button disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"><Save size={15}/>{saving?'SALVANDO...':'SALVAR'}</button></div>}
-function Table({rows,headers,render,empty}){return <div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400 border-b border-white/5"><tr>{headers.map(h=><th key={h} className="p-3.5 font-bold tracking-wider">{h}</th>)}</tr></thead><tbody className="divide-y divide-white/5">{rows.map((r,i)=><tr key={r.id||i} className="hover:bg-white/[0.02] transition-colors">{render(r)}</tr>)}</tbody></table>{!rows.length&&<p className="text-center text-gray-500 py-8 text-xs">{empty}</p>}</div>}
+function Input(p){return <input {...p} value={p.value ?? ''} onChange={e => { e.target.value = upper(e.target.value); if(p.onChange) p.onChange(e); }} className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}/>}
+function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}/>}
+function Field({label,children,className=''}){return <div className={className}><label className="block mb-1.5 text-[11px] sm:text-xs uppercase tracking-wider font-bold text-gray-400">{label}</label>{children}</div>}
+function Modal({title,onClose,children}){return <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn"><div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#161B23] border border-white/10 rounded-3xl shadow-2xl"><div className="sticky top-0 z-10 flex justify-between items-center px-5 sm:px-6 py-4 bg-[#161B23] border-b border-white/10"><h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-white p-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"><X size={18}/></button></div><div className="p-5 sm:p-6">{children}</div></div></div>}
+function Actions({edit,del}){return <div className="flex justify-end gap-2">{edit && <button onClick={edit} className="p-2.5 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 text-blue-400 transition-colors"><Pencil size={15}/></button>}{del && <button onClick={del} className="p-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/60 text-red-400 transition-colors"><Trash2 size={15}/></button>}</div>}
+function Buttons({saving,close}){return <div className="sm:col-span-2 lg:col-span-3 flex items-center justify-end gap-3 pt-4 border-t border-white/5"><button type="button" onClick={close} className="px-5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-white/10 hover:bg-white/5 transition-colors">CANCELAR</button><button disabled={saving} className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 shadow-lg shadow-blue-600/30 transition-all"><Save size={16}/>{saving?'SALVANDO...':'SALVAR'}</button></div>}
+function Table({rows,headers,render,empty}){return <div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400 border-b border-white/5"><tr>{headers.map(h=><th key={h} className="p-4 font-bold tracking-wider">{h}</th>)}</tr></thead><tbody className="divide-y divide-white/5">{rows.map((r,i)=><tr key={r.id||i} className="hover:bg-white/[0.03] transition-colors">{render(r)}</tr>)}</tbody></table>{!rows.length&&<p className="text-center text-gray-500 py-10 text-xs">{empty}</p>}</div>}
 
 export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   const isDriver = userRole === 'motorista';
@@ -827,7 +827,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     else await load();
   }
 
-  const statusBadge = s => <span className="px-2.5 py-1 rounded-full border text-[10px] font-bold bg-blue-950/60 text-blue-300 border-blue-500/30">{s}</span>;
+  const statusBadge = s => <span className="px-3 py-1.5 rounded-full border text-[10px] font-extrabold bg-blue-950/60 text-blue-300 border-blue-500/30 shadow-sm">{s}</span>;
 
   const getKpiBreakdownByPlate = (metricType) => {
     return veiculos.map(v => {
@@ -872,208 +872,241 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
   };
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6 uppercase pb-10">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#161B23] border border-white/5 p-4 sm:p-5 rounded-2xl shadow-xl">
+    <div className="flex flex-col gap-6 uppercase pb-12 max-w-7xl mx-auto px-3 sm:px-6">
+      {/* Header com Estilo Moderno */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 bg-gradient-to-r from-[#161B23] to-[#1F2937] border border-white/10 p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">Gestao Operacional</p>
-          <h1 className="text-lg sm:text-2xl font-extrabold text-white mt-1">
-            {isDriver ? `Painel Mobile: ${currentMotorista?.nome || currentUserEmail}` : 'Frota & Fretes'}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-1 rounded-md bg-blue-500/20 text-blue-400 font-extrabold text-[10px] tracking-widest uppercase border border-blue-500/30">
+              {isDriver ? 'Modo Motorista' : 'Gestão Frota & Fretes'}
+            </span>
+          </div>
+          <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight mt-1">
+            {isDriver ? `Olá, ${currentMotorista?.nome || currentUserEmail}` : 'Painel Executivo de Frota'}
           </h1>
-          <p className="text-xs text-gray-400 mt-1 normal-case">
-            {isDriver ? 'Gerencie suas viagens ativas, abastecimentos e despesas direto do smartphone.' : 'Veiculos proprios, motoristas vinculados, fretes e viagens.'}
+          <p className="text-xs sm:text-sm text-gray-400 mt-1.5 normal-case font-medium">
+            {isDriver ? 'Acesse suas viagens ativas, registre abastecimentos e despesas direto pelo celular.' : 'Controle total de veículos próprios, motoristas, fretes e rentabilidade.'}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {tabs.map(([id, label, I]) => (
-            <button key={id} onClick={() => { setTab(id); setQ(''); }} className={'flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all ' + (tab === id ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-600/30' : 'bg-[#1A2030] text-gray-400 border-white/10 hover:text-white')}>
+            <button key={id} onClick={() => { setTab(id); setQ(''); }} className={'flex items-center gap-2 px-4 py-3 rounded-2xl text-xs font-extrabold border transition-all ' + (tab === id ? 'bg-blue-600 text-white border-blue-400 shadow-lg shadow-blue-600/40 scale-105' : 'bg-[#1A2030] text-gray-400 border-white/10 hover:text-white hover:bg-white/5')}>
               <I size={16} />{label}
             </button>
           ))}
-          <button onClick={load} className="p-2.5 rounded-xl bg-[#1A2030] border border-white/10 text-gray-400 hover:text-white">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <button onClick={load} title="Atualizar Dados" className="p-3 rounded-2xl bg-[#1A2030] border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all">
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
+      {/* Banner de Viagem Ativa para Motoristas (Mobile-First de Alto Impacto) */}
+      {isDriver && (
+        <div className="bg-gradient-to-r from-blue-950/80 via-[#161B23] to-emerald-950/80 border border-blue-500/40 p-5 sm:p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-blue-600/30 border border-blue-500/50 text-blue-400 animate-pulse">
+              <Navigation size={28}/>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Status Atual na Estrada</span>
+              <h2 className="text-sm sm:text-base font-black text-white mt-0.5">
+                {viagemAtiva ? `Viagem Ativa: ${viagemAtiva.codigo_viagem} (${viagemAtiva.local_carregamento || 'ORIGEM'} → ${viagemAtiva.local_descarga || 'DESTINO'})` : 'Nenhuma viagem em andamento no momento'}
+              </h2>
+              <p className="text-xs text-gray-300 mt-1 normal-case">
+                {viagemAtiva ? `Produto: ${viagemAtiva.produto || 'N/A'} | KM Inicial: ${num(viagemAtiva.km_inicial)} KM` : 'Inicie uma nova viagem para começar a registrar quilometragem e abastecimentos.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            {viagemAtiva ? (
+              <button onClick={() => open('finalizar_viagem', viagemAtiva)} className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all">
+                <CheckCircle2 size={18}/> FINALIZAR VIAGEM ATIVA
+              </button>
+            ) : (
+              <button onClick={() => open('iniciar_viagem')} className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-lg shadow-blue-600/30 transition-all">
+                <PlayCircle size={18}/> INICIAR NOVA VIAGEM
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Filtro de Período Global para o Gestor */}
       {!isDriver && (
-        <div className="bg-[#161B23] border border-white/5 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-lg">
-          <div className="flex items-center gap-2 text-white text-xs font-bold">
-            <Calendar size={16} className="text-blue-400" />
-            <span>Filtro de Periodo:</span>
+        <div className="bg-[#161B23] border border-white/10 p-4 sm:p-5 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-2.5 text-white text-xs font-bold">
+            <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400"><Calendar size={16} /></div>
+            <span>Período de Análise:</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-1 bg-[#1A2030] p-1 rounded-xl border border-white/10">
-              <button onClick={() => setFiltroTipo('todos')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${filtroTipo === 'todos' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>TODOS</button>
-              <button onClick={() => setFiltroTipo('mes_ano')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${filtroTipo === 'mes_ano' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>MES / ANO</button>
-              <button onClick={() => setFiltroTipo('intervalo')} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${filtroTipo === 'intervalo' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>INTERVALO</button>
+            <div className="flex gap-1 bg-[#1A2030] p-1.5 rounded-2xl border border-white/10">
+              <button onClick={() => setFiltroTipo('todos')} className={`px-4 py-2 rounded-xl text-[10px] font-extrabold transition-all ${filtroTipo === 'todos' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>TODOS</button>
+              <button onClick={() => setFiltroTipo('mes_ano')} className={`px-4 py-2 rounded-xl text-[10px] font-extrabold transition-all ${filtroTipo === 'mes_ano' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>MÊS / ANO</button>
+              <button onClick={() => setFiltroTipo('intervalo')} className={`px-4 py-2 rounded-xl text-[10px] font-extrabold transition-all ${filtroTipo === 'intervalo' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>INTERVALO</button>
             </div>
 
             {filtroTipo === 'mes_ano' && (
-              <input type="month" value={filtroMesAno} onChange={e => setFiltroMesAno(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-xl px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
+              <input type="month" value={filtroMesAno} onChange={e => setFiltroMesAno(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-2xl px-4 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
             )}
 
             {filtroTipo === 'intervalo' && (
               <div className="flex items-center gap-2">
-                <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-xl px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
-                <span className="text-gray-500 text-xs">ate</span>
-                <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-xl px-3 py-2 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
+                <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-2xl px-3 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
+                <span className="text-gray-500 text-xs font-bold">até</span>
+                <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="bg-[#1A2030] border border-white/10 rounded-2xl px-3 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {error && <div className="flex items-center gap-2.5 p-4 rounded-2xl bg-red-950/40 border border-red-500/30 text-red-300 text-xs shadow-lg"><AlertCircle size={18} className="shrink-0"/><span>{error}</span></div>}
+      {error && <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-950/50 border border-red-500/40 text-red-300 text-xs shadow-xl"><AlertCircle size={20} className="shrink-0"/><span>{error}</span></div>}
 
+      {/* DASHBOARD MODERNO DO GESTOR */}
       {!isDriver && tab === 'dashboard' && (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div onClick={() => setKpiModal('viagens')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
+            <div onClick={() => setKpiModal('viagens')} className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-5 rounded-3xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.03] transition-all border border-blue-400/20 group">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-blue-100">Total de Viagens</p>
-                <h3 className="text-2xl font-black mt-1">{kpisFiltrados.total_viagens}</h3>
+                <p className="text-[10px] uppercase font-bold text-blue-200 tracking-wider">Total de Viagens</p>
+                <h3 className="text-3xl font-black mt-2 tracking-tight">{kpisFiltrados.total_viagens}</h3>
               </div>
-              <p className="text-[10px] text-blue-200 mt-3 font-semibold">Ver por placa →</p>
+              <p className="text-[10px] text-blue-200 mt-4 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Ver por placa →</p>
             </div>
-            <div onClick={() => setKpiModal('km')} className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
+            <div onClick={() => setKpiModal('km')} className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-800 p-5 rounded-3xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.03] transition-all border border-emerald-400/20 group">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-emerald-100">Km Rodados</p>
-                <h3 className="text-2xl font-black mt-1">{num(kpisFiltrados.km_rodados)} km</h3>
+                <p className="text-[10px] uppercase font-bold text-emerald-100 tracking-wider">KM Rodados</p>
+                <h3 className="text-3xl font-black mt-2 tracking-tight">{num(kpisFiltrados.km_rodados)}</h3>
               </div>
-              <p className="text-[10px] text-emerald-200 mt-3 font-semibold">Ver por placa →</p>
+              <p className="text-[10px] text-emerald-200 mt-4 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Ver por placa →</p>
             </div>
-            <div onClick={() => setKpiModal('toneladas')} className="bg-gradient-to-br from-amber-500 to-amber-700 p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
+            <div onClick={() => setKpiModal('toneladas')} className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-800 p-5 rounded-3xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.03] transition-all border border-amber-400/20 group">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-amber-100">Toneladas</p>
-                <h3 className="text-2xl font-black mt-1">{num(kpisFiltrados.toneladas_transportadas, 1)} t</h3>
+                <p className="text-[10px] uppercase font-bold text-amber-100 tracking-wider">Toneladas</p>
+                <h3 className="text-3xl font-black mt-2 tracking-tight">{num(kpisFiltrados.toneladas_transportadas, 1)} t</h3>
               </div>
-              <p className="text-[10px] text-amber-200 mt-3 font-semibold">Ver por placa →</p>
+              <p className="text-[10px] text-amber-200 mt-4 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Ver por placa →</p>
             </div>
-            <div onClick={() => setKpiModal('receita')} className="bg-gradient-to-br from-purple-600 to-purple-800 p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
+            <div onClick={() => setKpiModal('receita')} className="bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-900 p-5 rounded-3xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.03] transition-all border border-purple-400/20 group">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-purple-100">Receita de Fretes</p>
-                <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.receita_fretes)}</h3>
+                <p className="text-[10px] uppercase font-bold text-purple-200 tracking-wider">Receita de Fretes</p>
+                <h3 className="text-xl sm:text-2xl font-black mt-2 tracking-tight">{money(kpisFiltrados.receita_fretes)}</h3>
               </div>
-              <p className="text-[10px] text-purple-200 mt-3 font-semibold">Ver por placa →</p>
+              <p className="text-[10px] text-purple-200 mt-4 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Ver por placa →</p>
             </div>
-            <div onClick={() => setKpiModal('custos')} className="bg-gradient-to-br from-rose-600 to-rose-800 p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
+            <div onClick={() => setKpiModal('custos')} className="bg-gradient-to-br from-rose-600 via-rose-700 to-red-900 p-5 rounded-3xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.03] transition-all border border-rose-400/20 group">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-rose-100">Custos Operacionais</p>
-                <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.custos_operacionais)}</h3>
+                <p className="text-[10px] uppercase font-bold text-rose-100 tracking-wider">Custos Operacionais</p>
+                <h3 className="text-xl sm:text-2xl font-black mt-2 tracking-tight">{money(kpisFiltrados.custos_operacionais)}</h3>
               </div>
-              <p className="text-[10px] text-rose-200 mt-3 font-semibold">Ver divisao →</p>
+              <p className="text-[10px] text-rose-200 mt-4 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Ver divisão →</p>
             </div>
-            <div onClick={() => setKpiModal('resultado')} className="bg-gradient-to-br from-teal-500 to-teal-700 p-4 sm:p-5 rounded-2xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.02] transition-transform">
+            <div onClick={() => setKpiModal('resultado')} className="bg-gradient-to-br from-teal-500 via-teal-600 to-cyan-800 p-5 rounded-3xl text-white shadow-xl flex flex-col justify-between cursor-pointer hover:scale-[1.03] transition-all border border-teal-400/20 group">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-teal-100">Resultado Liquido</p>
-                <h3 className="text-xl font-black mt-1">{money(kpisFiltrados.resultado)}</h3>
+                <p className="text-[10px] uppercase font-bold text-teal-100 tracking-wider">Resultado Líquido</p>
+                <h3 className="text-xl sm:text-2xl font-black mt-2 tracking-tight">{money(kpisFiltrados.resultado)}</h3>
               </div>
-              <p className="text-[10px] text-teal-200 mt-3 font-semibold">Ver por placa →</p>
+              <p className="text-[10px] text-teal-200 mt-4 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">Ver por placa →</p>
             </div>
           </div>
 
-          <div className="bg-[#161B23] border border-white/5 p-5 rounded-2xl shadow-xl flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Truck className="text-blue-400" size={18}/>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Viagens em Transito (Toque na placa para detalhes)</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-[#161B23] border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col gap-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-blue-500/20 text-blue-400"><Truck size={20}/></div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">Veículos em Trânsito</h3>
+                    <p className="text-[11px] text-gray-400">Clique em qualquer placa para inspecionar os detalhes da viagem</p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-blue-950 text-blue-300 font-extrabold text-[10px] border border-blue-500/30">{viagensEmTransito.length} na estrada</span>
               </div>
-              <span className="text-[10px] text-gray-400 font-bold">{viagensEmTransito.length} ativo(s)</span>
+              <div className="flex flex-wrap gap-3">
+                {viagensEmTransito.map(v => (
+                  <button 
+                    key={v.id} 
+                    onClick={() => setViagemDetalheModal(v)}
+                    className="flex items-center gap-3 bg-[#1A2030] hover:bg-blue-950/50 border border-blue-500/30 px-4 py-3 rounded-2xl text-xs font-bold text-blue-300 transition-all cursor-pointer shadow-md group"
+                  >
+                    <span className="w-3 h-3 rounded-full bg-emerald-400 animate-ping shrink-0"></span>
+                    <span className="font-black text-white group-hover:text-blue-300">{v.veiculo_placa}</span>
+                    <span className="text-gray-400 font-medium">({v.motorista_nome})</span>
+                  </button>
+                ))}
+                {!viagensEmTransito.length && (
+                  <p className="text-gray-500 text-xs py-4">Nenhum veículo em trânsito no momento.</p>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2.5">
-              {viagensEmTransito.map(v => (
-                <button 
-                  key={v.id} 
-                  onClick={() => setViagemDetalheModal(v)}
-                  className="flex items-center gap-2.5 bg-[#1A2030] hover:bg-blue-950/50 border border-blue-500/30 px-4 py-2.5 rounded-xl text-xs font-bold text-blue-300 transition-all cursor-pointer shadow"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>{v.veiculo_placa}</span>
-                  <span className="text-gray-400 font-normal">({v.motorista_nome})</span>
-                </button>
-              ))}
-              {!viagensEmTransito.length && (
-                <p className="text-gray-500 text-xs py-2">Nenhuma viagem em transito no momento.</p>
-              )}
-            </div>
-          </div>
 
-          <div className="bg-[#161B23] border border-white/5 p-5 rounded-2xl shadow-xl flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Fuel className="text-emerald-400" size={18}/>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Mini Ranking de Postos (Volume e Preco Medio)</h3>
-              </div>
-              <span className="text-[10px] text-gray-400">Postos mais utilizados</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
-                  <tr>
-                    <th className="p-3 text-center w-12">#</th>
-                    <th className="p-3 text-left">Posto</th>
-                    <th className="p-3 text-center">Abastecimentos</th>
-                    <th className="p-3 text-right">Total Litros</th>
-                    <th className="p-3 text-right">Valor Total</th>
-                    <th className="p-3 text-right text-yellow-400">Preco Medio / L</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rankingPostos.map((p, idx) => (
-                    <tr key={p.posto} className="border-t border-white/5 hover:bg-white/[0.02]">
-                      <td className="p-3 text-center font-black text-emerald-400">{idx + 1}º</td>
-                      <td className="p-3 font-bold text-blue-300">{p.posto}</td>
-                      <td className="p-3 text-center">{p.qtdAbastecimentos}</td>
-                      <td className="p-3 text-right">{num(p.totalLitros, 2)} L</td>
-                      <td className="p-3 text-right font-bold text-gray-200">{money(p.valorTotal)}</td>
-                      <td className="p-3 text-right font-black text-yellow-400">{money(p.precoMedioLitro)} / L</td>
-                    </tr>
+            <div className="bg-[#161B23] border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-400"><Fuel size={20}/></div>
+                  <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">Postos Mais Frequentes</h3>
+                </div>
+                <div className="space-y-3">
+                  {rankingPostos.slice(0, 3).map((p, idx) => (
+                    <div key={p.posto} className="flex items-center justify-between p-3 rounded-2xl bg-[#1A2030] border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <span className="font-black text-emerald-400 text-xs">{idx + 1}º</span>
+                        <div>
+                          <p className="font-bold text-white text-xs">{p.posto}</p>
+                          <p className="text-[10px] text-gray-400">{num(p.totalLitros, 2)} L abastecidos</p>
+                        </div>
+                      </div>
+                      <span className="font-black text-yellow-400 text-xs">{money(p.precoMedioLitro)}/L</span>
+                    </div>
                   ))}
                   {!rankingPostos.length && (
-                    <tr><td colSpan={6} className="p-6 text-center text-gray-500">Nenhum abastecimento registrado no periodo.</td></tr>
+                    <p className="text-gray-500 text-xs py-4 text-center">Sem dados de abastecimento.</p>
                   )}
-                </tbody>
-              </table>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="bg-[#161B23] border border-white/5 p-5 rounded-2xl shadow-xl flex flex-col gap-4">
+          <div className="bg-[#161B23] border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col gap-5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Award className="text-amber-400" size={18}/>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Ranking de Desempenho por Veiculo / Motorista</h3>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400"><Award size={20}/></div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">Ranking de Desempenho por Frota</h3>
+                  <p className="text-[11px] text-gray-400">Classificação baseada no retorno líquido do período</p>
+                </div>
               </div>
-              <span className="text-[10px] text-gray-400">Periodo filtrado</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
                   <tr>
-                    <th className="p-3 text-center w-12">#</th>
-                    <th className="p-3 text-left">Placa / Modelo</th>
-                    <th className="p-3 text-left">Motorista</th>
-                    <th className="p-3 text-center">Viagens Finalizadas</th>
-                    <th className="p-3 text-right">Km Rodados</th>
-                    <th className="p-3 text-right">Media KM/L</th>
-                    <th className="p-3 text-right">Faturamento/KM</th>
-                    <th className="p-3 text-right">Faturamento Total</th>
-                    <th className="p-3 text-right">Retorno Liquido</th>
+                    <th className="p-4 text-center w-12">#</th>
+                    <th className="p-4 text-left">Placa / Modelo</th>
+                    <th className="p-4 text-left">Motorista</th>
+                    <th className="p-4 text-center">Viagens</th>
+                    <th className="p-4 text-right">KM Rodados</th>
+                    <th className="p-4 text-right">Média KM/L</th>
+                    <th className="p-4 text-right">Faturamento/KM</th>
+                    <th className="p-4 text-right">Faturamento Total</th>
+                    <th className="p-4 text-right">Retorno Líquido</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rankingGestor.map((r, idx) => (
                     <tr key={r.veiculo_id} className="border-t border-white/5 hover:bg-white/[0.02]">
-                      <td className="p-3 text-center font-black text-amber-400">
+                      <td className="p-4 text-center font-black text-amber-400">
                         {idx === 0 ? '🥇 1º' : idx === 1 ? '🥈 2º' : idx === 2 ? '🥉 3º' : `${idx + 1}º`}
                       </td>
-                      <td className="p-3 font-bold text-blue-300">{r.placa} <span className="text-gray-400 font-normal">({r.modelo})</span></td>
-                      <td className="p-3 font-semibold text-gray-200">{r.motorista}</td>
-                      <td className="p-3 text-center">{r.viagensFinalizadas}</td>
-                      <td className="p-3 text-right">{num(r.kmRodados)} km</td>
-                      <td className="p-3 text-right text-yellow-400 font-bold">{num(r.mediaKmL, 2)} KM/L</td>
-                      <td className="p-3 text-right text-purple-300 font-bold">{money(r.mediaPorKm)}/km</td>
-                      <td className="p-3 text-right text-emerald-400 font-bold">{money(r.receitaTotal)}</td>
-                      <td className="p-3 text-right text-teal-400 font-black">{money(r.retornoLiquido)}</td>
+                      <td className="p-4 font-bold text-blue-300">{r.placa} <span className="text-gray-400 font-normal">({r.modelo})</span></td>
+                      <td className="p-4 font-semibold text-gray-200">{r.motorista}</td>
+                      <td className="p-4 text-center">{r.viagensFinalizadas}</td>
+                      <td className="p-4 text-right">{num(r.kmRodados)} km</td>
+                      <td className="p-4 text-right text-yellow-400 font-bold">{num(r.mediaKmL, 2)} KM/L</td>
+                      <td className="p-4 text-right text-purple-300 font-bold">{money(r.mediaPorKm)}/km</td>
+                      <td className="p-4 text-right text-emerald-400 font-bold">{money(r.receitaTotal)}</td>
+                      <td className="p-4 text-right text-teal-400 font-black">{money(r.retornoLiquido)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1083,18 +1116,19 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </div>
       )}
 
+      {/* ABA DE RELATÓRIOS */}
       {!isDriver && tab === 'relatorios' && (
-        <div className="bg-[#161B23] border border-white/5 p-6 rounded-2xl shadow-xl flex flex-col gap-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+        <div className="bg-[#161B23] border border-white/10 p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
             <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Download size={18} className="text-blue-400"/> Central de Relatorios Detalhados e Exportaveis
+              <h2 className="text-sm sm:text-base font-extrabold text-white uppercase tracking-wider flex items-center gap-2.5">
+                <Download size={20} className="text-blue-400"/> Central de Relatórios Executivos
               </h2>
-              <p className="text-xs text-gray-400 mt-1">Exporte dados consolidados em formato CSV (compativel com Excel) ou versao para Impressao/PDF, aplicando filtros opcionais por Placa ou Motorista.</p>
+              <p className="text-xs text-gray-400 mt-1">Exporte dados consolidados em CSV ou gere documentos otimizados para impressão e PDF.</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#1A2030] p-4 rounded-xl border border-white/5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#1A2030] p-5 rounded-2xl border border-white/5">
             <Field label="Filtrar por Placa (Veículo)">
               <Select value={filtroPlacaRelatorio} onChange={e => setFiltroPlacaRelatorio(e.target.value)}>
                 <option value="todos">TODAS AS PLACAS (GERAL)</option>
@@ -1115,39 +1149,39 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-            <button onClick={() => setRelatorioTipo('viagens')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'viagens' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+            <button onClick={() => setRelatorioTipo('viagens')} className={`p-4 rounded-2xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'viagens' ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
               <Route size={20} className="mb-2 text-blue-300"/>
               Viagens e Rotas
             </button>
-            <button onClick={() => setRelatorioTipo('fretes')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'fretes' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+            <button onClick={() => setRelatorioTipo('fretes')} className={`p-4 rounded-2xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'fretes' ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
               <FileText size={20} className="mb-2 text-purple-300"/>
               Fretes
             </button>
-            <button onClick={() => setRelatorioTipo('abastecimentos')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'abastecimentos' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+            <button onClick={() => setRelatorioTipo('abastecimentos')} className={`p-4 rounded-2xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'abastecimentos' ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
               <Fuel size={20} className="mb-2 text-emerald-300"/>
               Abastecimentos
             </button>
-            <button onClick={() => setRelatorioTipo('despesas')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'despesas' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+            <button onClick={() => setRelatorioTipo('despesas')} className={`p-4 rounded-2xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'despesas' ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
               <Receipt size={20} className="mb-2 text-amber-300"/>
               Despesas
             </button>
-            <button onClick={() => setRelatorioTipo('veiculos')} className={`p-4 rounded-xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'veiculos' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
+            <button onClick={() => setRelatorioTipo('veiculos')} className={`p-4 rounded-2xl border text-left font-bold text-xs transition-all ${relatorioTipo === 'veiculos' ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-[#1A2030] border-white/10 text-gray-300 hover:text-white'}`}>
               <Truck size={20} className="mb-2 text-teal-300"/>
               Desempenho Frota
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 bg-[#1A2030] p-4 rounded-xl border border-white/5">
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-[#1A2030] p-5 rounded-2xl border border-white/5">
             <div>
-              <span className="text-xs font-bold text-white uppercase block">Modulo Selecionado: {relatorioTipo.toUpperCase()}</span>
-              <span className="text-[10px] text-gray-400">Respeita o filtro de periodo configurado e os filtros de placa/motorista aplicados acima.</span>
+              <span className="text-xs font-black text-white uppercase block">Módulo Selecionado: {relatorioTipo.toUpperCase()}</span>
+              <span className="text-[11px] text-gray-400">Respeita o filtro de período e as seleções de placa/motorista aplicadas acima.</span>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => exportarRelatorioGeral('csv')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition-all">
-                <Download size={15}/> EXPORTAR CSV / EXCEL
+              <button onClick={() => exportarRelatorioGeral('csv')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-lg transition-all">
+                <Download size={16}/> EXPORTAR CSV
               </button>
-              <button onClick={() => exportarRelatorioGeral('print')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition-all">
-                <Printer size={15}/> IMPRIMIR / GERAR PDF
+              <button onClick={() => exportarRelatorioGeral('print')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-lg transition-all">
+                <Printer size={16}/> IMPRIMIR / PDF
               </button>
             </div>
           </div>
@@ -1157,47 +1191,47 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {viagemDetalheModal && (
         <Modal title={`Detalhes da Viagem: ${viagemDetalheModal.codigo_viagem}`} onClose={() => setViagemDetalheModal(null)}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Veiculo / Placa</span>
-              <span className="text-white font-bold text-sm">{viagemDetalheModal.veiculo_placa}</span>
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Veículo / Placa</span>
+              <span className="text-white font-black text-sm">{viagemDetalheModal.veiculo_placa}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Motorista</span>
-              <span className="text-white font-bold text-sm">{viagemDetalheModal.motorista_nome}</span>
+              <span className="text-white font-black text-sm">{viagemDetalheModal.motorista_nome}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Produto</span>
-              <span className="text-white font-bold">{viagemDetalheModal.produto || 'NAO INFORMADO'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.produto || 'NÃO INFORMADO'}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Nota Fiscal (NF)</span>
-              <span className="text-white font-bold">{viagemDetalheModal.numero_nf || 'NAO INFORMADA'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.numero_nf || 'NÃO INFORMADA'}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Carregamento</span>
-              <span className="text-white font-bold">{viagemDetalheModal.local_carregamento || 'NAO INFORMADO'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.local_carregamento || 'NÃO INFORMADO'}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Descarga</span>
-              <span className="text-white font-bold">{viagemDetalheModal.local_descarga || 'EM TRANSITO'}</span>
+              <span className="text-white font-bold">{viagemDetalheModal.local_descarga || 'EM TRÂNSITO'}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Carregado</span>
-              <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NAO INFORMADO'}</span>
+              <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NÃO INFORMADO'}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Destino</span>
-              <span className="text-amber-400 font-bold">{viagemDetalheModal.peso_descarga_kg ? `${num(viagemDetalheModal.peso_descarga_kg)} kg` : 'NAO INFORMADO'}</span>
+              <span className="text-amber-400 font-bold">{viagemDetalheModal.peso_descarga_kg ? `${num(viagemDetalheModal.peso_descarga_kg)} kg` : 'NÃO INFORMADO'}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Diferença Peso (Destino - Origem)</span>
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">Diferença de Peso</span>
               <span className="text-blue-400 font-bold">
                 {viagemDetalheModal.peso_descarga_kg && viagemDetalheModal.peso_carregado_kg 
                   ? `${num(Number(viagemDetalheModal.peso_descarga_kg) - Number(viagemDetalheModal.peso_carregado_kg))} kg` 
                   : 'N/A'}
               </span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Total Percorrido</span>
               <span className="text-yellow-400 font-bold">
                 {viagemDetalheModal.km_final && viagemDetalheModal.km_inicial 
@@ -1205,12 +1239,12 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   : 'N/A'}
               </span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Data e Hora Chegada</span>
               <span className="text-teal-400 font-bold">{viagemDetalheModal.data_chegada ? new Date(viagemDetalheModal.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span>
             </div>
-            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5 sm:col-span-2">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saida</span>
+            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5 sm:col-span-2">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saída</span>
               <span className="text-white font-bold">{viagemDetalheModal.km_inicial ? `${num(viagemDetalheModal.km_inicial)} KM` : '-'} ({viagemDetalheModal.data_saida ? new Date(viagemDetalheModal.data_saida).toLocaleString('pt-BR') : 'N/A'})</span>
             </div>
           </div>
@@ -1221,7 +1255,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         <Modal 
           title={
             kpiModal === 'custos' 
-              ? 'Divisao de Custos por Placa (Abastecimentos e Despesas)' 
+              ? 'Divisão de Custos por Placa (Abastecimentos e Despesas)' 
               : `Detalhamento por Placa - ${kpiModal.toUpperCase()}`
           } 
           onClose={() => setKpiModal(null)}
@@ -1230,21 +1264,21 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <table className="w-full text-xs">
               <thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400">
                 <tr>
-                  <th className="p-3 text-left">Placa / Veiculo</th>
+                  <th className="p-4 text-left">Placa / Veículo</th>
                   {kpiModal === 'custos' ? (
                     <>
-                      <th className="p-3 text-right">Abastecimentos (L / Total)</th>
-                      <th className="p-3 text-left">Despesas por Categoria</th>
-                      <th className="p-3 text-right">Custo Total</th>
+                      <th className="p-4 text-right">Abastecimentos (L / Total)</th>
+                      <th className="p-4 text-left">Despesas por Categoria</th>
+                      <th className="p-4 text-right">Custo Total</th>
                     </>
                   ) : (
                     <>
-                      <th className="p-3 text-center">Viagens</th>
-                      <th className="p-3 text-right">Km Rodados</th>
-                      <th className="p-3 text-right">Toneladas (t)</th>
-                      <th className="p-3 text-right">Receita</th>
-                      <th className="p-3 text-right">Custos</th>
-                      <th className="p-3 text-right">Resultado</th>
+                      <th className="p-4 text-center">Viagens</th>
+                      <th className="p-4 text-right">KM Rodados</th>
+                      <th className="p-4 text-right">Toneladas (t)</th>
+                      <th className="p-4 text-right">Receita</th>
+                      <th className="p-4 text-right">Custos</th>
+                      <th className="p-4 text-right">Resultado</th>
                     </>
                   )}
                 </tr>
@@ -1252,14 +1286,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <tbody>
                 {getKpiBreakdownByPlate(kpiModal).map((item, idx) => (
                   <tr key={idx} className="border-t border-white/5 hover:bg-white/[0.02]">
-                    <td className="p-3 font-bold text-blue-300">{item.placa} <span className="text-gray-400 font-normal">({item.modelo})</span></td>
+                    <td className="p-4 font-bold text-blue-300">{item.placa} <span className="text-gray-400 font-normal">({item.modelo})</span></td>
                     {kpiModal === 'custos' ? (
                       <>
-                        <td className="p-3 text-right text-emerald-400 font-bold">
+                        <td className="p-4 text-right text-emerald-400 font-bold">
                           {num(item.totalLitrosAbst, 2)} L<br/>
                           <span className="text-white">{money(item.totalValAbst)}</span>
                         </td>
-                        <td className="p-3">
+                        <td className="p-4">
                           {Object.keys(item.despesasPorModalidade).length > 0 ? (
                             <div className="flex flex-col gap-1">
                               {Object.entries(item.despesasPorModalidade).map(([tipo, val]) => (
@@ -1272,16 +1306,16 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                             <span className="text-gray-500">Nenhuma despesa</span>
                           )}
                         </td>
-                        <td className="p-3 text-right text-rose-400 font-black">{money(item.custos)}</td>
+                        <td className="p-4 text-right text-rose-400 font-black">{money(item.custos)}</td>
                       </>
                     ) : (
                       <>
-                        <td className="p-3 text-center">{item.totalViagens}</td>
-                        <td className="p-3 text-right">{num(item.kmRodados)} km</td>
-                        <td className="p-3 text-right">{num(item.toneladas, 1)} t</td>
-                        <td className="p-3 text-right text-emerald-400 font-bold">{money(item.receita)}</td>
-                        <td className="p-3 text-right text-rose-400 font-bold">{money(item.custos)}</td>
-                        <td className="p-3 text-right text-teal-400 font-black">{money(item.resultado)}</td>
+                        <td className="p-4 text-center">{item.totalViagens}</td>
+                        <td className="p-4 text-right">{num(item.kmRodados)} km</td>
+                        <td className="p-4 text-right">{num(item.toneladas, 1)} t</td>
+                        <td className="p-4 text-right text-emerald-400 font-bold">{money(item.receita)}</td>
+                        <td className="p-4 text-right text-rose-400 font-bold">{money(item.custos)}</td>
+                        <td className="p-4 text-right text-teal-400 font-black">{money(item.resultado)}</td>
                       </>
                     )}
                   </tr>
@@ -1292,141 +1326,144 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         </Modal>
       )}
 
+      {/* ABA DE VIAGENS (COM VISUALIZAÇÃO MOBILE OTIMIZADA PARA MOTORISTAS) */}
       {(tab === 'viagens' || tab === 'minhas_viagens') && (
-        <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="bg-[#161B23] border border-white/10 rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="relative w-full md:w-auto">
-              <Search size={16} className="absolute left-3.5 top-3 text-gray-500"/>
-              <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar viagens, produtos..." className="pl-10 w-full md:w-80 lowercase"/>
+              <Search size={16} className="absolute left-4 top-3.5 text-gray-500"/>
+              <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar viagens, produtos..." className="pl-11 w-full md:w-80 lowercase"/>
             </div>
-            <div className="grid grid-cols-1 sm:flex flex-wrap gap-2">
-              <button onClick={() => open('abastecimento')} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg transition-all">
+            <div className="grid grid-cols-1 sm:flex flex-wrap gap-2.5">
+              <button onClick={() => open('abastecimento')} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-5 py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all">
                 <Fuel size={16}/>ABASTECIMENTO
               </button>
-              <button onClick={() => open('despesa')} className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg transition-all">
+              <button onClick={() => open('despesa')} className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-extrabold px-5 py-3.5 rounded-2xl shadow-lg shadow-amber-600/20 transition-all">
                 <Receipt size={16}/>DESPESA
               </button>
-              <button onClick={() => open('iniciar_viagem')} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-5 py-3 rounded-xl shadow-lg shadow-blue-600/30 transition-all">
+              <button onClick={() => open('iniciar_viagem')} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-6 py-3.5 rounded-2xl shadow-lg shadow-blue-600/30 transition-all">
                 <PlayCircle size={16}/>INICIAR NOVA VIAGEM
               </button>
             </div>
           </div>
 
-          <div className="block sm:hidden p-4 space-y-3">
+          {/* Cards em formato Mobile Otimizado */}
+          <div className="block sm:hidden p-4 space-y-4">
             {viagensFiltradas.map(v => (
-              <div key={v.id} className="bg-[#1A2030] border border-white/10 rounded-2xl p-4 flex flex-col gap-3 shadow">
+              <div key={v.id} className="bg-[#1A2030] border border-white/10 rounded-3xl p-5 flex flex-col gap-3.5 shadow-xl">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-blue-300 text-sm">{v.codigo_viagem}</span>
+                  <span className="font-black text-blue-300 text-sm tracking-wide">{v.codigo_viagem}</span>
                   {statusBadge(v.status)}
                 </div>
-                <div className="text-xs space-y-1 text-gray-300">
-                  <p><strong>Veiculo:</strong> {v.veiculos?.placa || '-'}</p>
+                <div className="text-xs space-y-1.5 text-gray-300">
+                  <p><strong>Veículo:</strong> {v.veiculos?.placa || '-'}</p>
                   <p><strong>Motorista:</strong> {v.motorista_nome}</p>
                   <p><strong>Produto:</strong> {v.produto || '-'}</p>
-                  <p><strong>Rota:</strong> {v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</p>
+                  <p><strong>Rota:</strong> <span className="text-white font-bold">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRÂNSITO'}</span></p>
                   <p><strong>Peso Origem:</strong> {v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</p>
                   <p><strong>Peso Destino:</strong> {v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</p>
                   <p><strong>Diferença Peso:</strong> {(v.peso_descarga_kg && v.peso_carregado_kg) ? `${num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg))} KG` : '-'}</p>
-                  <p><strong>KM Total:</strong> <span className="text-yellow-400 font-bold">{(v.km_final && v.km_inicial) ? `${num(Number(v.km_final) - Number(v.km_inicial))} KM` : '-'}</span></p>
-                  <p><strong>Data Chegada:</strong> <span className="text-teal-400 font-bold">{v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span></p>
+                  <p><strong>KM Total:</strong> <span className="text-yellow-400 font-extrabold">{(v.km_final && v.km_inicial) ? `${num(Number(v.km_final) - Number(v.km_inicial))} KM` : '-'}</span></p>
+                  <p><strong>Data Chegada:</strong> <span className="text-teal-400 font-extrabold">{v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span></p>
                 </div>
-                <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                <div className="flex items-center gap-2.5 pt-3 border-t border-white/5">
                   {v.status !== 'FINALIZADO' && (
-                    <button onClick={() => open('finalizar_viagem', v)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">
-                      <CheckCircle2 size={15}/> FINALIZAR VIAGEM
+                    <button onClick={() => open('finalizar_viagem', v)} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30">
+                      <CheckCircle2 size={16}/> FINALIZAR VIAGEM
                     </button>
                   )}
-                  <button onClick={() => open('iniciar_viagem', v)} className="p-2.5 rounded-xl bg-blue-950/60 text-blue-400">
-                    <Pencil size={16}/>
+                  <button onClick={() => open('iniciar_viagem', v)} className="p-3 rounded-2xl bg-blue-950/60 text-blue-400 hover:bg-blue-900/60 transition-colors">
+                    <Pencil size={18}/>
                   </button>
-                  <button onClick={() => del('viagens', v.id, `A VIAGEM ${v.codigo_viagem}`)} className="p-2.5 rounded-xl bg-red-950/60 text-red-400">
-                    <Trash2 size={16}/>
+                  <button onClick={() => del('viagens', v.id, `A VIAGEM ${v.codigo_viagem}`)} className="p-3 rounded-2xl bg-red-950/60 text-red-400 hover:bg-red-900/60 transition-colors">
+                    <Trash2 size={18}/>
                   </button>
                 </div>
               </div>
             ))}
             {!viagensFiltradas.length && (
-              <p className="text-center text-gray-500 py-8 text-xs">NENHUMA VIAGEM REGISTRADA NO PERIODO.</p>
+              <p className="text-center text-gray-500 py-12 text-xs font-bold">NENHUMA VIAGEM REGISTRADA NO PERÍODO.</p>
             )}
           </div>
 
+          {/* Tabela Desktop */}
           <div className="hidden sm:block">
-            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','KM TOTAL','DATA CHEGADA','STATUS','ACOES']} render={v => (
+            <Table rows={viagensFiltradas} headers={['CÓDIGO','VEÍCULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','KM TOTAL','DATA CHEGADA','STATUS','AÇÕES']} render={v => (
               <>
-                <td className="p-3.5 font-bold text-blue-300">{v.codigo_viagem}</td>
-                <td className="p-3.5">{v.veiculos?.placa || '-'}</td>
-                <td className="p-3.5">{v.motorista_nome}</td>
-                <td className="p-3.5 font-semibold text-gray-300">{v.produto || '-'}</td>
-                <td className="p-3.5">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRANSITO'}</td>
-                <td className="p-3.5 font-medium text-emerald-400">{v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</td>
-                <td className="p-3.5 font-medium text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
-                <td className="p-3.5 font-bold text-blue-400">
+                <td className="p-4 font-black text-blue-300">{v.codigo_viagem}</td>
+                <td className="p-4 font-semibold">{v.veiculos?.placa || '-'}</td>
+                <td className="p-4 font-semibold">{v.motorista_nome}</td>
+                <td className="p-4 font-bold text-gray-300">{v.produto || '-'}</td>
+                <td className="p-4 font-semibold">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRÂNSITO'}</td>
+                <td className="p-4 font-bold text-emerald-400">{v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</td>
+                <td className="p-4 font-bold text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
+                <td className="p-4 font-extrabold text-blue-400">
                   {v.peso_descarga_kg && v.peso_carregado_kg ? `${num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg))} KG` : '-'}
                 </td>
-                <td className="p-3.5 font-bold text-yellow-400">
+                <td className="p-4 font-extrabold text-yellow-400">
                   {v.km_final && v.km_inicial ? `${num(Number(v.km_final) - Number(v.km_inicial))} KM` : '-'}
                 </td>
-                <td className="p-3.5 font-semibold text-teal-400">
+                <td className="p-4 font-bold text-teal-400">
                   {v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : '-'}
                 </td>
-                <td className="p-3.5">{statusBadge(v.status)}</td>
-                <td className="p-3.5">
+                <td className="p-4">{statusBadge(v.status)}</td>
+                <td className="p-4">
                   <div className="flex items-center gap-2">
                     {v.status !== 'FINALIZADO' && (
-                      <button onClick={() => open('finalizar_viagem', v)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow">
-                        <CheckCircle2 size={14}/> FINALIZAR
+                      <button onClick={() => open('finalizar_viagem', v)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow transition-all">
+                        <CheckCircle2 size={15}/> FINALIZAR
                       </button>
                     )}
                     <Actions edit={() => open('iniciar_viagem', v)} del={() => del('viagens', v.id, `A VIAGEM ${v.codigo_viagem}`)} />
                   </div>
                 </td>
               </>
-            )} empty="NENHUMA VIAGEM REGISTRADA NO PERIODO."/>
+            )} empty="NENHUMA VIAGEM REGISTRADA NO PERÍODO."/>
           </div>
         </div>
       )}
 
       {tab === 'veiculos' && (
-        <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Frota de Veiculos e Consumo Medio</h2>
-            <button onClick={() => open('veiculo')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
-              <Plus size={16}/>NOVO VEICULO
+        <div className="bg-[#161B23] border border-white/10 rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-white/5 flex justify-between items-center">
+            <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">Frota de Veículos e Consumo Médio</h2>
+            <button onClick={() => open('veiculo')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-lg shadow-blue-600/30 transition-all">
+              <Plus size={16}/>NOVO VEÍCULO
             </button>
           </div>
-          <Table rows={veiculosComConsumo} headers={['PLACA','MARCA','MODELO','ANO','KM RODADOS','MEDIA KM/L','STATUS','ACOES']} render={v => (
+          <Table rows={veiculosComConsumo} headers={['PLACA','MARCA','MODELO','ANO','KM RODADOS','MÉDIA KM/L','STATUS','AÇÕES']} render={v => (
             <>
-              <td className="p-3.5 font-bold text-blue-300">{v.placa}</td>
-              <td className="p-3.5">{v.marca || '-'}</td>
-              <td className="p-3.5 font-semibold text-white">{v.modelo || '-'}</td>
-              <td className="p-3.5">{v.ano || '-'}</td>
-              <td className="p-3.5 text-gray-300">{num(v.kmRodados)} km</td>
-              <td className="p-3.5 font-bold text-yellow-400">{num(v.mediaKmL, 2)} KM/L</td>
-              <td className="p-3.5">{statusBadge(v.status || 'DISPONIVEL')}</td>
-              <td className="p-3.5"><Actions edit={() => open('veiculo', v)} del={() => del('veiculos', v.id, `O VEICULO ${v.placa}`)} /></td>
+              <td className="p-4 font-black text-blue-300">{v.placa}</td>
+              <td className="p-4 font-semibold">{v.marca || '-'}</td>
+              <td className="p-4 font-extrabold text-white">{v.modelo || '-'}</td>
+              <td className="p-4 font-semibold">{v.ano || '-'}</td>
+              <td className="p-4 font-semibold text-gray-300">{num(v.kmRodados)} km</td>
+              <td className="p-4 font-black text-yellow-400">{num(v.mediaKmL, 2)} KM/L</td>
+              <td className="p-4">{statusBadge(v.status || 'DISPONIVEL')}</td>
+              <td className="p-4"><Actions edit={() => open('veiculo', v)} del={() => del('veiculos', v.id, `O VEÍCULO ${v.placa}`)} /></td>
             </>
-          )} empty="NENHUM VEICULO CADASTRADO."/>
+          )} empty="NENHUM VEÍCULO CADASTRADO."/>
         </div>
       )}
 
       {tab === 'motoristas' && (
-        <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Motoristas & Vinculo de Veiculos</h2>
-            <button onClick={() => open('motorista')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="bg-[#161B23] border border-white/10 rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-white/5 flex justify-between items-center">
+            <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">Motoristas & Vínculo de Veículos</h2>
+            <button onClick={() => open('motorista')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-lg shadow-blue-600/30 transition-all">
               <Plus size={16}/>NOVO MOTORISTA
             </button>
           </div>
-          <Table rows={motoristas} headers={['NOME','EMAIL','TELEFONE','VEICULO ATRIBUIDO','STATUS','ACOES']} render={m => {
+          <Table rows={motoristas} headers={['NOME','E-MAIL','TELEFONE','VEÍCULO ATRIBUÍDO','STATUS','AÇÕES']} render={m => {
             const veicVinculado = veiculos.find(v => Number(v.id) === Number(m.veiculo_id));
             return (
               <>
-                <td className="p-3.5 font-bold text-white">{m.nome}</td>
-                <td className="p-3.5 text-gray-300 lowercase">{m.email || '-'}</td>
-                <td className="p-3.5">{m.telefone || '-'}</td>
-                <td className="p-3.5 font-semibold text-blue-300">{veicVinculado ? veicVinculado.placa : 'NAO ATRIBUIDO'}</td>
-                <td className="p-3.5">{statusBadge(m.status || 'ATIVO')}</td>
-                <td className="p-3.5"><Actions edit={() => open('motorista', m)} del={() => del('motoristas', m.id, `O MOTORISTA ${m.nome}`)} /></td>
+                <td className="p-4 font-black text-white">{m.nome}</td>
+                <td className="p-4 text-gray-300 lowercase font-medium">{m.email || '-'}</td>
+                <td className="p-4 font-semibold">{m.telefone || '-'}</td>
+                <td className="p-4 font-bold text-blue-300">{veicVinculado ? veicVinculado.placa : 'NÃO ATRIBUÍDO'}</td>
+                <td className="p-4">{statusBadge(m.status || 'ATIVO')}</td>
+                <td className="p-4"><Actions edit={() => open('motorista', m)} del={() => del('motoristas', m.id, `O MOTORISTA ${m.nome}`)} /></td>
               </>
             );
           }} empty="NENHUM MOTORISTA CADASTRADO."/>
@@ -1434,84 +1471,64 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {tab === 'fretes' && (
-        <div className="bg-[#161B23] border border-white/5 rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-white/5 flex justify-between items-center">
-            <h2 className="text-xs sm:text-sm font-bold text-white">Gestao de Fretes</h2>
-            <button onClick={() => open('frete')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="bg-[#161B23] border border-white/10 rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-white/5 flex justify-between items-center">
+            <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">Controle de Fretes e Operações</h2>
+            <button onClick={() => open('frete')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-lg shadow-blue-600/30 transition-all">
               <Plus size={16}/>NOVO FRETE
             </button>
           </div>
-          <Table rows={fretes} headers={['CODIGO','CLIENTE','ORIGEM -> DESTINO','PRODUTO','PESO PREVISTO','VALOR FRETE','STATUS','ACOES']} render={f => (
+          <Table rows={fretes} headers={['CÓDIGO','CLIENTE','ORIGEM -> DESTINO','PRODUTO','VALOR FRETE','STATUS','AÇÕES']} render={f => (
             <>
-              <td className="p-3.5 font-bold text-blue-300">{f.codigo_frete}</td>
-              <td className="p-3.5 font-semibold text-white">{f.cliente}</td>
-              <td className="p-3.5">{f.origem} → {f.destino}</td>
-              <td className="p-3.5">{f.produto || '-'}</td>
-              <td className="p-3.5 text-gray-300">{f.peso_previsto_kg ? `${num(f.peso_previsto_kg)} KG` : '-'}</td>
-              <td className="p-3.5 font-bold text-emerald-400">{money(f.valor_frete)}</td>
-              <td className="p-3.5">{statusBadge(f.status)}</td>
-              <td className="p-3.5"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
+              <td className="p-4 font-black text-blue-300">{f.codigo_frete}</td>
+              <td className="p-4 font-extrabold text-white">{f.cliente}</td>
+              <td className="p-4 font-semibold">{f.origem} → {f.destino}</td>
+              <td className="p-4 font-semibold text-gray-300">{f.produto || '-'}</td>
+              <td className="p-4 font-black text-emerald-400">{money(f.valor_frete)}</td>
+              <td className="p-4">{statusBadge(f.status)}</td>
+              <td className="p-4"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
             </>
           )} empty="NENHUM FRETE CADASTRADO."/>
         </div>
       )}
 
+      {/* MODAIS DE CADASTRO / EDIÇÃO */}
       {modal === 'iniciar_viagem' && (
         <Modal title={editing ? `Editar Viagem: ${tripInicio.codigo_viagem}` : 'Iniciar Nova Viagem'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Codigo da Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})}/></Field>
-            
-            <Field label="Selecione o Frete Vinculado (Opcional)">
-              <Select value={tripInicio.frete_id} onChange={e => {
-                const fId = e.target.value;
-                const frt = fretes.find(f => String(f.id) === String(fId));
-                if (frt) {
-                  setTripInicio({
-                    ...tripInicio,
-                    frete_id: fId,
-                    local_carregamento: frt.origem || tripInicio.local_carregamento,
-                    local_descarga: frt.destino || tripInicio.local_descarga,
-                    produto: frt.produto || tripInicio.produto,
-                    peso_carregado_kg: frt.peso_previsto_kg || tripInicio.peso_carregado_kg,
-                    valor_por_tonelada: frt.valor_por_tonelada || tripInicio.valor_por_tonelada,
-                    veiculo_id: frt.veiculo_id ? String(frt.veiculo_id) : tripInicio.veiculo_id
-                  });
-                } else {
-                  setTripInicio({...tripInicio, frete_id: fId});
-                }
-              }}>
-                <option value="">NENHUM (VIAGEM DIRETA / PROPRIA)</option>
-                {fretesDisponiveis.map(f => (
-                  <option key={f.id} value={f.id}>{f.codigo_frete} - {f.cliente} ({f.origem} → {f.destino})</option>
-                ))}
-              </Select>
-            </Field>
-
-            <Field label="Veiculo (Placa)">
+            <Field label="Código da Viagem"><Input value={tripInicio.codigo_viagem} onChange={e => setTripInicio({...tripInicio, codigo_viagem: e.target.value})} /></Field>
+            <Field label="Veículo (Placa)">
               <Select value={tripInicio.veiculo_id} onChange={e => setTripInicio({...tripInicio, veiculo_id: e.target.value})}>
-                <option value="">SELECIONE O VEICULO</option>
+                <option value="">SELECIONE O VEÍCULO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
               </Select>
             </Field>
-
             <Field label="Motorista">
-              <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})}>
-                <option value="">SELECIONE O MOTORISTA</option>
-                {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              {isDriver ? (
+                <Input value={currentMotorista?.nome || currentUserEmail} disabled className="opacity-70 cursor-not-allowed"/>
+              ) : (
+                <Select value={tripInicio.motorista_id} onChange={e => setTripInicio({...tripInicio, motorista_id: e.target.value})}>
+                  <option value="">SELECIONE O MOTORISTA</option>
+                  {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                </Select>
+              )}
+            </Field>
+            <Field label="Frete Vinculado (Opcional)">
+              <Select value={tripInicio.frete_id} onChange={e => setTripInicio({...tripInicio, frete_id: e.target.value})}>
+                <option value="">NENHUM (FRETE PRÓPRIO / DIRETO)</option>
+                {fretesDisponiveis.map(f => <option key={f.id} value={f.id}>{f.codigo_frete} - {f.cliente} ({f.origem} → {f.destino})</option>)}
               </Select>
             </Field>
-
-            <Field label="Placa da Carreta (Se houver)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})}/></Field>
-            <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})}/></Field>
-            <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})}/></Field>
-            <Field label="Peso Carregado (KG)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => setTripInicio({...tripInicio, peso_carregado_kg: e.target.value})}/></Field>
-            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => setTripInicio({...tripInicio, valor_por_tonelada: e.target.value})}/></Field>
-            <Field label="Numero da Nota Fiscal (NF)"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})}/></Field>
-            <Field label="Local de Carregamento"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})}/></Field>
-            <Field label="Local de Descarga (Destino)"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})}/></Field>
-            <Field label="Data e Hora de Saida"><input type="datetime-local" value={tripInicio.data_saida} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
-            <Field label="Observacao" className="sm:col-span-2 lg:col-span-3"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})}/></Field>
-            
+            <Field label="Placa da Carreta (Se houver)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})} /></Field>
+            <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})} /></Field>
+            <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} /></Field>
+            <Field label="Peso Carregado (KG)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => setTripInicio({...tripInicio, peso_carregado_kg: e.target.value})} /></Field>
+            <Field label="Valor por Tonelada (R$) (Opcional)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => setTripInicio({...tripInicio, valor_por_tonelada: e.target.value})} /></Field>
+            <Field label="Número da Nota Fiscal (NF)"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})} /></Field>
+            <Field label="Local de Carregamento (Origem)"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})} /></Field>
+            <Field label="Local de Descarga (Destino)"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} /></Field>
+            <Field label="Data e Hora de Saída"><Input type="datetime-local" value={tripInicio.data_saida} onChange={e => setTripInicio({...tripInicio, data_saida: e.target.value})} /></Field>
+            <Field label="Observações" className="sm:col-span-2 lg:col-span-3"><Input value={tripInicio.observacao} onChange={e => setTripInicio({...tripInicio, observacao: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} />
           </div>
         </Modal>
@@ -1519,79 +1536,79 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       {modal === 'finalizar_viagem' && (
         <Modal title={`Finalizar Viagem: ${editing?.codigo_viagem}`} onClose={() => setModal('')}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="KM Final"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})}/></Field>
-            <Field label="Peso na Descarga (KG)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})}/></Field>
-            <Field label="Local de Descarga Realizado"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})}/></Field>
-            <Field label="Data e Hora Chegada"><input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="KM Final"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})} /></Field>
+            <Field label="Peso no Destino (KG)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} /></Field>
+            <Field label="Local de Descarga Efetivo"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})} /></Field>
+            <Field label="Data e Hora de Chegada"><Input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} />
           </div>
         </Modal>
       )}
 
       {modal === 'abastecimento' && (
-        <Modal title={editing ? 'Editar Abastecimento' : 'Novo Abastecimento'} onClose={() => setModal('')}>
+        <Modal title="Registrar Abastecimento" onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Viagem Associada">
               <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})}>
-                <option value="">SELECIONE A VIAGEM</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento} → {v.local_descarga || 'EM TRANSITO'})</option>)}
+                <option value="">SELECIONE A VIAGEM ATIVA</option>
+                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
               </Select>
             </Field>
-            <Field label="Posto / Local"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})}/></Field>
-            <Field label="Litros"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})}/></Field>
-            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})}/></Field>
-            <Field label="KM Atual do Veiculo"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})}/></Field>
-            <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})}/></Field>
+            <Field label="Posto de Combustível"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} /></Field>
+            <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} /></Field>
+            <Field label="Litros Abastecidos"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} /></Field>
+            <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} /></Field>
+            <Field label="KM Atual do Veículo"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} />
           </div>
         </Modal>
       )}
 
       {modal === 'despesa' && (
-        <Modal title={editing ? 'Editar Despesa' : 'Nova Despesa de Viagem'} onClose={() => setModal('')}>
+        <Modal title="Registrar Despesa de Viagem" onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Viagem Associada">
               <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})}>
-                <option value="">SELECIONE A VIAGEM</option>
-                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} ({v.local_carregamento} → {v.local_descarga || 'EM TRANSITO'})</option>)}
+                <option value="">SELECIONE A VIAGEM ATIVA</option>
+                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
               </Select>
             </Field>
             <Field label="Tipo de Despesa">
               <Select value={despesaForm.tipo} onChange={e => setDespesaForm({...despesaForm, tipo: e.target.value})}>
-                <option value="PEDAGIO">PEDAGIO</option>
-                <option value="ESTADIA">ESTADIA</option>
+                <option value="PEDAGIO">PEDÁGIO</option>
+                <option value="MANUTENCAO">MANUTENÇÃO / OFICINA</option>
                 <option value="BORRACHARIA">BORRACHARIA</option>
-                <option value="MANUTENCAO">MANUTENCAO CORRETIVA</option>
-                <option value="ALIMENTACAO">ALIMENTACAO</option>
+                <option value="ALIMENTACAO">ALIMENTAÇÃO</option>
+                <option value="ESTADIA">ESTADIA / PERNOITE</option>
                 <option value="OUTROS">OUTROS</option>
               </Select>
             </Field>
-            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})}/></Field>
-            <Field label="Data"><input type="date" value={despesaForm.data ? despesaForm.data.slice(0,10) : ''} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
-            <Field label="Descricao / Local" className="sm:col-span-2 lg:col-span-3"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})}/></Field>
+            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} /></Field>
+            <Field label="Data da Despesa"><Input type="date" value={despesaForm.data} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} /></Field>
+            <Field label="Descrição / Detalhes" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} />
           </div>
         </Modal>
       )}
 
       {modal === 'motorista' && (
-        <Modal title={editing ? `Editar Motorista: ${motoristaForm.nome}` : 'Novo Motorista'} onClose={() => setModal('')}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})}/></Field>
-            <Field label="E-mail (Login do Aplicativo)"><input type="email" value={motoristaForm.email || ''} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value.toLowerCase()})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white lowercase outline-none focus:border-blue-500/60"/></Field>
-            <Field label="Telefone / WhatsApp"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})}/></Field>
+        <Modal title={editing ? 'Editar Motorista' : 'Novo Motorista'} onClose={() => setModal('')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})} /></Field>
+            <Field label="E-mail de Acesso (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} /></Field>
+            <Field label="Telefone / WhatsApp"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})} /></Field>
+            <Field label="Veículo Fixo Vinculado">
+              <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
+                <option value="">NENHUM VEÍCULO FIXO</option>
+                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
+              </Select>
+            </Field>
             <Field label="Status">
               <Select value={motoristaForm.status} onChange={e => setMotoristaForm({...motoristaForm, status: e.target.value})}>
                 <option value="ATIVO">ATIVO</option>
                 <option value="INATIVO">INATIVO</option>
-                <option value="FERIAS">FERIAS</option>
-              </Select>
-            </Field>
-            <Field label="Veiculo Fixo Vinculado">
-              <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
-                <option value="">NENHUM VEICULO FIXO</option>
-                {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
+                <option value="FERIAS">FÉRIAS</option>
               </Select>
             </Field>
             <Buttons saving={saving} close={() => setModal('')} />
@@ -1600,17 +1617,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'veiculo' && (
-        <Modal title={editing ? `Editar Veiculo: ${veiculoForm.placa}` : 'Novo Veiculo'} onClose={() => setModal('')}>
+        <Modal title={editing ? 'Editar Veículo' : 'Novo Veículo'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Placa do Veiculo"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})}/></Field>
-            <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})}/></Field>
-            <Field label="Modelo"><Input value={veiculoForm.modelo} onChange={e => setVeiculoForm({...veiculoForm, modelo: e.target.value})}/></Field>
-            <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})}/></Field>
+            <Field label="Placa"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})} /></Field>
+            <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})} /></Field>
+            <Field label="Modelo"><Input value={veiculoForm.modelo} onChange={e => setVeiculoForm({...veiculoForm, modelo: e.target.value})} /></Field>
+            <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})} /></Field>
             <Field label="Status Operacional">
               <Select value={veiculoForm.status} onChange={e => setVeiculoForm({...veiculoForm, status: e.target.value})}>
-                <option value="DISPONIVEL">DISPONIVEL</option>
+                <option value="DISPONIVEL">DISPONÍVEL</option>
                 <option value="EM_VIAGEM">EM VIAGEM</option>
-                <option value="MANUTENCAO">EM MANUTENCAO</option>
+                <option value="MANUTENCAO">EM MANUTENÇÃO</option>
                 <option value="INATIVO">INATIVO</option>
               </Select>
             </Field>
@@ -1620,21 +1637,21 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'frete' && (
-        <Modal title={editing ? `Editar Frete: ${freteForm.codigo_frete}` : 'Cadastrar Novo Frete'} onClose={() => setModal('')}>
+        <Modal title={editing ? 'Editar Frete' : 'Novo Frete'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Codigo do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})}/></Field>
-            <Field label="Tipo de Operacao">
+            <Field label="Código do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})} /></Field>
+            <Field label="Tipo de Operação">
               <Select value={freteForm.tipo_operacao} onChange={e => setFreteForm({...freteForm, tipo_operacao: e.target.value})}>
-                <option value="FRETE_PROPRIO">FRETE PROPRIO</option>
-                <option value="AGENCIAMENTO">AGENCIAMENTO / TERCEIRO</option>
+                <option value="FRETE_PROPRIO">FRETE PRÓPRIO / DIRETO</option>
+                <option value="TERCEIRIZADO">TERCEIRIZADO</option>
               </Select>
             </Field>
-            <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})}/></Field>
-            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})}/></Field>
-            <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})}/></Field>
-            <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})}/></Field>
-            <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => setFreteForm({...freteForm, peso_previsto_kg: e.target.value})}/></Field>
-            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => setFreteForm({...freteForm, valor_por_tonelada: e.target.value})}/></Field>
+            <Field label="Cliente / Empresa"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} /></Field>
+            <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} /></Field>
+            <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} /></Field>
+            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} /></Field>
+            <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => setFreteForm({...freteForm, peso_previsto_kg: e.target.value})} /></Field>
+            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => setFreteForm({...freteForm, valor_por_tonelada: e.target.value})} /></Field>
             <Field label="Valor Total do Frete (R$)">
               <Input 
                 type="number" 
