@@ -484,9 +484,10 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         'Peso Origem (kg)': v.peso_carregado_kg ? num(v.peso_carregado_kg) : '0',
         'Peso Destino (kg)': v.peso_descarga_kg ? num(v.peso_descarga_kg) : '0',
         'Dif. Peso (kg)': (v.peso_descarga_kg && v.peso_carregado_kg) ? num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg)) : '0',
-        'Data Chegada': v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : '-',
         'KM Inicial': v.km_inicial || 0,
         'KM Final': v.km_final || 0,
+        'KM Total': (v.km_final && v.km_inicial) ? Number(v.km_final) - Number(v.km_inicial) : 0,
+        'Data Chegada': v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : '-',
         'Status': v.status
       }));
     } else if (relatorioTipo === 'fretes') {
@@ -1197,6 +1198,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               </span>
             </div>
             <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Total Percorrido</span>
+              <span className="text-yellow-400 font-bold">
+                {viagemDetalheModal.km_final && viagemDetalheModal.km_inicial 
+                  ? `${num(Number(viagemDetalheModal.km_final) - Number(viagemDetalheModal.km_inicial))} KM` 
+                  : 'N/A'}
+              </span>
+            </div>
+            <div className="bg-[#1A2030] p-3.5 rounded-xl border border-white/5">
               <span className="text-[10px] text-gray-400 uppercase font-bold block">Data e Hora Chegada</span>
               <span className="text-teal-400 font-bold">{viagemDetalheModal.data_chegada ? new Date(viagemDetalheModal.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span>
             </div>
@@ -1318,6 +1327,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   <p><strong>Peso Origem:</strong> {v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</p>
                   <p><strong>Peso Destino:</strong> {v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</p>
                   <p><strong>Diferença Peso:</strong> {(v.peso_descarga_kg && v.peso_carregado_kg) ? `${num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg))} KG` : '-'}</p>
+                  <p><strong>KM Total:</strong> <span className="text-yellow-400 font-bold">{(v.km_final && v.km_inicial) ? `${num(Number(v.km_final) - Number(v.km_inicial))} KM` : '-'}</span></p>
                   <p><strong>Data Chegada:</strong> <span className="text-teal-400 font-bold">{v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span></p>
                 </div>
                 <div className="flex items-center gap-2 pt-2 border-t border-white/5">
@@ -1341,7 +1351,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           </div>
 
           <div className="hidden sm:block">
-            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','DATA CHEGADA','STATUS','ACOES']} render={v => (
+            <Table rows={viagensFiltradas} headers={['CODIGO','VEICULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','KM TOTAL','DATA CHEGADA','STATUS','ACOES']} render={v => (
               <>
                 <td className="p-3.5 font-bold text-blue-300">{v.codigo_viagem}</td>
                 <td className="p-3.5">{v.veiculos?.placa || '-'}</td>
@@ -1352,6 +1362,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                 <td className="p-3.5 font-medium text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
                 <td className="p-3.5 font-bold text-blue-400">
                   {v.peso_descarga_kg && v.peso_carregado_kg ? `${num(Number(v.peso_descarga_kg) - Number(v.peso_carregado_kg))} KG` : '-'}
+                </td>
+                <td className="p-3.5 font-bold text-yellow-400">
+                  {v.km_final && v.km_inicial ? `${num(Number(v.km_final) - Number(v.km_inicial))} KM` : '-'}
                 </td>
                 <td className="p-3.5 font-semibold text-teal-400">
                   {v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : '-'}
@@ -1556,17 +1569,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </Field>
             <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})}/></Field>
             <Field label="Data"><input type="date" value={despesaForm.data ? despesaForm.data.slice(0,10) : ''} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
-            <Field label="Descricao / Local" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})}/></Field>
+            <Field label="Descricao / Local" className="sm:col-span-2 lg:col-span-3"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})}/></Field>
             <Buttons saving={saving} close={() => setModal('')} />
           </div>
         </Modal>
       )}
 
       {modal === 'motorista' && (
-        <Modal title={editing ? 'Editar Motorista' : 'Novo Motorista'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Motorista: ${motoristaForm.nome}` : 'Novo Motorista'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})}/></Field>
-            <Field label="E-mail de Acesso"><input type="email" value={motoristaForm.email || ''} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white uppercase outline-none focus:border-blue-500/60"/></Field>
+            <Field label="E-mail (Login do Aplicativo)"><input type="email" value={motoristaForm.email || ''} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value.toLowerCase()})} className="w-full bg-[#1A2030] border border-white/10 rounded-lg px-3.5 py-2.5 text-xs text-white lowercase outline-none focus:border-blue-500/60"/></Field>
             <Field label="Telefone / WhatsApp"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})}/></Field>
             <Field label="Status">
               <Select value={motoristaForm.status} onChange={e => setMotoristaForm({...motoristaForm, status: e.target.value})}>
@@ -1577,7 +1590,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             </Field>
             <Field label="Veiculo Fixo Vinculado">
               <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
-                <option value="">NENHUM (FROTA LIVRE)</option>
+                <option value="">NENHUM VEICULO FIXO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
               </Select>
             </Field>
@@ -1587,17 +1600,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'veiculo' && (
-        <Modal title={editing ? 'Editar Veiculo' : 'Novo Veiculo'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Veiculo: ${veiculoForm.placa}` : 'Novo Veiculo'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Placa"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})}/></Field>
+            <Field label="Placa do Veiculo"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})}/></Field>
             <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})}/></Field>
             <Field label="Modelo"><Input value={veiculoForm.modelo} onChange={e => setVeiculoForm({...veiculoForm, modelo: e.target.value})}/></Field>
             <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})}/></Field>
-            <Field label="Status">
+            <Field label="Status Operacional">
               <Select value={veiculoForm.status} onChange={e => setVeiculoForm({...veiculoForm, status: e.target.value})}>
                 <option value="DISPONIVEL">DISPONIVEL</option>
                 <option value="EM_VIAGEM">EM VIAGEM</option>
-                <option value="MANUTENCAO">MANUTENCAO</option>
+                <option value="MANUTENCAO">EM MANUTENCAO</option>
                 <option value="INATIVO">INATIVO</option>
               </Select>
             </Field>
@@ -1607,17 +1620,34 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'frete' && (
-        <Modal title={editing ? 'Editar Frete' : 'Novo Frete'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Frete: ${freteForm.codigo_frete}` : 'Cadastrar Novo Frete'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Codigo do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})}/></Field>
+            <Field label="Tipo de Operacao">
+              <Select value={freteForm.tipo_operacao} onChange={e => setFreteForm({...freteForm, tipo_operacao: e.target.value})}>
+                <option value="FRETE_PROPRIO">FRETE PROPRIO</option>
+                <option value="AGENCIAMENTO">AGENCIAMENTO / TERCEIRO</option>
+              </Select>
+            </Field>
             <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})}/></Field>
+            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})}/></Field>
             <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})}/></Field>
             <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})}/></Field>
-            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})}/></Field>
             <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => setFreteForm({...freteForm, peso_previsto_kg: e.target.value})}/></Field>
             <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => setFreteForm({...freteForm, valor_por_tonelada: e.target.value})}/></Field>
-            <Field label="Valor Total Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})}/></Field>
-            <Field label="Status">
+            <Field label="Valor Total do Frete (R$)">
+              <Input 
+                type="number" 
+                step="0.01" 
+                value={
+                  freteForm.peso_previsto_kg && freteForm.valor_por_tonelada 
+                    ? (Number(freteForm.peso_previsto_kg) / 1000) * Number(freteForm.valor_por_tonelada) 
+                    : freteForm.valor_frete
+                } 
+                onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})}
+              />
+            </Field>
+            <Field label="Status do Frete">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
                 <option value="PLANEJADO">PLANEJADO</option>
                 <option value="EM_VIAGEM">EM VIAGEM</option>
