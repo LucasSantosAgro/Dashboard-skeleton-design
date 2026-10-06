@@ -1580,7 +1580,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-4">{statusBadge(f.status)}</td>
               <td className="p-4"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
             </>
-          ))} empty="NENHUM FRETE CADASTRADO."/>
+          )} empty="NENHUM FRETE CADASTRADO."/>
         </div>
       )}
 
