@@ -18,7 +18,7 @@ const emptyTripFim = {
   km_final: '', peso_descarga_kg: '', local_descarga: '', data_chegada: '', status: 'FINALIZADO'
 };
 
-const emptyAbastecimento = { veiculo_id: '', viagem_id: '', data_hora: '', litros: '', valor_total: '', km_atual: '', posto: '', observacao: '' };
+const emptyAbastecimento = { veiculo_id: '', viagem_id: '', data_hora: '', litros: '', valor_total: '', km_atual: '', posto: '', nota_fiscal: '', observacao: '' };
 const emptyDespesa = { veiculo_id: '', viagem_id: '', tipo: 'PEDAGIO', valor: '', data: '', descricao: '' };
 const emptyMotorista = { nome: '', email: '', telefone: '', status: 'ATIVO', veiculo_id: '' };
 const emptyVeiculo = { placa: '', marca: '', modelo: '', ano: '', status: 'DISPONIVEL' };
@@ -46,6 +46,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
     return [
       ['dashboard', 'Dashboard', TrendingUp],
       ['viagens', 'Viagens', Route],
+      ['abastecimentos', 'Abastecimentos', Fuel],
+      ['despesas', 'Despesas', Receipt],
       ['veiculos', 'Veiculos', Truck],
       ['motoristas', 'Motoristas', Users],
       ['fretes', 'Fretes', FileText],
@@ -598,8 +600,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const valorTon = tripInicio.valor_por_tonelada ? Number(tripInicio.valor_por_tonelada) : 0;
         let assignedFreteId = tripInicio.frete_id ? Number(tripInicio.frete_id) : null;
 
+        const valorFreteCalc = valorTon > 0 && pesoKg > 0 ? (pesoKg / 1000) * valorTon : Number(tripInicio.valor_frete_calculado || 0);
+
         if (!assignedFreteId && (pesoKg > 0 || valorTon > 0 || tripInicio.produto)) {
-          const valorFreteCalc = valorTon > 0 && pesoKg > 0 ? (pesoKg / 1000) * valorTon : Number(tripInicio.valor_frete_calculado || 0);
           const proximoNumFrtAuto = fretes.length > 0 ? (Math.max(...fretes.map(f => parseInt(String(f.codigo_frete || '').replace(/\D/g, '') || '0'))) + 1) : 1;
           const novoFretePayload = {
             codigo_frete: `FRT - ${String(proximoNumFrtAuto).padStart(6, '0')}`,
@@ -640,9 +643,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         if(r.error) throw r.error;
 
         if (assignedFreteId && valorTon > 0 && pesoKg > 0) {
-          const valorCalculado = (pesoKg / 1000) * valorTon;
           await supabase.from('fretes').update({ 
-            valor_frete: valorCalculado,
+            valor_frete: valorFreteCalc,
             peso_previsto_kg: pesoKg,
             produto: upper(tripInicio.produto) || undefined
           }).eq('id', Number(assignedFreteId));
@@ -690,6 +692,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
         const litrosVal = Number(abastecimentoForm.litros || 0);
         const valorTotalVal = Number(abastecimentoForm.valor_total || 0);
         const precoLitro = litrosVal > 0 ? valorTotalVal / litrosVal : null;
+        
         const payload = {
           viagem_id: abastecimentoForm.viagem_id ? Number(abastecimentoForm.viagem_id) : null,
           litros: litrosVal,
@@ -1132,62 +1135,107 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
       {viagemDetalheModal && (
         <Modal title={`Detalhes da Viagem: ${viagemDetalheModal.codigo_viagem}`} onClose={() => setViagemDetalheModal(null)}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Veículo / Placa</span>
-              <span className="text-white font-black text-sm">{viagemDetalheModal.veiculo_placa}</span>
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Veículo / Placa</span>
+                <span className="text-white font-black text-sm">{viagemDetalheModal.veiculo_placa}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Motorista</span>
+                <span className="text-white font-black text-sm">{viagemDetalheModal.motorista_nome}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Produto</span>
+                <span className="text-white font-bold">{viagemDetalheModal.produto || 'NÃO INFORMADO'}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Nota Fiscal (NF)</span>
+                <span className="text-white font-bold">{viagemDetalheModal.numero_nf || 'NÃO INFORMADA'}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Carregamento</span>
+                <span className="text-white font-bold">{viagemDetalheModal.local_carregamento || 'NÃO INFORMADO'}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Descarga</span>
+                <span className="text-white font-bold">{viagemDetalheModal.local_descarga || 'EM TRÂNSITO'}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Carregado</span>
+                <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NÃO INFORMADO'}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Destino</span>
+                <span className="text-amber-400 font-bold">{viagemDetalheModal.peso_descarga_kg ? `${num(viagemDetalheModal.peso_descarga_kg)} kg` : 'NÃO INFORMADO'}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Diferença de Peso</span>
+                <span className="text-blue-400 font-bold">
+                  {viagemDetalheModal.peso_descarga_kg && viagemDetalheModal.peso_carregado_kg 
+                    ? `${num(Number(viagemDetalheModal.peso_descarga_kg) - Number(viagemDetalheModal.peso_carregado_kg))} kg` 
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Total Percorrido</span>
+                <span className="text-yellow-400 font-bold">
+                  {viagemDetalheModal.km_final && viagemDetalheModal.km_inicial 
+                    ? `${num(Number(viagemDetalheModal.km_final) - Number(viagemDetalheModal.km_inicial))} KM` 
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">Data e Hora Chegada</span>
+                <span className="text-teal-400 font-bold">{viagemDetalheModal.data_chegada ? new Date(viagemDetalheModal.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span>
+              </div>
+              <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5 sm:col-span-2">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saída</span>
+                <span className="text-white font-bold">{viagemDetalheModal.km_inicial ? `${num(viagemDetalheModal.km_inicial)} KM` : '-'} ({viagemDetalheModal.data_saida ? new Date(viagemDetalheModal.data_saida).toLocaleString('pt-BR') : 'N/A'})</span>
+              </div>
             </div>
+
+            {/* Abastecimentos da Viagem */}
             <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Motorista</span>
-              <span className="text-white font-black text-sm">{viagemDetalheModal.motorista_nome}</span>
+              <h4 className="text-xs font-bold text-emerald-400 uppercase mb-3 flex items-center gap-2"><Fuel size={14}/> Abastecimentos Vinculados</h4>
+              {abastecimentos.filter(a => Number(a.viagem_id) === Number(viagemDetalheModal.id)).length > 0 ? (
+                <div className="space-y-2">
+                  {abastecimentos.filter(a => Number(a.viagem_id) === Number(viagemDetalheModal.id)).map(a => (
+                    <div key={a.id} className="flex justify-between items-center bg-[#161B23] p-3 rounded-xl text-xs">
+                      <div>
+                        <span className="text-white font-bold">{a.posto || 'Posto N/D'}</span>
+                        <span className="text-gray-400 block text-[10px]">NF: {a.nota_fiscal || '-'} | KM: {a.km_atual || '-'}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-emerald-400 font-bold">{money(a.valor_total)}</span>
+                        <span className="text-gray-300 block text-[10px]">{num(a.litros, 2)} L</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-xs italic">Nenhum abastecimento registrado nesta viagem.</p>
+              )}
             </div>
+
+            {/* Despesas da Viagem */}
             <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Produto</span>
-              <span className="text-white font-bold">{viagemDetalheModal.produto || 'NÃO INFORMADO'}</span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Nota Fiscal (NF)</span>
-              <span className="text-white font-bold">{viagemDetalheModal.numero_nf || 'NÃO INFORMADA'}</span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Carregamento</span>
-              <span className="text-white font-bold">{viagemDetalheModal.local_carregamento || 'NÃO INFORMADO'}</span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Local Descarga</span>
-              <span className="text-white font-bold">{viagemDetalheModal.local_descarga || 'EM TRÂNSITO'}</span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Carregado</span>
-              <span className="text-emerald-400 font-bold">{viagemDetalheModal.peso_carregado_kg ? `${num(viagemDetalheModal.peso_carregado_kg)} kg` : 'NÃO INFORMADO'}</span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Peso Destino</span>
-              <span className="text-amber-400 font-bold">{viagemDetalheModal.peso_descarga_kg ? `${num(viagemDetalheModal.peso_descarga_kg)} kg` : 'NÃO INFORMADO'}</span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Diferença de Peso</span>
-              <span className="text-blue-400 font-bold">
-                {viagemDetalheModal.peso_descarga_kg && viagemDetalheModal.peso_carregado_kg 
-                  ? `${num(Number(viagemDetalheModal.peso_descarga_kg) - Number(viagemDetalheModal.peso_carregado_kg))} kg` 
-                  : 'N/A'}
-              </span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Total Percorrido</span>
-              <span className="text-yellow-400 font-bold">
-                {viagemDetalheModal.km_final && viagemDetalheModal.km_inicial 
-                  ? `${num(Number(viagemDetalheModal.km_final) - Number(viagemDetalheModal.km_inicial))} KM` 
-                  : 'N/A'}
-              </span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">Data e Hora Chegada</span>
-              <span className="text-teal-400 font-bold">{viagemDetalheModal.data_chegada ? new Date(viagemDetalheModal.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span>
-            </div>
-            <div className="bg-[#1A2030] p-4 rounded-2xl border border-white/5 sm:col-span-2">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block">KM Inicial / Saída</span>
-              <span className="text-white font-bold">{viagemDetalheModal.km_inicial ? `${num(viagemDetalheModal.km_inicial)} KM` : '-'} ({viagemDetalheModal.data_saida ? new Date(viagemDetalheModal.data_saida).toLocaleString('pt-BR') : 'N/A'})</span>
+              <h4 className="text-xs font-bold text-amber-400 uppercase mb-3 flex items-center gap-2"><Receipt size={14}/> Despesas Vinculadas</h4>
+              {despesas.filter(d => Number(d.viagem_id) === Number(viagemDetalheModal.id)).length > 0 ? (
+                <div className="space-y-2">
+                  {despesas.filter(d => Number(d.viagem_id) === Number(viagemDetalheModal.id)).map(d => (
+                    <div key={d.id} className="flex justify-between items-center bg-[#161B23] p-3 rounded-xl text-xs">
+                      <div>
+                        <span className="text-white font-bold">{d.tipo}</span>
+                        <span className="text-gray-400 block text-[10px]">{d.descricao || '-'}</span>
+                      </div>
+                      <span className="text-amber-400 font-bold">{money(d.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-xs italic">Nenhuma despesa registrada nesta viagem.</p>
+              )}
             </div>
           </div>
         </Modal>
@@ -1290,7 +1338,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
 
           <div className="block sm:hidden p-4 space-y-4">
             {viagensFiltradas.map(v => (
-              <div key={v.id} className="bg-[#1A2030] border border-white/10 rounded-3xl p-5 flex flex-col gap-3.5 shadow-xl">
+              <div key={v.id} onClick={() => setViagemDetalheModal(v)} className="bg-[#1A2030] border border-white/10 rounded-3xl p-5 flex flex-col gap-3.5 shadow-xl cursor-pointer hover:border-blue-500/50 transition-all">
                 <div className="flex justify-between items-center">
                   <span className="font-black text-blue-300 text-sm tracking-wide">{v.codigo_viagem}</span>
                   {statusBadge(v.status)}
@@ -1306,7 +1354,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
                   <p><strong>KM Total:</strong> <span className="text-yellow-400 font-extrabold">{(v.km_final && v.km_inicial) ? `${num(Number(v.km_final) - Number(v.km_inicial))} KM` : '-'}</span></p>
                   <p><strong>Data Chegada:</strong> <span className="text-teal-400 font-extrabold">{v.data_chegada ? new Date(v.data_chegada).toLocaleString('pt-BR') : 'EM ANDAMENTO'}</span></p>
                 </div>
-                <div className="flex items-center gap-2.5 pt-3 border-t border-white/5">
+                <div className="flex items-center gap-2.5 pt-3 border-t border-white/5" onClick={e => e.stopPropagation()}>
                   {v.status !== 'FINALIZADO' && (
                     <button onClick={() => open('finalizar_viagem', v)} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30">
                       <CheckCircle2 size={16}/> FINALIZAR VIAGEM
@@ -1329,11 +1377,11 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
           <div className="hidden sm:block">
             <Table rows={viagensFiltradas} headers={['CÓDIGO','VEÍCULO','MOTORISTA','PRODUTO','ORIGEM -> DESTINO','PESO ORIGEM','PESO DESTINO','DIF. PESO','KM TOTAL','DATA CHEGADA','STATUS','AÇÕES']} render={v => (
               <>
-                <td className="p-4 font-black text-blue-300">{v.codigo_viagem}</td>
+                <td className="p-4 font-black text-blue-300 cursor-pointer hover:underline" onClick={() => setViagemDetalheModal(v)}>{v.codigo_viagem}</td>
                 <td className="p-4 font-semibold">{v.veiculos?.placa || '-'}</td>
                 <td className="p-4 font-semibold">{v.motorista_nome}</td>
                 <td className="p-4 font-bold text-gray-300">{v.produto || '-'}</td>
-                <td className="p-4 font-semibold">{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRÂNSITO'}</td>
+                <td className="p-4 font-semibold cursor-pointer hover:text-blue-300" onClick={() => setViagemDetalheModal(v)}>{v.local_carregamento || '-'} → {v.local_descarga || 'EM TRÂNSITO'}</td>
                 <td className="p-4 font-bold text-emerald-400">{v.peso_carregado_kg ? `${num(v.peso_carregado_kg)} KG` : '-'}</td>
                 <td className="p-4 font-bold text-amber-400">{v.peso_descarga_kg ? `${num(v.peso_descarga_kg)} KG` : '-'}</td>
                 <td className="p-4 font-extrabold text-blue-400">
@@ -1359,6 +1407,56 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               </>
             )} empty="NENHUMA VIAGEM REGISTRADA NO PERÍODO."/>
           </div>
+        </div>
+      )}
+
+      {tab === 'abastecimentos' && (
+        <div className="bg-[#161B23] border border-white/10 rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-white/5 flex justify-between items-center">
+            <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">Controle de Abastecimentos</h2>
+            <button onClick={() => open('abastecimento')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-lg shadow-blue-600/30 transition-all">
+              <Plus size={16}/>NOVO ABASTECIMENTO
+            </button>
+          </div>
+          <Table rows={abastecimentos} headers={['DATA','POSTO','VIAGEM VINCULADA','LITROS','VALOR TOTAL','KM ATUAL','NOTA FISCAL','AÇÕES']} render={a => {
+            const viag = viagens.find(v => Number(v.id) === Number(a.viagem_id));
+            return (
+              <>
+                <td className="p-4 font-bold text-gray-300">{a.created_at ? new Date(a.created_at).toLocaleDateString('pt-BR') : '-'}</td>
+                <td className="p-4 font-black text-white">{a.posto || '-'}</td>
+                <td className="p-4 font-bold text-blue-300">{viag ? `${viag.codigo_viagem} (${viag.local_carregamento || 'ORIGEM'} → ${viag.local_descarga || 'DESTINO'})` : 'NÃO VINCULADA'}</td>
+                <td className="p-4 font-semibold text-emerald-400">{num(a.litros, 2)} L</td>
+                <td className="p-4 font-black text-emerald-400">{money(a.valor_total)}</td>
+                <td className="p-4 font-semibold text-yellow-400">{a.km_atual ? `${num(a.km_atual)} KM` : '-'}</td>
+                <td className="p-4 font-semibold text-gray-300">{a.nota_fiscal || '-'}</td>
+                <td className="p-4"><Actions edit={() => open('abastecimento', a)} del={() => del('abastecimentos', a.id, `O ABASTECIMENTO`)} /></td>
+              </>
+            );
+          }} empty="NENHUM ABASTECIMENTO REGISTRADO."/>
+        </div>
+      )}
+
+      {tab === 'despesas' && (
+        <div className="bg-[#161B23] border border-white/10 rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-white/5 flex justify-between items-center">
+            <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">Controle de Despesas de Viagem</h2>
+            <button onClick={() => open('despesa')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-lg shadow-blue-600/30 transition-all">
+              <Plus size={16}/>NOVA DESPESA
+            </button>
+          </div>
+          <Table rows={despesas} headers={['DATA','TIPO','VIAGEM VINCULADA','DESCRIÇÃO','VALOR','AÇÕES']} render={d => {
+            const viag = viagens.find(v => Number(v.id) === Number(d.viagem_id));
+            return (
+              <>
+                <td className="p-4 font-bold text-gray-300">{d.data ? new Date(d.data).toLocaleDateString('pt-BR') : (d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : '-')}</td>
+                <td className="p-4 font-black text-amber-400">{d.tipo}</td>
+                <td className="p-4 font-bold text-blue-300">{viag ? `${viag.codigo_viagem} (${viag.local_carregamento || 'ORIGEM'} → ${viag.local_descarga || 'DESTINO'})` : 'NÃO VINCULADA'}</td>
+                <td className="p-4 font-semibold text-gray-300">{d.descricao || '-'}</td>
+                <td className="p-4 font-black text-rose-400">{money(d.valor)}</td>
+                <td className="p-4"><Actions edit={() => open('despesa', d)} del={() => del('viagem_despesas', d.id, `A DESPESA`)} /></td>
+              </>
+            );
+          }} empty="NENHUMA DESPESA REGISTRADA."/>
         </div>
       )}
 
@@ -1460,8 +1558,21 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Placa da Carreta (Se houver)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})} /></Field>
             <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})} /></Field>
             <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} /></Field>
-            <Field label="Peso Carregado (KG)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => setTripInicio({...tripInicio, peso_carregado_kg: e.target.value})} /></Field>
-            <Field label="Valor por Tonelada (R$) (Opcional)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => setTripInicio({...tripInicio, valor_por_tonelada: e.target.value})} /></Field>
+            <Field label="Peso Carregado (KG)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => {
+              const peso = e.target.value;
+              const valTon = tripInicio.valor_por_tonelada;
+              const calc = (Number(peso) > 0 && Number(valTon) > 0) ? (Number(peso) / 1000) * Number(valTon) : '';
+              setTripInicio({...tripInicio, peso_carregado_kg: peso, valor_frete_calculado: calc});
+            }} /></Field>
+            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={tripInicio.valor_por_tonelada} onChange={e => {
+              const valTon = e.target.value;
+              const peso = tripInicio.peso_carregado_kg;
+              const calc = (Number(peso) > 0 && Number(valTon) > 0) ? (Number(peso) / 1000) * Number(valTon) : '';
+              setTripInicio({...tripInicio, valor_por_tonelada: valTon, valor_frete_calculado: calc});
+            }} /></Field>
+            <Field label="Valor Total Calculado (R$)">
+              <Input type="text" disabled value={tripInicio.valor_frete_calculado ? money(tripInicio.valor_frete_calculado) : (tripInicio.peso_carregado_kg && tripInicio.valor_por_tonelada ? money((Number(tripInicio.peso_carregado_kg)/1000)*Number(tripInicio.valor_por_tonelada)) : 'R$ 0,00')} className="opacity-80 font-black text-emerald-400 cursor-not-allowed"/>
+            </Field>
             <Field label="Número da Nota Fiscal (NF)"><Input value={tripInicio.numero_nf} onChange={e => setTripInicio({...tripInicio, numero_nf: e.target.value})} /></Field>
             <Field label="Local de Carregamento (Origem)"><Input value={tripInicio.local_carregamento} onChange={e => setTripInicio({...tripInicio, local_carregamento: e.target.value})} /></Field>
             <Field label="Local de Descarga (Destino)"><Input value={tripInicio.local_descarga} onChange={e => setTripInicio({...tripInicio, local_descarga: e.target.value})} /></Field>
@@ -1490,14 +1601,14 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Viagem Associada">
               <Select value={abastecimentoForm.viagem_id} onChange={e => setAbastecimentoForm({...abastecimentoForm, viagem_id: e.target.value})}>
                 <option value="">SELECIONE A VIAGEM ATIVA</option>
-                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
               </Select>
             </Field>
             <Field label="Posto de Combustível"><Input value={abastecimentoForm.posto} onChange={e => setAbastecimentoForm({...abastecimentoForm, posto: e.target.value})} /></Field>
             <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} /></Field>
             <Field label="Litros Abastecidos"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} /></Field>
             <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} /></Field>
-            <Field label="KM Atual do Veículo"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} /></Field>
+            <Field label="KM Atual"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} onSave={() => save('abastecimento')} />
           </div>
         </Modal>
@@ -1509,36 +1620,36 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Viagem Associada">
               <Select value={despesaForm.viagem_id} onChange={e => setDespesaForm({...despesaForm, viagem_id: e.target.value})}>
                 <option value="">SELECIONE A VIAGEM ATIVA</option>
-                {viagens.filter(v => v.status === 'EM_VIAGEM').map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
+                {viagens.map(v => <option key={v.id} value={v.id}>{v.codigo_viagem} - {v.veiculos?.placa} ({v.local_carregamento} → {v.local_descarga || 'EM TRÂNSITO'})</option>)}
               </Select>
             </Field>
             <Field label="Tipo de Despesa">
               <Select value={despesaForm.tipo} onChange={e => setDespesaForm({...despesaForm, tipo: e.target.value})}>
                 <option value="PEDAGIO">PEDÁGIO</option>
-                <option value="MANUTENCAO">MANUTENÇÃO / OFICINA</option>
                 <option value="BORRACHARIA">BORRACHARIA</option>
+                <option value="MANUTENCAO">MANUTENÇÃO</option>
                 <option value="ALIMENTACAO">ALIMENTAÇÃO</option>
                 <option value="ESTADIA">ESTADIA / PERNOITE</option>
                 <option value="OUTROS">OUTROS</option>
               </Select>
             </Field>
-            <Field label="Valor (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} /></Field>
+            <Field label="Valor da Despesa (R$)"><Input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm({...despesaForm, valor: e.target.value})} /></Field>
             <Field label="Data da Despesa"><Input type="date" value={despesaForm.data} onChange={e => setDespesaForm({...despesaForm, data: e.target.value})} /></Field>
-            <Field label="Descrição / Detalhes" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} /></Field>
+            <Field label="Descrição / Observação" className="sm:col-span-2"><Input value={despesaForm.descricao} onChange={e => setDespesaForm({...despesaForm, descricao: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} onSave={() => save('despesa')} />
           </div>
         </Modal>
       )}
 
       {modal === 'motorista' && (
-        <Modal title={editing ? 'Editar Motorista' : 'Novo Motorista'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Motorista: ${motoristaForm.nome}` : 'Cadastrar Novo Motorista'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Nome Completo"><Input value={motoristaForm.nome} onChange={e => setMotoristaForm({...motoristaForm, nome: e.target.value})} /></Field>
-            <Field label="E-mail de Acesso (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} /></Field>
+            <Field label="E-mail (Login)"><Input type="email" value={motoristaForm.email} onChange={e => setMotoristaForm({...motoristaForm, email: e.target.value})} className="lowercase" /></Field>
             <Field label="Telefone / WhatsApp"><Input value={motoristaForm.telefone} onChange={e => setMotoristaForm({...motoristaForm, telefone: e.target.value})} /></Field>
-            <Field label="Veículo Fixo Vinculado">
+            <Field label="Veículo Atribuído">
               <Select value={motoristaForm.veiculo_id} onChange={e => setMotoristaForm({...motoristaForm, veiculo_id: e.target.value})}>
-                <option value="">NENHUM VEÍCULO FIXO</option>
+                <option value="">NENHUM VEÍCULO ATRIBUÍDO</option>
                 {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} ({v.modelo || '-'})</option>)}
               </Select>
             </Field>
@@ -1546,7 +1657,6 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Select value={motoristaForm.status} onChange={e => setMotoristaForm({...motoristaForm, status: e.target.value})}>
                 <option value="ATIVO">ATIVO</option>
                 <option value="INATIVO">INATIVO</option>
-                <option value="FERIAS">FÉRIAS</option>
               </Select>
             </Field>
             <Buttons saving={saving} close={() => setModal('')} onSave={() => save('motorista')} />
@@ -1555,18 +1665,17 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'veiculo' && (
-        <Modal title={editing ? 'Editar Veículo' : 'Novo Veículo'} onClose={() => setModal('')}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Modal title={editing ? `Editar Veículo: ${veiculoForm.placa}` : 'Cadastrar Novo Veículo'} onClose={() => setModal('')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Placa"><Input value={veiculoForm.placa} onChange={e => setVeiculoForm({...veiculoForm, placa: e.target.value})} /></Field>
             <Field label="Marca"><Input value={veiculoForm.marca} onChange={e => setVeiculoForm({...veiculoForm, marca: e.target.value})} /></Field>
             <Field label="Modelo"><Input value={veiculoForm.modelo} onChange={e => setVeiculoForm({...veiculoForm, modelo: e.target.value})} /></Field>
             <Field label="Ano"><Input type="number" value={veiculoForm.ano} onChange={e => setVeiculoForm({...veiculoForm, ano: e.target.value})} /></Field>
-            <Field label="Status Operacional">
+            <Field label="Status">
               <Select value={veiculoForm.status} onChange={e => setVeiculoForm({...veiculoForm, status: e.target.value})}>
                 <option value="DISPONIVEL">DISPONÍVEL</option>
                 <option value="EM_VIAGEM">EM VIAGEM</option>
                 <option value="MANUTENCAO">EM MANUTENÇÃO</option>
-                <option value="INATIVO">INATIVO</option>
               </Select>
             </Field>
             <Buttons saving={saving} close={() => setModal('')} onSave={() => save('veiculo')} />
@@ -1575,39 +1684,31 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       )}
 
       {modal === 'frete' && (
-        <Modal title={editing ? 'Editar Frete' : 'Novo Frete'} onClose={() => setModal('')}>
+        <Modal title={editing ? `Editar Frete: ${freteForm.codigo_frete}` : 'Cadastrar Novo Frete'} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Código do Frete"><Input value={freteForm.codigo_frete} onChange={e => setFreteForm({...freteForm, codigo_frete: e.target.value})} /></Field>
-            <Field label="Tipo de Operação">
-              <Select value={freteForm.tipo_operacao} onChange={e => setFreteForm({...freteForm, tipo_operacao: e.target.value})}>
-                <option value="FRETE_PROPRIO">FRETE PRÓPRIO / DIRETO</option>
-                <option value="TERCEIRIZADO">TERCEIRIZADO</option>
-              </Select>
-            </Field>
-            <Field label="Cliente / Empresa"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} /></Field>
+            <Field label="Cliente"><Input value={freteForm.cliente} onChange={e => setFreteForm({...freteForm, cliente: e.target.value})} /></Field>
+            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} /></Field>
             <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} /></Field>
             <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} /></Field>
-            <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} /></Field>
-            <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => setFreteForm({...freteForm, peso_previsto_kg: e.target.value})} /></Field>
-            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => setFreteForm({...freteForm, valor_por_tonelada: e.target.value})} /></Field>
-            <Field label="Valor Total do Frete (R$)">
-              <Input 
-                type="number" 
-                step="0.01" 
-                value={
-                  freteForm.peso_previsto_kg && freteForm.valor_por_tonelada 
-                    ? (Number(freteForm.peso_previsto_kg) / 1000) * Number(freteForm.valor_por_tonelada) 
-                    : freteForm.valor_frete
-                } 
-                onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})}
-              />
-            </Field>
-            <Field label="Status do Frete">
+            <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => {
+              const peso = e.target.value;
+              const valTon = freteForm.valor_por_tonelada;
+              const calc = (Number(peso) > 0 && Number(valTon) > 0) ? (Number(peso) / 1000) * Number(valTon) : freteForm.valor_frete;
+              setFreteForm({...freteForm, peso_previsto_kg: peso, valor_frete: calc});
+            }} /></Field>
+            <Field label="Valor por Tonelada (R$)"><Input type="number" step="0.01" value={freteForm.valor_por_tonelada} onChange={e => {
+              const valTon = e.target.value;
+              const peso = freteForm.peso_previsto_kg;
+              const calc = (Number(peso) > 0 && Number(valTon) > 0) ? (Number(peso) / 1000) * Number(valTon) : freteForm.valor_frete;
+              setFreteForm({...freteForm, valor_por_tonelada: valTon, valor_frete: calc});
+            }} /></Field>
+            <Field label="Valor Total do Frete (R$)"><Input type="number" step="0.01" value={freteForm.valor_frete} onChange={e => setFreteForm({...freteForm, valor_frete: e.target.value})} /></Field>
+            <Field label="Status">
               <Select value={freteForm.status} onChange={e => setFreteForm({...freteForm, status: e.target.value})}>
                 <option value="PLANEJADO">PLANEJADO</option>
                 <option value="EM_VIAGEM">EM VIAGEM</option>
                 <option value="FINALIZADO">FINALIZADO</option>
-                <option value="CANCELADO">CANCELADO</option>
               </Select>
             </Field>
             <Buttons saving={saving} close={() => setModal('')} onSave={() => save('frete')} />
