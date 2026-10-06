@@ -37,16 +37,24 @@ function Input(p){
         e.target.value = upper(val); 
         if(p.onChange) p.onChange(e); 
       }} 
-      className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-sm sm:text-base text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}
+      className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-base text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}
     />
   );
 }
 
-function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-sm sm:text-base text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}/>}
+function Select(p){
+  return (
+    <select 
+      {...p} 
+      className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-base text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}
+    />
+  );
+}
+
 function Field({label,children,className=''}){return <div className={className}><label className="block mb-1.5 text-[11px] sm:text-xs uppercase tracking-wider font-bold text-gray-400">{label}</label>{children}</div>}
-function Modal({title,onClose,children}){return <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn"><div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#161B23] border border-white/10 rounded-3xl shadow-2xl"><div className="sticky top-0 z-20 flex justify-between items-center px-5 sm:px-6 py-4 bg-[#161B23] border-b border-white/10"><h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-white p-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"><X size={18}/></button></div><div className="p-5 sm:p-6 pb-20 sm:pb-6">{children}</div></div></div>}
+function Modal({title,onClose,children}){return <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn"><div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#161B23] border border-white/10 rounded-3xl shadow-2xl"><div className="sticky top-0 z-20 flex justify-between items-center px-5 sm:px-6 py-4 bg-[#161B23] border-b border-white/10"><h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-white p-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"><X size={18}/></button></div><div className="p-5 sm:p-6 pb-24 sm:pb-6">{children}</div></div></div>}
 function Actions({edit,del}){return <div className="flex justify-end gap-2">{edit && <button onClick={edit} className="p-2.5 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 text-blue-400 transition-colors"><Pencil size={15}/></button>}{del && <button onClick={del} className="p-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/60 text-red-400 transition-colors"><Trash2 size={15}/></button>}</div>}
-function Buttons({saving,close,onSave}){return <div className="sticky bottom-0 left-0 right-0 sm:static bg-[#161B23]/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none p-3 sm:p-0 -mx-5 -mb-5 sm:mx-0 sm:mb-0 sm:col-span-2 lg:col-span-3 flex items-center justify-end gap-3 pt-4 border-t border-white/10 sm:border-white/5 z-30 shadow-2xl sm:shadow-none"><button type="button" onClick={close} className="px-5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-white/10 hover:bg-white/5 transition-colors">CANCELAR</button><button type="button" onClick={onSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 shadow-lg shadow-blue-600/30 transition-all"><Save size={16}/>{saving?'SALVANDO...':'SALVAR'}</button></div>}
+function Buttons({saving,close,onSave}){return <div className="fixed bottom-0 left-0 right-0 sm:static bg-[#161B23]/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none p-4 sm:p-0 -mx-5 -mb-5 sm:mx-0 sm:mb-0 sm:col-span-2 lg:col-span-3 flex items-center justify-end gap-3 pt-4 border-t border-white/10 sm:border-white/5 z-30 shadow-2xl sm:shadow-none"><button type="button" onClick={close} className="px-5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-white/10 hover:bg-white/5 transition-colors">CANCELAR</button><button type="button" onClick={onSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 shadow-lg shadow-blue-600/30 transition-all"><Save size={16}/>{saving?'SALVANDO...':'SALVAR'}</button></div>}
 function Table({rows,headers,render,empty}){return <div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400 border-b border-white/5"><tr>{headers.map(h=><th key={h} className="p-4 font-bold tracking-wider">{h}</th>)}</tr></thead><tbody className="divide-y divide-white/5">{rows.map((r,i)=><tr key={r.id||i} className="hover:bg-white/[0.03] transition-colors">{render(r)}</tr>)}</tbody></table>{!rows.length&&<p className="text-center text-gray-500 py-10 text-xs">{empty}</p>}</div>}
 
 export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
@@ -280,6 +288,36 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       return true;
     });
   }, [despesas, viagens, validarFiltroData, filtroPlacaRelatorio, filtroMotoristaRelatorio]);
+
+  const abastecimentosFiltradosDriver = useMemo(() => {
+    let lista = abastecimentosFiltradosPeriodo;
+    if (isDriver && currentMotorista) {
+      const viagensDoMotoristaIds = viagens.filter(v => Number(v.motorista_id) === Number(currentMotorista.id)).map(v => Number(v.id));
+      const veiculoIdMotorista = currentMotorista.veiculo_id;
+      lista = lista.filter(a => {
+        if (a.viagem_id && viagensDoMotoristaIds.includes(Number(a.viagem_id))) return true;
+        const vObj = viagens.find(v => Number(v.id) === Number(a.viagem_id));
+        if (vObj && veiculoIdMotorista && Number(vObj.veiculo_id) === Number(veiculoIdMotorista)) return true;
+        return false;
+      });
+    }
+    return lista;
+  }, [abastecimentosFiltradosPeriodo, isDriver, currentMotorista, viagens]);
+
+  const despesasFiltradasDriver = useMemo(() => {
+    let lista = despesasFiltradasPeriodo;
+    if (isDriver && currentMotorista) {
+      const viagensDoMotoristaIds = viagens.filter(v => Number(v.motorista_id) === Number(currentMotorista.id)).map(v => Number(v.id));
+      const veiculoIdMotorista = currentMotorista.veiculo_id;
+      lista = lista.filter(d => {
+        if (d.viagem_id && viagensDoMotoristaIds.includes(Number(d.viagem_id))) return true;
+        const vObj = viagens.find(v => Number(v.id) === Number(d.viagem_id));
+        if (vObj && veiculoIdMotorista && Number(vObj.veiculo_id) === Number(veiculoIdMotorista)) return true;
+        return false;
+      });
+    }
+    return lista;
+  }, [despesasFiltradasPeriodo, isDriver, currentMotorista, viagens]);
 
   const kpisFiltrados = useMemo(() => {
     const total_viagens = viagensFiltradasPeriodo.length;
@@ -1435,7 +1473,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Plus size={16}/>NOVO ABASTECIMENTO
             </button>
           </div>
-          <Table rows={abastecimentos} headers={['DATA','POSTO','VIAGEM VINCULADA','LITROS','VALOR TOTAL','KM ATUAL','NOTA FISCAL','AÇÕES']} render={a => {
+          <Table rows={abastecimentosFiltradosDriver} headers={['DATA','POSTO','VIAGEM VINCULADA','LITROS','VALOR TOTAL','KM ATUAL','NOTA FISCAL','AÇÕES']} render={a => {
             const viag = viagens.find(v => Number(v.id) === Number(a.viagem_id));
             return (
               <>
@@ -1461,7 +1499,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <Plus size={16}/>NOVA DESPESA
             </button>
           </div>
-          <Table rows={despesas} headers={['DATA','TIPO','VIAGEM VINCULADA','DESCRIÇÃO','VALOR','AÇÕES']} render={d => {
+          <Table rows={despesasFiltradasDriver} headers={['DATA','TIPO','VIAGEM VINCULADA','DESCRIÇÃO','VALOR','AÇÕES']} render={d => {
             const viag = viagens.find(v => Number(v.id) === Number(d.viagem_id));
             return (
               <>
@@ -1542,7 +1580,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               <td className="p-4">{statusBadge(f.status)}</td>
               <td className="p-4"><Actions edit={() => open('frete', f)} del={() => del('fretes', f.id, `O FRETE ${f.codigo_frete}`)} /></td>
             </>
-          )} empty="NENHUM FRETE CADASTRADO."/>
+          ))} empty="NENHUM FRETE CADASTRADO."/>
         </div>
       )}
 
