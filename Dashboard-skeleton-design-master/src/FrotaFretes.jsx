@@ -24,12 +24,29 @@ const emptyMotorista = { nome: '', email: '', telefone: '', status: 'ATIVO', vei
 const emptyVeiculo = { placa: '', marca: '', modelo: '', ano: '', status: 'DISPONIVEL' };
 const emptyFrete = { codigo_frete: '', tipo_operacao: 'FRETE_PROPRIO', origem: '', destino: '', cliente: '', produto: '', peso_previsto_kg: '', valor_por_tonelada: '', valor_frete: '', status: 'PLANEJADO', veiculo_id: '' };
 
-function Input(p){return <input {...p} value={p.value ?? ''} onChange={e => { e.target.value = upper(e.target.value); if(p.onChange) p.onChange(e); }} className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}/>}
-function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}/>}
+function Input(p){
+  return (
+    <input 
+      {...p} 
+      value={p.value ?? ''} 
+      onChange={e => { 
+        let val = e.target.value;
+        if (p.maxLength && val.length > p.maxLength) {
+          val = val.slice(0, p.maxLength);
+        }
+        e.target.value = upper(val); 
+        if(p.onChange) p.onChange(e); 
+      }} 
+      className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-sm sm:text-base text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}
+    />
+  );
+}
+
+function Select(p){return <select {...p} className={'w-full bg-[#1A2030] border border-white/10 rounded-xl px-4 py-3 text-sm sm:text-base text-white uppercase outline-none focus:border-blue-500/60 shadow-inner '+(p.className||'')}/>}
 function Field({label,children,className=''}){return <div className={className}><label className="block mb-1.5 text-[11px] sm:text-xs uppercase tracking-wider font-bold text-gray-400">{label}</label>{children}</div>}
-function Modal({title,onClose,children}){return <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn"><div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#161B23] border border-white/10 rounded-3xl shadow-2xl"><div className="sticky top-0 z-10 flex justify-between items-center px-5 sm:px-6 py-4 bg-[#161B23] border-b border-white/10"><h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-white p-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"><X size={18}/></button></div><div className="p-5 sm:p-6">{children}</div></div></div>}
+function Modal({title,onClose,children}){return <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn"><div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#161B23] border border-white/10 rounded-3xl shadow-2xl"><div className="sticky top-0 z-20 flex justify-between items-center px-5 sm:px-6 py-4 bg-[#161B23] border-b border-white/10"><h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-white p-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"><X size={18}/></button></div><div className="p-5 sm:p-6 pb-20 sm:pb-6">{children}</div></div></div>}
 function Actions({edit,del}){return <div className="flex justify-end gap-2">{edit && <button onClick={edit} className="p-2.5 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 text-blue-400 transition-colors"><Pencil size={15}/></button>}{del && <button onClick={del} className="p-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/60 text-red-400 transition-colors"><Trash2 size={15}/></button>}</div>}
-function Buttons({saving,close,onSave}){return <div className="sm:col-span-2 lg:col-span-3 flex items-center justify-end gap-3 pt-4 border-t border-white/5"><button type="button" onClick={close} className="px-5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-white/10 hover:bg-white/5 transition-colors">CANCELAR</button><button type="button" onClick={onSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 shadow-lg shadow-blue-600/30 transition-all"><Save size={16}/>{saving?'SALVANDO...':'SALVAR'}</button></div>}
+function Buttons({saving,close,onSave}){return <div className="sticky bottom-0 left-0 right-0 sm:static bg-[#161B23]/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none p-3 sm:p-0 -mx-5 -mb-5 sm:mx-0 sm:mb-0 sm:col-span-2 lg:col-span-3 flex items-center justify-end gap-3 pt-4 border-t border-white/10 sm:border-white/5 z-30 shadow-2xl sm:shadow-none"><button type="button" onClick={close} className="px-5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-white/10 hover:bg-white/5 transition-colors">CANCELAR</button><button type="button" onClick={onSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 shadow-lg shadow-blue-600/30 transition-all"><Save size={16}/>{saving?'SALVANDO...':'SALVAR'}</button></div>}
 function Table({rows,headers,render,empty}){return <div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead className="bg-[#1A2030] text-[10px] uppercase text-gray-400 border-b border-white/5"><tr>{headers.map(h=><th key={h} className="p-4 font-bold tracking-wider">{h}</th>)}</tr></thead><tbody className="divide-y divide-white/5">{rows.map((r,i)=><tr key={r.id||i} className="hover:bg-white/[0.03] transition-colors">{render(r)}</tr>)}</tbody></table>{!rows.length&&<p className="text-center text-gray-500 py-10 text-xs">{empty}</p>}</div>}
 
 export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
@@ -471,7 +488,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       }));
     } else if (relatorioTipo === 'veiculos') {
       tituloRelatorio = 'Relatorio de Desempenho de Veiculos';
-      dadosExportacao = rankingGestorFiltrado.map(r => ({
+      dadosExportacao = rankingGestor.map(r => ({
         'Placa': r.placa,
         'Modelo': r.modelo,
         'Motorista': r.motorista,
@@ -1556,9 +1573,9 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
               </Select>
             </Field>
             <Field label="Placa da Carreta (Se houver)"><Input value={tripInicio.carreta_placa} onChange={e => setTripInicio({...tripInicio, carreta_placa: e.target.value})} /></Field>
-            <Field label="KM Inicial"><Input type="number" value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})} /></Field>
+            <Field label="KM Inicial (Max 6 Dígitos)"><Input type="number" maxLength={6} value={tripInicio.km_inicial} onChange={e => setTripInicio({...tripInicio, km_inicial: e.target.value})} /></Field>
             <Field label="Produto Transportado"><Input value={tripInicio.produto} onChange={e => setTripInicio({...tripInicio, produto: e.target.value})} /></Field>
-            <Field label="Peso Carregado (KG)"><Input type="number" value={tripInicio.peso_carregado_kg} onChange={e => {
+            <Field label="Peso Carregado (KG) (Max 5 Dígitos)"><Input type="number" maxLength={5} value={tripInicio.peso_carregado_kg} onChange={e => {
               const peso = e.target.value;
               const valTon = tripInicio.valor_por_tonelada;
               const calc = (Number(peso) > 0 && Number(valTon) > 0) ? (Number(peso) / 1000) * Number(valTon) : '';
@@ -1586,8 +1603,8 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
       {modal === 'finalizar_viagem' && (
         <Modal title={`Finalizar Viagem: ${editing?.codigo_viagem}`} onClose={() => setModal('')}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="KM Final"><Input type="number" value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})} /></Field>
-            <Field label="Peso no Destino (KG)"><Input type="number" value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} /></Field>
+            <Field label="KM Final (Max 6 Dígitos)"><Input type="number" maxLength={6} value={tripFim.km_final} onChange={e => setTripFim({...tripFim, km_final: e.target.value})} /></Field>
+            <Field label="Peso no Destino (KG) (Max 5 Dígitos)"><Input type="number" maxLength={5} value={tripFim.peso_descarga_kg} onChange={e => setTripFim({...tripFim, peso_descarga_kg: e.target.value})} /></Field>
             <Field label="Local de Descarga Efetivo"><Input value={tripFim.local_descarga} onChange={e => setTripFim({...tripFim, local_descarga: e.target.value})} /></Field>
             <Field label="Data e Hora de Chegada"><Input type="datetime-local" value={tripFim.data_chegada} onChange={e => setTripFim({...tripFim, data_chegada: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} onSave={() => save('finalizar_viagem')} />
@@ -1608,7 +1625,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Nota Fiscal (NF)"><Input value={abastecimentoForm.nota_fiscal} onChange={e => setAbastecimentoForm({...abastecimentoForm, nota_fiscal: e.target.value})} /></Field>
             <Field label="Litros Abastecidos"><Input type="number" step="0.01" value={abastecimentoForm.litros} onChange={e => setAbastecimentoForm({...abastecimentoForm, litros: e.target.value})} /></Field>
             <Field label="Valor Total (R$)"><Input type="number" step="0.01" value={abastecimentoForm.valor_total} onChange={e => setAbastecimentoForm({...abastecimentoForm, valor_total: e.target.value})} /></Field>
-            <Field label="KM Atual"><Input type="number" value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} /></Field>
+            <Field label="KM Atual (Max 6 Dígitos)"><Input type="number" maxLength={6} value={abastecimentoForm.km_atual} onChange={e => setAbastecimentoForm({...abastecimentoForm, km_atual: e.target.value})} /></Field>
             <Buttons saving={saving} close={() => setModal('')} onSave={() => save('abastecimento')} />
           </div>
         </Modal>
@@ -1691,7 +1708,7 @@ export default function FrotaFretes({userRole='gestor', currentUserEmail=''}){
             <Field label="Produto"><Input value={freteForm.produto} onChange={e => setFreteForm({...freteForm, produto: e.target.value})} /></Field>
             <Field label="Origem"><Input value={freteForm.origem} onChange={e => setFreteForm({...freteForm, origem: e.target.value})} /></Field>
             <Field label="Destino"><Input value={freteForm.destino} onChange={e => setFreteForm({...freteForm, destino: e.target.value})} /></Field>
-            <Field label="Peso Previsto (KG)"><Input type="number" value={freteForm.peso_previsto_kg} onChange={e => {
+            <Field label="Peso Previsto (KG) (Max 5 Dígitos)"><Input type="number" maxLength={5} value={freteForm.peso_previsto_kg} onChange={e => {
               const peso = e.target.value;
               const valTon = freteForm.valor_por_tonelada;
               const calc = (Number(peso) > 0 && Number(valTon) > 0) ? (Number(peso) / 1000) * Number(valTon) : freteForm.valor_frete;
