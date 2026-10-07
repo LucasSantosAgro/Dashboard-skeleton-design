@@ -286,6 +286,9 @@ export function CadastroContratos() {
             >
               <option value="Milho">Milho</option>
               <option value="Soja">Soja</option>
+              <option value="Milho ensacado">Milho ensacado</option>
+              <option value="Milho granel">Milho granel</option>
+              <option value="Quebradinho">Quebradinho</option>
             </select>
           </div>
           <div>
@@ -1068,6 +1071,7 @@ export function KanbanPatio() {
                                 <input
                                   type="number"
                                   step="10"
+                                  max="99999"
                                   placeholder="Ex: 35000"
                                   defaultValue={ordem.peso_carregado || ''}
                                   id={`peso-${ordem.id}`}
@@ -1260,9 +1264,13 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
           <input 
             type="number" 
             step="10" 
+            max="99999"
             placeholder="Ex: 35000" 
             value={pesoSaida} 
-            onChange={e => setPesoSaida(e.target.value)} 
+            onChange={e => {
+              const val = e.target.value;
+              if (val.length <= 5) setPesoSaida(val);
+            }} 
             className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
             required 
           />
@@ -1800,11 +1808,27 @@ export default function App() {
                       <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
                         <option value="Soja">Soja</option>
                         <option value="Milho">Milho</option>
+                        <option value="Milho ensacado">Milho ensacado</option>
+                        <option value="Milho granel">Milho granel</option>
+                        <option value="Quebradinho">Quebradinho</option>
                       </select>
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 font-bold uppercase">Peso de Entrada (kg)</label>
-                      <input name="peso" type="number" step="10" placeholder="Ex: 15000" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
+                      <input 
+                        name="peso" 
+                        type="number" 
+                        step="10" 
+                        max="99999"
+                        placeholder="Ex: 15000" 
+                        onInput={e => {
+                          if (e.target.value.length > 5) {
+                            e.target.value = e.target.value.slice(0, 5);
+                          }
+                        }}
+                        className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
+                        required 
+                      />
                     </div>
                     <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-3 rounded-lg transition-colors cursor-pointer shadow-md">Salvar Entrada</button>
                   </form>
