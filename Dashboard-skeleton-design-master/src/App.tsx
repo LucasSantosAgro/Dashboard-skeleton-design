@@ -1806,8 +1806,6 @@ export default function App() {
                     <div>
                       <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
                       <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
-                        <option value="Soja">Soja</option>
-                        <option value="Milho">Milho</option>
                         <option value="Milho ensacado">Milho ensacado</option>
                         <option value="Milho granel">Milho granel</option>
                         <option value="Quebradinho">Quebradinho</option>
