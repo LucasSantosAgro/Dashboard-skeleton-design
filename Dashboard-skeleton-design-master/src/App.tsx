@@ -286,9 +286,6 @@ export function CadastroContratos() {
             >
               <option value="Milho">Milho</option>
               <option value="Soja">Soja</option>
-              <option value="Milho ensacado">Milho ensacado</option>
-              <option value="Milho granel">Milho granel</option>
-              <option value="Quebradinho">Quebradinho</option>
             </select>
           </div>
           <div>
