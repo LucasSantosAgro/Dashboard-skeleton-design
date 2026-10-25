@@ -390,6 +390,7 @@ export function CadastroContratos() {
 export function KanbanPatio() {
   const [ordens, setOrdens] = useState([]);
   const [contratos, setContratos] = useState([]);
+  const [veiculosFrota, setVeiculosFrota] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [processandoId, setProcessandoId] = useState(null);
   
@@ -429,13 +430,13 @@ export function KanbanPatio() {
   }, [filtroDataInicio, filtroDataFim]);
 
   const buscarDados = useCallback(async () => {
-    const { data: contratosData, error: erroContratos } = await supabase
-      .from('contratos_embarque')
-      .select('*');
-
-    if (erroContratos) console.error('Erro ao buscar contratos:', erroContratos);
+    const { data: contratosData } = await supabase.from('contratos_embarque').select('*');
+    const { data: veiculosData } = await supabase.from('veiculos').select('id, placa');
+    
     const contratosAtuais = contratosData || [];
+    const veiculosAtuais = veiculosData || [];
     setContratos(contratosAtuais);
+    setVeiculosFrota(veiculosAtuais);
 
     let ordensDataResult = [];
     
@@ -452,14 +453,12 @@ export function KanbanPatio() {
           : (ordem.contratos_embarque || null)
       }));
     } else {
-      const { data: ordensPlanas, error: erroPlanas } = await supabase
+      const { data: ordensPlanas } = await supabase
         .from('ordens_carregamento')
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (erroPlanas) {
-        console.error('Falha crítica ao buscar ordens de carregamento:', erroPlanas);
-      } else if (ordensPlanas) {
+      if (ordensPlanas) {
         ordensDataResult = ordensPlanas.map(ordem => ({
           ...ordem,
           contratos_embarque: ordem.contrato_id 
@@ -473,11 +472,56 @@ export function KanbanPatio() {
     setCarregando(false);
   }, []);
 
+  // Lógica Automática de Geração de Frete Próprio ao Aprovar Entrada / Check-in para veículos da frota
   const atualizarStatus = async (id, novoStatus) => {
+    const ordemAlvo = ordens.find(o => o.id === id);
     const dadosUpdate = { status: novoStatus };
     
     if (novoStatus === 'em_patio') {
       dadosUpdate.data_chegada_portaria = new Date().toISOString();
+
+      // VERIFICA SE É VEÍCULO DA FROTA PRÓPRIA (Baseado na placa cadastrada em veiculos)
+      if (ordemAlvo && ordemAlvo.placa_cavalo) {
+        const placaFormatada = ordemAlvo.placa_cavalo.toUpperCase().trim();
+        const veiculoFrota = veiculosFrota.find(v => (v.placa || '').toUpperCase().trim() === placaFormatada);
+
+        if (veiculoFrota) {
+          // É frota própria! Vamos verificar se já existe frete próprio gerado para esta ordem/contrato
+          const contratoIdVinc = ordemAlvo.contrato_id || ordemAlvo.contratos_embarque?.id || null;
+          
+          if (contratoIdVinc) {
+            const { data: freteExistente } = await supabase
+              .from('fretes')
+              .select('id')
+              .eq('contrato_id', contratoIdVinc)
+              .eq('veiculo_id', veiculoFrota.id)
+              .maybeSingle();
+
+            if (!freteExistente) {
+              // GERA O FRETE PRÓPRIO AUTOMATICAMENTE COM O ID DO CONTRATO
+              const { data: ultFretes } = await supabase.from('fretes').select('codigo_frete').order('created_at', { ascending: false }).limit(1);
+              const proximoNumFrt = ultFretes && ultFretes[0] && ultFretes[0].codigo_frete ? parseInt(String(ultFretes[0].codigo_frete).replace(/\D/g, '') || '0') + 1 : 1;
+              
+              const contratoObj = contratos.find(c => c.id === contratoIdVinc);
+
+              await supabase.from('fretes').insert([{
+                codigo_frete: `FRT - ${String(proximoNumFrt).padStart(6, '0')}`,
+                tipo_operacao: 'FRETE_PROPRIO',
+                origem: 'GRASEL (EXPEDIÇÃO)',
+                destino: contratoObj?.cliente || 'DESTINO DO CONTRATO',
+                cliente: contratoObj?.cliente || 'CONTRATO INTERNO',
+                produto: contratoObj?.produto || 'GRÃOS',
+                peso_previsto_kg: contratoObj?.quantidade_disponivel || 0,
+                valor_por_tonelada: 0,
+                valor_frete: 0,
+                status: 'EM_VIAGEM',
+                veiculo_id: veiculoFrota.id,
+                contrato_id: contratoIdVinc
+              }]);
+            }
+          }
+        }
+      }
     }
 
     setOrdens((prev) =>
@@ -1068,7 +1112,6 @@ export function KanbanPatio() {
                                 <input
                                   type="number"
                                   step="10"
-                                  max="99999"
                                   placeholder="Ex: 35000"
                                   defaultValue={ordem.peso_carregado || ''}
                                   id={`peso-${ordem.id}`}
@@ -1261,13 +1304,9 @@ function PesagemItem({ p, onFinalizar, onExcluir, saldoCaixa }) {
           <input 
             type="number" 
             step="10" 
-            max="99999"
             placeholder="Ex: 35000" 
             value={pesoSaida} 
-            onChange={e => {
-              const val = e.target.value;
-              if (val.length <= 5) setPesoSaida(val);
-            }} 
+            onChange={e => setPesoSaida(e.target.value)} 
             className="w-full bg-[#1A2030] p-2 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
             required 
           />
@@ -1803,27 +1842,13 @@ export default function App() {
                     <div>
                       <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
                       <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
-                        <option value="Milho ensacado">Milho ensacado</option>
-                        <option value="Milho granel">Milho granel</option>
-                        <option value="Quebradinho">Quebradinho</option>
+                        <option value="Soja">Soja</option>
+                        <option value="Milho">Milho</option>
                       </select>
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 font-bold uppercase">Peso de Entrada (kg)</label>
-                      <input 
-                        name="peso" 
-                        type="number" 
-                        step="10" 
-                        max="99999"
-                        placeholder="Ex: 15000" 
-                        onInput={e => {
-                          if (e.target.value.length > 5) {
-                            e.target.value = e.target.value.slice(0, 5);
-                          }
-                        }}
-                        className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" 
-                        required 
-                      />
+                      <input name="peso" type="number" step="10" placeholder="Ex: 15000" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500" required />
                     </div>
                     <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs p-3 rounded-lg transition-colors cursor-pointer shadow-md">Salvar Entrada</button>
                   </form>
