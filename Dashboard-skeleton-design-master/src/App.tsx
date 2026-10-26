@@ -498,7 +498,7 @@ export function KanbanPatio() {
               .maybeSingle();
 
             if (!freteExistente) {
-              // GERA O FRETE PRÓPRIO AUTOMATICAMENTE COM O ID DO CONTRATO
+              // GERA O FRETE PRÓPRIO AUTOMATICAMENTE COM O ID DO CONTRATO E PESO DIGITADO NO PRÉ-AGENDAMENTO
               const { data: ultFretes } = await supabase.from('fretes').select('codigo_frete').order('created_at', { ascending: false }).limit(1);
               const proximoNumFrt = ultFretes && ultFretes[0] && ultFretes[0].codigo_frete ? parseInt(String(ultFretes[0].codigo_frete).replace(/\D/g, '') || '0') + 1 : 1;
               
@@ -511,11 +511,11 @@ export function KanbanPatio() {
                 destino: contratoObj?.cliente || 'DESTINO DO CONTRATO',
                 cliente: contratoObj?.cliente || 'CONTRATO INTERNO',
                 produto: contratoObj?.produto || 'GRÃOS',
-                peso_previsto_kg: contratoObj?.quantidade_disponivel || 0,
+                peso_previsto_kg: Number(ordemAlvo.peso_de_carga || ordemAlvo.peso_carregado || 0), // Puxa peso digitado no pré-agendamento
                 valor_por_tonelada: 0,
                 valor_frete: 0,
                 status: 'EM_VIAGEM',
-                veiculo_id: veiculoFrota.id,
+                veiculo_id: veiculoFrota.id, // Vincula corretamente a placa/veiculo da frota
                 contrato_id: contratoIdVinc
               }]);
             }
@@ -1842,8 +1842,9 @@ export default function App() {
                     <div>
                       <label className="text-xs text-gray-400 font-bold uppercase">Produto</label>
                       <select name="prod" className="w-full bg-[#1A2030] p-2.5 rounded-lg text-xs outline-none border border-white/10 text-white focus:border-blue-500">
-                        <option value="Soja">Soja</option>
-                        <option value="Milho">Milho</option>
+                        <option value="Milho ensacado">Milho ensacado</option>
+                        <option value="Milho granel">Milho granel</option>
+                        <option value="Quebradinho">Quebradinho</option>
                       </select>
                     </div>
                     <div>
